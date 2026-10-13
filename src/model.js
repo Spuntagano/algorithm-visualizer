@@ -1,0 +1,51 @@
+/**
+ * Helpers for reading the snapshots produced by engine/serialize.js.
+ *
+ * A snapshot "node" is a plain, immutable copy of one value:
+ *   { t: 'p',   k: 'num'|'str'|'bool'|'null'|'undef'|'sym', s: 'display text' }   primitive
+ *   { t: 'arr', id, len, items: [node], more }                  array / typed array
+ *   { t: 'obj', id, cls, entries: [[key, node]], more }         object (cls = class name, '' for plain)
+ *   { t: 'map', id, entries: [[node, node]], more }
+ *   { t: 'set', id, items: [node], more }
+ *   { t: 'ref', id }     an object already shown elsewhere in the same snapshot
+ *   { t: 'trunc', id }   nesting deeper than MAX_DEPTH
+ *   { t: 'fn', s: 'name' }
+ *
+ * A step is { line, stack: [{name, args}], vars: [{name, scope, node}], refs: [id], logs: n }.
+ * `more` counts items that were cut off by the size limits.
+ */
+
+export const isCont = n => n.t === 'arr' || n.t === 'obj' || n.t === 'map' || n.t === 'set';
+
+export const clip = s => s.length > 22 ? s.slice(0, 21) + '…' : s;
+
+export const short = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+
+export const keyOf = p => (p.k === 'str' ? JSON.parse(p.s) : p.s);
+
+export const dispOf = p => (p.k === 'str' ? keyOf(p) : p.s);
+
+/* Every expanded container in a step by id, and a resolver that follows "↪ #id" references. */
+export function stepIndex(step) {
+  const byId = new Map();
+  const index = n => {
+    if (n.t === 'arr' || n.t === 'set') { if (!byId.has(n.id)) byId.set(n.id, n); n.items.forEach(index); }
+    else if (n.t === 'obj' || n.t === 'map') {
+      if (!byId.has(n.id)) byId.set(n.id, n);
+      n.entries.forEach(([k, x]) => { if (n.t === 'map') index(k); index(x); });
+    }
+  };
+  step.vars.forEach(x => index(x.node));
+  const resolve = n => (n.t === 'ref' || n.t === 'trunc') ? (byId.get(n.id) || null) : (isCont(n) ? n : null);
+  return { byId, resolve };
+}
+
+export function markersFor(arr, vars, selfName) {
+  const m = {};
+  for (const v of vars) {
+    if (v.name === selfName || v.node.t !== 'p' || v.node.k !== 'num' || !/^\d+$/.test(v.node.s)) continue;
+    const i = +v.node.s;
+    if (i < arr.items.length) (m[i] = m[i] || []).push(v.name);
+  }
+  return m;
+}

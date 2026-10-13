@@ -1,0 +1,33 @@
+{
+  "name": "algorithm-stepper",
+  "version": "2.0.0",
+  "description": "Step through JavaScript one statement at a time and watch arrays, objects, Maps, Sets and graphs change. React edition.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "lint": "node tools/lint.mjs",
+    "test": "node --import tsx --test \"tests/**/*.test.js\" \"tests/**/*.test.jsx\"",
+    "test:browser": "node tests/browser.mjs",
+    "check": "npm run lint && npm test && npm run build"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.14",
+    "@lezer/highlight": "^1.2.5",
+    "acorn": "^8.11.3",
+    "dagre-d3-es": "^7.0.14",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "playwright": "^1.49.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

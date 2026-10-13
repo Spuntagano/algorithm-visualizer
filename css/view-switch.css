@@ -1,0 +1,8 @@
+/* Per-variable view switch */
+.vseg { display: flex; margin-top: 8px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; width: max-content; }
+.vseg button { border: 0; background: var(--surface); padding: 3px 9px; cursor: pointer; font: 500 11.5px "Instrument Sans", system-ui, sans-serif; min-height: 26px; color: var(--ink-soft); }
+.vseg button + button { border-left: 1px solid var(--line); }
+.vseg button.on { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .vseg button.on { color: #0b1020; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .vseg button.on { color: #0b1020; } }
+.vseg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

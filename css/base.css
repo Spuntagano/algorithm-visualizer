@@ -1,0 +1,15 @@
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+}
+#root { min-height: 100vh; display: flex; flex-direction: column; }
+#root > main { flex: 1 0 auto; }
+#root > header, #root > main { width: 100%; }
+button, select, input { font: inherit; color: inherit; }
+.mono, pre, textarea, .code-editor, .prim, .vname, .k, .frame, .chip, .ref, .idx { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
