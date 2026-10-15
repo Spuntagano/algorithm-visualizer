@@ -13,6 +13,7 @@
  *
  * A step is { line, stack: [{name, args}], vars: [{name, scope, node}], refs: [id], logs: n }.
  * `more` counts items that were cut off by the size limits.
+ * Arrays may have `base: 1` (Lua tables numbered from 1): views number their cells, and index-based rules count, from it.
  * Python values (engine/python/tracer.py) use the same nodes, plus the type name: `cls` on arrays, sets and maps
  * ('list', 'tuple', 'deque', 'set', 'dict'…) and `tn` on dicts shown as objects (their keys are all strings).
  */
@@ -46,8 +47,8 @@ export function markersFor(arr, vars, selfName) {
   const m = {};
   for (const v of vars) {
     if (v.name === selfName || v.node.t !== 'p' || v.node.k !== 'num' || !/^\d+$/.test(v.node.s)) continue;
-    const i = +v.node.s;
-    if (i < arr.items.length) (m[i] = m[i] || []).push(v.name);
+    const i = +v.node.s - (arr.base || 0);          // a Lua array starts at 1: i = 1 points at the first cell
+    if (i >= 0 && i < arr.items.length) (m[i] = m[i] || []).push(v.name);
   }
   return m;
 }

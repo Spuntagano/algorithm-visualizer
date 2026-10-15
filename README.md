@@ -1,6 +1,6 @@
 # Algorithm Stepper (React edition)
 
-Step through JavaScript, TypeScript or Python one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, sets and objects) change.
+Step through JavaScript, TypeScript, Lua or Python one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, sets and objects) change.
 Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`); the choice is kept per variable while you step and edit.
 
 ## TypeScript
@@ -9,6 +9,14 @@ Pick **TypeScript** in the Language menu. The types are stripped by [Sucrase](ht
 Sucrase keeps every line where it was (interfaces become blank lines; enums and constructor parameter properties stay on
 their lines), so steps, breakpoints and the current line point at the TypeScript you wrote. Types are not checked: like
 compiling with type errors allowed, only syntax errors stop a run.
+
+## Lua
+Pick **Lua** in the Language menu. Lua 5.3 runs in [Fengari](https://fengari.io) (Lua written in JavaScript), bundled into
+the worker, so it works offline. `src/engine/lua/tracer.js` records a snapshot before every line with a line hook, in the
+same format as the other tracers. Tables are shown as arrays when their keys are 1…n (numbered from 1, as in Lua: Memory
+labels, pointer tags and index-based graphs all count from 1), as objects when the keys are strings, and as maps
+otherwise; a table whose metatable is a global class gets the class's name, and a set written as a table of `true`s tags
+the nodes it contains. Note that Lua itself reports a `function … end` definition on its `end` line.
 
 ## Python
 Pick **Python** in the Language menu. Python runs in the browser too: real CPython via [Pyodide](https://pyodide.org)
@@ -67,7 +75,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 - **Limits**: 60 nodes in Graph, 50 boxes in Memory; snapshots expand 5 levels deep, 60 items / 30 entries per container.
 
 ## Structure
-- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), and `python/` for Python (the tracer, and where Pyodide is loaded from). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker for Python. `sync.js` traces JavaScript on the current thread, for tests.
+- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, and `python/` for Python (the tracer, and where Pyodide is loaded from). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker for Python. `sync.js` traces JavaScript on the current thread, for tests.
 - `src/graph/` – graph math (general graphs and the Memory view are laid out by dagre, trees and lists by a small tidy-tree layout) and **view-model builders**. They return drawable primitives (`{tag, p, text}`), so geometry is testable without a DOM.
 - `src/hooks/useStepper.js` – trace, step index, playback, re-runs.
 - `src/editor.js` – CodeMirror 6 setup: highlighting, keys, and the current/previous step lines (the step state is testable without a DOM).
@@ -76,7 +84,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 
 ## Commands
     npm install
-    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~1.1 MB; Python is downloaded on first use)
+    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~1.35 MB; Python is downloaded on first use)
     npm run dev          # watch + unminified build (shows React warnings), served on http://localhost:8000/
     npm run check        # lint + unit tests
     npm run test:browser # Playwright against the built file

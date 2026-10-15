@@ -64,7 +64,7 @@ export function Value({ node: n, prev: p, markers = null }) {
                       <div className={'cellbox' + (isLeaf(it) ? '' : ' nested') + (changed ? ' chg' : '')}>
                         <Value node={it} prev={pi} />
                       </div>
-                      <div className="idx">{i}</div>
+                      <div className="idx">{i + (n.base || 0)}</div>
                       {markers && markers[i] && <Chips names={markers[i]} />}
                     </div>
                   );

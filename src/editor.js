@@ -1,5 +1,5 @@
 /**
- * CodeMirror 6 setup for the code panel: JavaScript / TypeScript / Python highlighting, the editing keymap, the
+ * CodeMirror 6 setup for the code panel: JavaScript / TypeScript / Lua / Python highlighting, the editing keymap, the
  * current / previous step lines while stepping, and breakpoints. Colours come from the CSS variables in css/tokens.css,
  * so light and dark mode follow the rest of the page. Only the view needs a DOM; the state parts
  * (stepField, setStep) can be used and tested without one.
@@ -7,7 +7,8 @@
 import { indentLess, indentMore, defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { javascriptLanguage, typescriptLanguage } from '@codemirror/lang-javascript';
 import { pythonLanguage } from '@codemirror/lang-python';
-import { HighlightStyle, bracketMatching, indentUnit, syntaxHighlighting } from '@codemirror/language';
+import { HighlightStyle, StreamLanguage, bracketMatching, indentUnit, syntaxHighlighting } from '@codemirror/language';
+import { lua as luaMode } from '@codemirror/legacy-modes/mode/lua';
 import { Compartment, EditorState, MapMode, Prec, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
 import { Decoration, EditorView, GutterMarker, drawSelection, gutter, gutterLineClass, keymap, lineNumbers, placeholder } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
@@ -139,13 +140,14 @@ const theme = EditorView.theme({
   '.cm-bp-dot': { width: '9px', height: '9px', borderRadius: '50%', backgroundColor: 'var(--err)', display: 'block' },
 });
 
-/** @typedef {'javascript' | 'typescript' | 'python'} Lang */
-export const LANG_NAMES = { javascript: 'JavaScript', typescript: 'TypeScript', python: 'Python' };
+/** @typedef {'javascript' | 'typescript' | 'lua' | 'python'} Lang */
+export const LANG_NAMES = { javascript: 'JavaScript', typescript: 'TypeScript', lua: 'Lua', python: 'Python' };
+const luaLanguage = StreamLanguage.define(luaMode);
 
 /* Everything about the editor that depends on the language: highlighting, indentation, the hint and the label. */
 const languageConf = new Compartment();
 const languageExtensions = lang => [
-  lang === 'python' ? pythonLanguage : lang === 'typescript' ? typescriptLanguage : javascriptLanguage,
+  lang === 'python' ? pythonLanguage : lang === 'typescript' ? typescriptLanguage : lang === 'lua' ? luaLanguage : javascriptLanguage,
   indentUnit.of(lang === 'python' ? '    ' : '  '), EditorState.tabSize.of(lang === 'python' ? 4 : 2),
   placeholder(`Write or paste ${LANG_NAMES[lang]}, or pick an example above`),
   EditorView.contentAttributes.of({ 'aria-label': LANG_NAMES[lang] + ' code' }),

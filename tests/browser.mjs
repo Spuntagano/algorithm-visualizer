@@ -391,6 +391,29 @@ await replaceCode('let x: = 1;');
 await bannerMatches(/Syntax error: Unexpected token/);
 await page.selectOption('#lang', 'javascript');
 
+// 6k. Lua: traced in Fengari; tables count from 1
+await pick('Breadth-first search');
+const nLua = await runs();
+await page.selectOption('#lang', 'lua');
+await settled(nLua);
+assert.equal(await page.locator('.cm-line').first().innerText(), 'local graph = {');
+assert.match(await page.locator('.site-header p').innerText(), /^Run Lua .* tables change/);
+for (let i = 0; i < 14; i++) await page.click('#bNext');
+const gIdx = await page.locator('.var:has(button[data-vt="graph|boxes"]) .g-idx').allTextContents();
+assert.deepEqual(gIdx.slice(0, 2), ['1', '2'], 'Memory numbers a Lua table from 1 (graph.A = {"B", "C"})');
+await page.locator('button[data-vt="graph|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="graph|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^16$/ }).click();   // order[#order + 1] = cur
+await page.click('#bFirst'); await page.click('#bBpNext');
+assert.match(await stepLabel(), /· line 16$/, 'breakpoints work in Lua');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^16$/ }).click();
+await page.click('#graphHelpBtn');
+assert.match(await page.locator('#graphHelp').innerText(), /Every table in your code[\s\S]*\{A = \{"B", "C"\}/, 'the help speaks Lua');
+await page.keyboard.press('Escape');
+await replaceCode('local x = = 1');
+await bannerMatches(/Syntax error: line 1: unexpected symbol near '='/);
+await page.selectOption('#lang', 'javascript');
+
 // 7. theme: dark mode renders without errors
 await page.emulateMedia({ colorScheme: 'dark' });
 await pick('Breadth-first search');

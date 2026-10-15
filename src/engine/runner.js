@@ -14,15 +14,23 @@ const PY_START_LIMIT = 120000;    // ms to wait for Python to download and start
 // read once: the build pastes the whole worker source in at every place __WORKER_SRC__ is written
 const WORKER_SRC = typeof __WORKER_SRC__ === 'undefined' ? null : __WORKER_SRC__;
 let blobUrl = null;
+/* A tiny module worker that runs the code it is sent first: the tracer itself is too big for a data: URL (browsers cap
+   URLs at about 2 MB, which the unminified worker exceeds), so it travels as a message instead. */
+const BOOT = 'self.onmessage = e => { self.onmessage = null; (0, eval)(e.data); };';
+
 /**
  * A worker running the bundled tracer. Python's must be a module worker (Pyodide refuses classic ones), and a page
- * opened from disk (file://) cannot start a module worker from a blob: URL, so that case uses a data: URL instead.
+ * opened from disk (file://) cannot start a module worker from a blob: URL: there, a small data: URL bootstrap is
+ * started and handed the tracer's code.
  */
 function spawn(module = false) {
   if (typeof Worker === 'undefined' || !WORKER_SRC) return null;
   try {
-    if (module && typeof location !== 'undefined' && location.protocol === 'file:')
-      return new Worker('data:text/javascript;charset=utf-8,' + encodeURIComponent(WORKER_SRC), { type: 'module' });
+    if (module && typeof location !== 'undefined' && location.protocol === 'file:') {
+      const w = new Worker('data:text/javascript;charset=utf-8,' + encodeURIComponent(BOOT), { type: 'module' });
+      w.postMessage(WORKER_SRC);                     // runs first: it installs the tracer's own onmessage
+      return w;
+    }
     blobUrl = blobUrl || URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
     return new Worker(blobUrl, module ? { type: 'module' } : undefined);
   } catch { return null; }
@@ -43,7 +51,7 @@ let nextId = 1;
  * cannot start (e.g. Python cannot be downloaded).
  * @param {string} code
  * @param {AbortSignal} [signal]
- * @param {{ lang?: 'javascript' | 'typescript' | 'python', onStatus?: (s: 'loading') => void }} [opts]
+ * @param {{ lang?: 'javascript' | 'typescript' | 'lua' | 'python', onStatus?: (s: 'loading') => void }} [opts]
  */
 export function runTraceAsync(code, signal, { lang = 'javascript', onStatus } = {}) {
   if (signal && signal.aborted) return Promise.reject(aborted());
@@ -54,7 +62,7 @@ export function runTraceAsync(code, signal, { lang = 'javascript', onStatus } = 
   return lang === 'python' ? runPython(code, signal, onStatus) : runJavaScript(code, signal, lang);
 }
 
-/* JavaScript (and TypeScript, which the worker strips to JavaScript): a fresh worker per run, terminated when the run ends, times out or is replaced. */
+/* JavaScript (and TypeScript, which the worker strips to JavaScript, and Lua): a fresh worker per run, terminated when the run ends, times out or is replaced. */
 function runJavaScript(code, signal, lang = 'javascript') {
   const worker = spawn(), id = nextId++;
   if (!worker) return Promise.reject(Object.assign(new Error('This browser could not start the tracing worker.'), { plain: true }));

@@ -462,3 +462,148 @@ let cur = "B";                                     // tags node B in g1, g2
 const visited = new Set<string>(["A", "C"]);       // ∈ visited tags
 console.log("done");`
 };
+
+/** The same kind of examples in Lua (same names where there is a JavaScript twin). Lua tables count from 1. */
+export const LUA_EXAMPLES = {
+"Bubble sort": `local function bubble_sort(arr)
+  local n = #arr
+  for i = 1, n - 1 do
+    local swapped = false
+    for j = 1, n - i do
+      if arr[j] > arr[j + 1] then
+        arr[j], arr[j + 1] = arr[j + 1], arr[j]
+        swapped = true
+      end
+    end
+    if not swapped then break end
+  end
+  return arr
+end
+
+local data = {5, 2, 9, 1, 6}
+bubble_sort(data)
+print(table.concat(data, ", "))`,
+
+"Binary search": `local function binary_search(arr, target)
+  local lo, hi = 1, #arr
+  while lo <= hi do
+    local mid = (lo + hi) // 2
+    if arr[mid] == target then
+      return mid
+    elseif arr[mid] < target then
+      lo = mid + 1
+    else
+      hi = mid - 1
+    end
+  end
+  return nil
+end
+
+local sorted = {2, 5, 8, 12, 16, 23, 38, 56, 72, 91}
+local found = binary_search(sorted, 23)
+print("found at index", found)`,
+
+"Two sum (table)": `local function two_sum(nums, target)
+  local seen = {}
+  for i, x in ipairs(nums) do
+    local need = target - x
+    if seen[need] then
+      return {seen[need], i}
+    end
+    seen[x] = i
+  end
+  return nil
+end
+
+local result = two_sum({3, 8, 11, 4, 7}, 15)
+print(result[1], result[2])`,
+
+"Fibonacci with memo": `local memo = {}
+
+local function fib(n)
+  if n <= 1 then return n end
+  if memo[n] then return memo[n] end
+  memo[n] = fib(n - 1) + fib(n - 2)
+  return memo[n]
+end
+
+print(fib(6))`,
+
+"Reverse a linked list": `local function node(val, next)
+  return {val = val, next = next}
+end
+
+local list = node(1, node(2, node(3, nil)))
+
+local prev = nil
+local curr = list
+while curr ~= nil do
+  local next_node = curr.next
+  curr.next = prev
+  prev = curr
+  curr = next_node
+end
+print(prev.val)`,
+
+"Breadth-first search": `local graph = {
+  A = {"B", "C"},
+  B = {"D"},
+  C = {"D", "E"},
+  D = {"F"},
+  E = {"F"},
+  F = {},
+}
+
+local function bfs(start)
+  local visited = {[start] = true}
+  local queue = {start}
+  local order = {}
+  while #queue > 0 do
+    local cur = table.remove(queue, 1)
+    order[#order + 1] = cur
+    for _, nxt in ipairs(graph[cur]) do
+      if not visited[nxt] then
+        visited[nxt] = true
+        queue[#queue + 1] = nxt
+      end
+    end
+  end
+  return order
+end
+
+print(table.concat(bfs("A"), " "))`,
+
+"Data structures": `-- ---- Memory / Boxes: any value (tables count from 1) ----
+local nums = {5, 2, 9, 1, 6}
+local i, j = 2, 4                          -- pointer tags under nums[2] and nums[4]
+local person = {name = "Ada", tags = {"math", "code"}}
+local scores = {[1] = "gold", [3] = "bronze"}   -- keys that are not 1..n
+local shared = {n = 1}
+local pair = {shared, shared}              -- the same table twice
+
+-- ---- Graph: neighbour lists ----
+local g1 = {A = {"B", "C"}, B = {"D"}, C = {"D"}, D = {}}
+local g2 = {A = {B = 4, C = 2}, B = {D = 5}, C = {B = 1}}    -- weighted
+local adj = {{2, 3}, {4}, {4}, {}}                           -- by position, from 1
+local edges = {{1, 2}, {2, 3}, {3, 1}}
+
+-- ---- Graph: tables that point at each other ----
+local tree = {val = 1, left = {val = 2, left = {val = 4}}, right = {val = 3}}
+local linked = {val = 1, next = {val = 2, next = {val = 3}}}
+
+-- ---- Graph: data in the nodes and on the arrows ----
+local jobs = {
+  {id = "A", color = "red", next = {"B", "C"}},
+  {id = "B", color = "blue", next = {"C"}},
+  {id = "C", color = "green", next = {}},
+}
+local intervals = {
+  ["1"] = {{v = 2, start = 0, finish = 3}, {v = 3, start = 1, finish = 5}},
+  ["2"] = {{v = 4, start = 7, finish = 8}},
+  ["3"] = {{v = 4, start = 4, finish = 7}},
+}
+
+local cur = "B"                             -- tags node B in g1, g2
+local visited = {A = true, C = true}        -- a set: ∈ visited tags
+print("done")`
+};

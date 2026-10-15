@@ -55,7 +55,7 @@ export function buildVarGraph(step, name) {
     g.title = src.t === 'obj' ? (src.cls || src.tn || 'Object') : src.t === 'map' ? (src.cls || 'Map') + '(' + (src.entries.length + src.more) + ')'
       : src.t === 'set' ? (src.cls || 'Set') + '(' + (src.items.length + src.more) + ')' : (src.cls || 'Array') + '(' + src.len + ')';
     let rows;
-    if (src.t === 'arr') rows = src.items.map((x, i) => [String(i), x]);
+    if (src.t === 'arr') rows = src.items.map((x, i) => [String(i + (src.base || 0)), x]);   // base 1: a Lua table
     else if (src.t === 'set') rows = src.items.map(x => ['•', x]);
     else if (src.t === 'obj') rows = src.entries.map(([k, x]) => [clip(k), x]);
     else rows = src.entries.map(([k, x]) => [clip(k.t === 'p' ? k.s : '#' + k.id), x]);

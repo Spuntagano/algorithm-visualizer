@@ -34,7 +34,7 @@ test('App starts empty: no code, no example picked, no error', () => {
   const picker = m.match(/<select[^>]*id="example"[\s\S]*?<\/select>/)[0];
   assert.equal(count(picker, /<option value="[^"]+">/g), Object.keys(EXAMPLES).length, 'every example is offered');
   assert.doesNotMatch(m, /id="btnRun"|id="btnEdit"/, 'no Visualize / Edit code button: the code is always editable');
-  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="python"[^>]*>Python<\/option>/, 'a language picker');
+  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="lua"[^>]*>Lua<\/option><option value="python"[^>]*>Python<\/option>/, 'a language picker');
   assert.match(m, /<div class="splitter" role="separator" aria-orientation="vertical"[^>]*aria-valuenow="50"[^>]*tabindex="0"/, 'a focusable divider, half and half by default');
   assert.match(m, /<main class="grid" style="--split:50"/);
 });

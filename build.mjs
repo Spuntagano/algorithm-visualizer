@@ -24,7 +24,13 @@ const common = dev => ({
 
 export async function bundleJs({ dev = false } = {}) {
   // the tracing worker is bundled first and embedded as text; the page starts it from a Blob
-  const w = await esbuild.build({ ...common(dev), entryPoints: [path.join(ROOT, 'src/engine/worker.js')], loader: { '.py': 'text' } });
+  // Fengari (Lua) is written for Node too: its Node-only modules are never used in a worker, so they are stubbed out
+  const nodeOnly = { name: 'node-only', setup(b) {
+    b.onResolve({ filter: /^(fs|os|path|child_process|crypto|readline-sync|tmp)$/ }, () => ({ path: 'empty', namespace: 'node-only' }));
+    b.onLoad({ filter: /.*/, namespace: 'node-only' }, () => ({ contents: 'module.exports = {};', loader: 'js' }));
+  } };
+  const w = await esbuild.build({ ...common(dev), entryPoints: [path.join(ROOT, 'src/engine/worker.js')], loader: { '.py': 'text' },
+    plugins: [nodeOnly], define: { 'process.env.FENGARICONF': 'undefined' } });
   const r = await esbuild.build({
     ...common(dev), entryPoints: [path.join(ROOT, 'src/main.jsx')], jsx: 'automatic',
     define: { 'process.env.NODE_ENV': dev ? '"development"' : '"production"', __WORKER_SRC__: JSON.stringify(w.outputFiles[0].text) },

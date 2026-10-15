@@ -3,12 +3,13 @@
  * Python tracer's source) into a string that runner.js turns into a worker, so the user's code never runs on the
  * page's thread.
  *
- * Messages in:  { lang: 'javascript' | 'typescript' | 'python', code, id }
+ * Messages in:  { lang: 'javascript' | 'typescript' | 'lua' | 'python', code, id }
  * Messages out: { ready, id } when a run starts, then { trace, id } or { failure, id } (a syntax error);
  *               for Python also { loading } while Pyodide downloads, and { fatal, id } if it cannot be loaded.
  */
 import { runTrace } from './trace.js';
 import { stripTypes } from './typescript.js';
+import { runLuaTrace } from './lua/tracer.js';
 import { PYODIDE_URL } from './python/pyodide.js';
 import TRACER_PY from './python/tracer.py';
 
@@ -31,7 +32,7 @@ function loadPython() {
 async function handle({ lang, code, id }) {
   if (lang !== 'python') {
     self.postMessage({ ready: true, id });
-    try { self.postMessage({ trace: runTrace(lang === 'typescript' ? stripTypes(code) : code), id }); }
+    try { self.postMessage({ trace: lang === 'lua' ? runLuaTrace(code) : runTrace(lang === 'typescript' ? stripTypes(code) : code), id }); }
     catch (err) { self.postMessage({ failure: err && err.message ? err.message : String(err), id }); }
     return;
   }

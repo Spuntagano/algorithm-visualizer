@@ -124,8 +124,8 @@ function fromIndexed(root0, name, resolve) {
     });
     return finishSem('edges', 'prim', order.map(k => ({ key: k, label: short(k, 10), fields: [] })), edges);
   }
-  const n = root.items.length;
-  const isIndex = q => q.t === 'p' && q.k === 'num' && /^\d+$/.test(q.s) && +q.s < n;
+  const n = root.items.length, base = root0.base || 0;   // nodes are numbered from 1 in a Lua table
+  const isIndex = q => q.t === 'p' && q.k === 'num' && /^\d+$/.test(q.s) && +q.s >= base && +q.s < n + base;
   const lists = root.items.every(r => r.t === 'arr' && !r.more) ? root.items : null;
   if (!lists || !/graph|adj|neigh|tree|^g$/i.test(name)) return null;
   // a neighbour is a node number, or a tuple of plain values holding one: [1, 4], [1, 0, 3], [0, 3, 1]…
@@ -138,13 +138,13 @@ function fromIndexed(root0, name, resolve) {
   if (tuples.length && at < 0) return null;
   const edges = [];
   lists.forEach((r, i) => r.items.forEach(q => {
-    if (q.t === 'p') { edges.push({ from: String(i), to: q.s }); return; }
+    if (q.t === 'p') { edges.push({ from: String(i + base), to: q.s }); return; }
     const to = q.items[at].s, rest = q.items.filter((_, k) => k !== at);
-    if (rest.length === 1 && rest[0].k === 'num') edges.push({ from: String(i), to, weight: rest[0].s });
-    else edges.push({ from: String(i), to, attrs: rest.length ? [[null, rest.map(x => short(dispOf(x), 10)).join(', ')]] : undefined });
+    if (rest.length === 1 && rest[0].k === 'num') edges.push({ from: String(i + base), to, weight: rest[0].s });
+    else edges.push({ from: String(i + base), to, attrs: rest.length ? [[null, rest.map(x => short(dispOf(x), 10)).join(', ')]] : undefined });
   }));
   if (!edges.length) return null;
-  return finishSem('indexed', 'prim', root.items.map((_, i) => ({ key: String(i), label: String(i), fields: [] })), edges);
+  return finishSem('indexed', 'prim', root.items.map((_, i) => ({ key: String(i + base), label: String(i + base), fields: [] })), edges);
 }
 
 /* Objects that point at objects of the same shape: trees, linked lists, node-and-neighbour graphs */
@@ -209,7 +209,7 @@ function fromRefRecords(root, resolve) {
     recs = root.entries.map(([k, x]) => ({ key: root.t === 'obj' ? k : (k.t === 'p' ? String(keyOf(k)) : null), o: asObj(x) }));
     strKeys = true;
   } else if (root.t === 'arr' && !root.more && root.items.length >= 2) {
-    recs = root.items.map((x, i) => ({ key: String(i), o: asObj(x) }));
+    recs = root.items.map((x, i) => ({ key: String(i + (root.base || 0)), o: asObj(x) }));   // by position, from 1 in Lua
     if (recs.every(r => r.o)) {
       idKey = ['id', 'key', 'name'].find(k => {
         const vals = recs.map(r => primOf(r.o, k));
