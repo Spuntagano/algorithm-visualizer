@@ -2,7 +2,7 @@
  * The "Graph" view, part 2: other variables shown as tags on the nodes they point at (↑ cur) or contain
  * (∈ visited), the rows of a node's own values, and the node sizing that leaves room for both.
  */
-import { isCont, keyOf, stepIndex } from '../model.js';
+import { isCont, isText, keyOf, stepIndex } from '../model.js';
 
 const MAX_ROWS = 8;     // value rows inside one node, before "+N more"
 export const ROW_H = 15;
@@ -15,7 +15,7 @@ export function semTags(step, sem, graphName) {
     const a = tags.get(k); if (!a.some(t => t.name === nm)) a.push({ name: nm, kind });
   };
   const keyFor = n => {
-    if (prim) return n.t === 'p' && (n.k === 'str' || n.k === 'num') && sem.map.has(String(keyOf(n))) ? String(keyOf(n)) : null;
+    if (prim) return n.t === 'p' && (isText(n) || n.k === 'num') && sem.map.has(String(keyOf(n))) ? String(keyOf(n)) : null;
     return (n.t === 'ref' || n.t === 'trunc' || isCont(n)) && sem.map.has(String(n.id)) ? String(n.id) : null;
   };
   step.vars.forEach(w => {

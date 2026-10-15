@@ -29,7 +29,7 @@ export async function bundleJs({ dev = false } = {}) {
     b.onResolve({ filter: /^(fs|os|path|child_process|crypto|readline-sync|tmp)$/ }, () => ({ path: 'empty', namespace: 'node-only' }));
     b.onLoad({ filter: /.*/, namespace: 'node-only' }, () => ({ contents: 'module.exports = {};', loader: 'js' }));
   } };
-  const w = await esbuild.build({ ...common(dev), entryPoints: [path.join(ROOT, 'src/engine/worker.js')], loader: { '.py': 'text' },
+  const w = await esbuild.build({ ...common(dev), entryPoints: [path.join(ROOT, 'src/engine/worker.js')], loader: { '.py': 'text', '.rb': 'text' },
     plugins: [nodeOnly], define: { 'process.env.FENGARICONF': 'undefined' } });
   const r = await esbuild.build({
     ...common(dev), entryPoints: [path.join(ROOT, 'src/main.jsx')], jsx: 'automatic',

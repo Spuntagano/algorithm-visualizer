@@ -1,6 +1,6 @@
 # Algorithm Stepper (React edition)
 
-Step through JavaScript, TypeScript, Lua or Python one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, sets and objects) change.
+Step through JavaScript, TypeScript, Lua, Python or Ruby one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables…) change.
 Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`); the choice is kept per variable while you step and edit.
 
 ## TypeScript
@@ -26,6 +26,16 @@ JavaScript needs no download and works offline. `src/engine/python/tracer.py` re
 `sys.settrace`, in the same format as the JavaScript tracer, so Memory, Boxes, Graph, breakpoints and the timeline all work
 the same: lists, tuples and deques are arrays, dicts objects (string keys) or maps, sets sets, class instances objects
 with their class name. Switching language swaps an untouched example for its twin; code you wrote or edited is kept.
+
+## Ruby
+Pick **Ruby** in the Language menu. Ruby 3.4 runs as [ruby.wasm](https://github.com/ruby/ruby.wasm) (version pinned in
+`src/engine/ruby/ruby.js`, the same as the `@ruby/wasm-wasi` and `@ruby/3.4-wasm-wasi` devDependencies). It is
+downloaded from jsDelivr the first time Ruby is run (about 8 MB) and compiled once; every run then gets a fresh VM (a few
+hundred ms), so classes and globals never leak between runs. `src/engine/ruby/tracer.rb` records a snapshot before every
+line with a `TracePoint`: arrays are arrays, hashes objects (string or symbol keys) or maps, `Set`s sets, Structs and
+objects with instance variables objects with their class name. Symbols name graph nodes like strings do (`{ a: [:b] }`),
+methods show `self`, and the program's own `$globals` and constants are shown. A loop with no lines in its body
+(`while true; end`) is only stopped by the 3 s time limit.
 
 ## Breakpoints
 Click a line number (or press F9 on a line) to toggle a breakpoint. **Continue** (F8) jumps to the next step on a marked
@@ -75,7 +85,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 - **Limits**: 60 nodes in Graph, 50 boxes in Memory; snapshots expand 5 levels deep, 60 items / 30 entries per container.
 
 ## Structure
-- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, and `python/` for Python (the tracer, and where Pyodide is loaded from). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker for Python. `sync.js` traces JavaScript on the current thread, for tests.
+- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, `python/` for Python and `ruby/` for Ruby (each hosted one: the tracer, and where its runtime is loaded from). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker for Python and one for Ruby. `sync.js` traces JavaScript on the current thread, for tests.
 - `src/graph/` – graph math (general graphs and the Memory view are laid out by dagre, trees and lists by a small tidy-tree layout) and **view-model builders**. They return drawable primitives (`{tag, p, text}`), so geometry is testable without a DOM.
 - `src/hooks/useStepper.js` – trace, step index, playback, re-runs.
 - `src/editor.js` – CodeMirror 6 setup: highlighting, keys, and the current/previous step lines (the step state is testable without a DOM).
@@ -84,7 +94,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 
 ## Commands
     npm install
-    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~1.35 MB; Python is downloaded on first use)
+    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~1.4 MB; Python and Ruby are downloaded on first use)
     npm run dev          # watch + unminified build (shows React warnings), served on http://localhost:8000/
     npm run check        # lint + unit tests
     npm run test:browser # Playwright against the built file

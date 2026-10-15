@@ -2,7 +2,7 @@
  * The "?" next to the Variables heading: a short guide, for someone new to the app, to the three views and to every
  * shape of data the Graph view can draw. A native popover (top layer, so the panel's overflow cannot clip it; Escape
  * and an outside click close it), placed under its button. Written for the language picked in the header; every
- * example here is checked by tests (tests/components.test.jsx for JavaScript, tests/python.test.js for Python).
+ * example here is checked by tests (tests/components.test.jsx for JavaScript, tests/python.test.js, lua.test.js and ruby.test.js for the others).
  */
 import { useEffect, useRef } from 'react';
 
@@ -104,11 +104,42 @@ export const HELP = {
     arrowObject: '{to = "B", w = 4}', pair: '{from, to}', tuples: ['{2, 0, 3}', '{0, 3, 2}', '{0, 2, 3}'],
     nodeData: '{id = 1, weight = 3}', arrowData: '{to = "B", start = 0, finish = 3}', age: '{age = 1}', fruits: '{fruits = {"apple"}}',
   },
+  ruby: {
+    values: 'Every array, hash, set and object',
+    memory: 'each array, hash or object is a box',
+    containers: 'an array or Set',
+    shapes: [
+      ['A list of neighbours for each name', [
+        ['{ "A" => ["B", "C"], "B" => ["C"], "C" => [] }', 'A points to B and C, B points to C. Symbols ({ a: [:b] }) or Sets instead of arrays work too.'],
+        ['{ A: { B: 4, C: 2 }, B: { C: 1 } }', 'The same, with a number (weight) on each arrow. [["B", 4]] pairs work too.'],
+        ['{ A: [{ to: "B", start: 0, end: 3 }], B: [] }', 'Each arrow written as a hash; its other keys are written on the arrow.'],
+      ]],
+      ['Objects inside objects (hashes, Structs, or objects of your own classes)', [
+        ['{ val: 1, next: { val: 2, next: nil } }', 'A linked list.'],
+        ['{ val: 1, left: { val: 2 }, right: { val: 3 } }', 'A binary tree.'],
+        ['{ name: "a", children: [{ name: "b" }, { name: "c" }] }', 'A tree.'],
+        ['a = Node.new("A", [b, c])', 'Objects (here a Struct with name and nbrs) that list other objects: any graph.',
+          'Node = Struct.new(:name, :nbrs)\nb, c = Node.new("B", []), Node.new("C", [])\na = Node.new("A", [b, c])'],
+      ]],
+      ['Hashes that name each other', [
+        ['{ a: { next: [:b] }, b: { next: [] } }', 'By key.'],
+        ['[{ id: "test", deps: ["build"] }, { id: "build", deps: [] }]', 'By an id, key or name key.'],
+        ['[{ v: "a", out: [1] }, { v: "b", out: [] }]', 'By position in the array.'],
+      ]],
+      ['Lists of numbers (the variable\'s name decides)', [
+        ['adj = [[1, 2], [2], []]', 'The neighbours of node 0, 1, 2… The name must contain adj, graph, neigh or tree, or be g.'],
+        ['adj = [[[0, 3, 1], [1, 5, 2]], [[4, 7, 2]], []]', 'The same with arrays of values: the node is the first position where every array holds a node number (here the last). One other number is a weight; more are written on the arrow.'],
+        ['edges = [[0, 1], [1, 2]]', 'One [from, to] pair per arrow. The name must contain edge.'],
+      ]],
+    ],
+    arrowObject: '{ to: "B", w: 4 }', pair: '[from, to]', tuples: ['[1, 0, 3]', '[0, 3, 1]', '[0, 1, 3]'],
+    nodeData: '{ id: 1, weight: 3 }', arrowData: '{ to: "B", start: 0, end: 3 }', age: '{ age: 1 }', fruits: '{ fruits: ["apple"] }',
+  },
 };
 /** The JavaScript shapes (kept under their old name for the tests). */
 export const SHAPES = HELP.javascript.shapes;
 
-/** @param lang  'javascript' | 'typescript' | 'lua' | 'python': which language the guide's examples are written in (TypeScript uses JavaScript's) */
+/** @param lang  'javascript' | 'typescript' | 'lua' | 'python' | 'ruby': which language the guide's examples are written in (TypeScript uses JavaScript's) */
 export function GraphHelp({ lang = 'javascript' }) {
   const h = HELP[lang] || HELP.javascript;
   const btn = useRef(null), pop = useRef(null);

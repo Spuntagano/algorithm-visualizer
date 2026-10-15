@@ -2,7 +2,7 @@
  * Runs the tracer inside a Web Worker, so an infinite loop (which never reaches a traced statement and so never
  * hits the step limit) can be stopped instead of freezing the page.
  *   JavaScript  a fresh worker per run, terminated when the run ends or is replaced.
- *   Python      one worker that keeps Pyodide loaded between runs (loading it takes seconds); a replaced run is
+ *   Python/Ruby one worker per language that keeps its runtime loaded (loading it takes seconds); a replaced run is
  *               left to finish and ignored, and the worker is only terminated when a run exceeds TIME_LIMIT.
  * The page itself does not bundle the tracer. Where no worker can start (Node tests), a main-thread tracer can be
  * supplied with setMainThreadTracer().
@@ -51,7 +51,7 @@ let nextId = 1;
  * cannot start (e.g. Python cannot be downloaded).
  * @param {string} code
  * @param {AbortSignal} [signal]
- * @param {{ lang?: 'javascript' | 'typescript' | 'lua' | 'python', onStatus?: (s: 'loading') => void }} [opts]
+ * @param {{ lang?: 'javascript' | 'typescript' | 'lua' | 'python' | 'ruby', onStatus?: (s: 'loading') => void }} [opts]
  */
 export function runTraceAsync(code, signal, { lang = 'javascript', onStatus } = {}) {
   if (signal && signal.aborted) return Promise.reject(aborted());
@@ -59,7 +59,7 @@ export function runTraceAsync(code, signal, { lang = 'javascript', onStatus } = 
     if (mainThreadTracer) return Promise.resolve().then(() => mainThreadTracer(code, lang));
     return Promise.reject(Object.assign(new Error('This browser could not start the tracing worker.'), { plain: true }));
   }
-  return lang === 'python' ? runPython(code, signal, onStatus) : runJavaScript(code, signal, lang);
+  return HOSTED.has(lang) ? runHosted(lang, code, signal, onStatus) : runJavaScript(code, signal, lang);
 }
 
 /* JavaScript (and TypeScript, which the worker strips to JavaScript, and Lua): a fresh worker per run, terminated when the run ends, times out or is replaced. */
@@ -84,32 +84,35 @@ function runJavaScript(code, signal, lang = 'javascript') {
 }
 
 /*
- * Python: one worker keeps Pyodide loaded between runs, and runs one at a time in order. A replaced run is left to
+ * Python and Ruby: one worker per language keeps its runtime loaded between runs, and runs one at a time in order. A replaced run is left to
  * finish (stopping it would mean loading Python again) and its result is ignored, but it keeps its time limit: a run
  * that exceeds TIME_LIMIT gets the worker terminated, and the runs queued behind it are sent to a fresh one.
  */
-let py = null;                                       // { worker, runs: Map(id → run) }
-function pythonWorker(onStatus) {
-  if (py) return py;
+/** Languages whose runtime is downloaded on first use and kept loaded in a long-lived module worker. */
+const HOSTED = new Set(['python', 'ruby']);
+const hosted = {};                                   // lang → { worker, runs: Map(id → run) }
+function hostedWorker(lang, onStatus) {
+  if (hosted[lang]) return hosted[lang];
   const worker = spawn(true);
   if (!worker) return null;
-  const me = py = { worker, runs: new Map(), onStatus };
+  const me = hosted[lang] = { lang, worker, runs: new Map(), onStatus };
   worker.onmessage = e => {
     const m = e.data;
     if (m.loading) { for (const r of me.runs.values()) if (r.onStatus) r.onStatus('loading'); return; }
     const r = me.runs.get(m.id);
     if (r) r.message(m);
   };
-  worker.onerror = () => { const runs = [...me.runs.values()]; kill(me); runs.forEach(r => r.fail('Python could not be started.')); };
+  worker.onerror = () => { const runs = [...me.runs.values()]; kill(me); runs.forEach(r => r.fail(name + ' could not be started.')); };
   return me;
 }
 function kill(w) {
   w.worker.terminate();
-  if (py === w) py = null;
+  if (hosted[w.lang] === w) delete hosted[w.lang];
   for (const r of w.runs.values()) clearTimeout(r.timer);
 }
 
-function runPython(code, signal, onStatus) {
+function runHosted(lang, code, signal, onStatus) {
+  const name = lang === 'ruby' ? 'Ruby' : 'Python';
   return new Promise((resolve, reject) => {
     const run = { id: 0, timer: 0, onStatus, ignored: false };
     const settle = fn => { if (!run.ignored) { run.ignored = true; if (signal) signal.removeEventListener('abort', onAbort); fn(); } };
@@ -117,13 +120,13 @@ function runPython(code, signal, onStatus) {
     if (signal) signal.addEventListener('abort', onAbort);
     run.fail = msg => settle(() => reject(Object.assign(new Error(msg), { plain: true })));
     const send = () => {
-      const w = pythonWorker(onStatus);
+      const w = hostedWorker(lang, onStatus);
       if (!w) { run.fail('This browser could not start the tracing worker.'); return; }
       run.id = nextId++; run.w = w;
       w.runs.set(run.id, run);
       clearTimeout(run.timer);
-      run.timer = setTimeout(() => { w.runs.delete(run.id); run.fail('Python took too long to start.'); }, PY_START_LIMIT);
-      w.worker.postMessage({ lang: 'python', code, id: run.id });
+      run.timer = setTimeout(() => { w.runs.delete(run.id); run.fail(name + ' took too long to start.'); }, PY_START_LIMIT);
+      w.worker.postMessage({ lang, code, id: run.id });
     };
     run.message = m => {
       const w = run.w;
@@ -141,7 +144,7 @@ function runPython(code, signal, onStatus) {
       clearTimeout(run.timer);
       w.runs.delete(run.id);
       if (m.trace) settle(() => resolve(m.trace));
-      else if (m.fatal) { kill(w); settle(() => reject(Object.assign(new Error('Python could not be loaded (it is downloaded the first time it is used: are you offline?). ' + m.fatal), { plain: true }))); }
+      else if (m.fatal) { kill(w); settle(() => reject(Object.assign(new Error(name + ' could not be loaded (it is downloaded the first time it is used: are you offline?). ' + m.fatal), { plain: true }))); }
       else settle(() => reject(new Error(m.failure)));
     };
     run.resend = () => { if (run.ignored) return; send(); };

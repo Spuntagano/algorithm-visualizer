@@ -607,3 +607,149 @@ local cur = "B"                             -- tags node B in g1, g2
 local visited = {A = true, C = true}        -- a set: ∈ visited tags
 print("done")`
 };
+
+/** The same kind of examples in Ruby (same names where there is a JavaScript twin). */
+export const RB_EXAMPLES = {
+"Bubble sort": `def bubble_sort(arr)
+  n = arr.size
+  (n - 1).times do |i|
+    swapped = false
+    (n - 1 - i).times do |j|
+      if arr[j] > arr[j + 1]
+        arr[j], arr[j + 1] = arr[j + 1], arr[j]
+        swapped = true
+      end
+    end
+    break unless swapped
+  end
+  arr
+end
+
+data = [5, 2, 9, 1, 6]
+bubble_sort(data)
+p data`,
+
+"Binary search": `def binary_search(arr, target)
+  lo = 0
+  hi = arr.size - 1
+  while lo <= hi
+    mid = (lo + hi) / 2
+    if arr[mid] == target
+      return mid
+    elsif arr[mid] < target
+      lo = mid + 1
+    else
+      hi = mid - 1
+    end
+  end
+  nil
+end
+
+sorted = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]
+found = binary_search(sorted, 23)
+puts "found at index #{found}"`,
+
+"Two sum (Hash)": `def two_sum(nums, target)
+  seen = {}
+  nums.each_with_index do |x, i|
+    need = target - x
+    return [seen[need], i] if seen.key?(need)
+    seen[x] = i
+  end
+  nil
+end
+
+result = two_sum([3, 8, 11, 4, 7], 15)
+p result`,
+
+"Fibonacci with memo": `MEMO = {}
+
+def fib(n)
+  return n if n <= 1
+  return MEMO[n] if MEMO.key?(n)
+  MEMO[n] = fib(n - 1) + fib(n - 2)
+end
+
+puts fib(6)`,
+
+"Reverse a linked list": `Node = Struct.new(:val, :next)
+
+list = Node.new(1, Node.new(2, Node.new(3, nil)))
+
+prev = nil
+curr = list
+until curr.nil?
+  next_node = curr.next
+  curr.next = prev
+  prev = curr
+  curr = next_node
+end
+puts prev.val`,
+
+"Breadth-first search": `require "set"
+
+GRAPH = {
+  a: [:b, :c],
+  b: [:d],
+  c: [:d, :e],
+  d: [:f],
+  e: [:f],
+  f: []
+}
+
+def bfs(start)
+  visited = Set[start]
+  queue = [start]
+  order = []
+  until queue.empty?
+    cur = queue.shift
+    order << cur
+    GRAPH[cur].each do |nxt|
+      next if visited.include?(nxt)
+      visited << nxt
+      queue << nxt
+    end
+  end
+  order
+end
+
+p bfs(:a)`,
+
+"Data structures": `require "set"
+
+# ---- Memory / Boxes: any value ----
+nums = [5, 2, 9, 1, 6]
+i, j = 1, 3                               # pointer tags under nums[1] and nums[3]
+person = { name: "Ada", tags: Set["math", "code"] }
+scores = { 1 => "gold", 2 => "silver" }   # keys that are not names
+shared = { n: 1 }
+pair = [shared, shared]                   # the same object twice
+
+# ---- Graph: neighbour lists in a Hash ----
+g1 = { "A" => ["B", "C"], "B" => ["D"], "C" => ["D"], "D" => [] }
+g2 = { a: { b: 4, c: 2 }, b: { d: 5 }, c: { b: 1 } }       # weighted, symbol keys
+adj = [[1, 2], [3], [3], []]                                 # by position
+edges = [[0, 1], [1, 2], [2, 0]]
+
+# ---- Graph: objects that point at each other ----
+TreeNode = Struct.new(:val, :left, :right)
+ListNode = Struct.new(:val, :next)
+tree = TreeNode.new(1, TreeNode.new(2, TreeNode.new(4)), TreeNode.new(3))
+linked = ListNode.new(1, ListNode.new(2, ListNode.new(3)))
+
+# ---- Graph: data in the nodes and on the arrows ----
+jobs = [
+  { id: "A", color: "red", next: ["B", "C"] },
+  { id: "B", color: "blue", next: ["C"] },
+  { id: "C", color: "green", next: [] }
+]
+intervals = {
+  "0" => [{ v: 1, start: 0, end: 3 }, { v: 2, start: 1, end: 5 }],
+  "1" => [{ v: 3, start: 7, end: 8 }],
+  "2" => [{ v: 3, start: 4, end: 7 }]
+}
+
+cur = "B"                                 # tags node B in g1
+visited = Set["A", "C"]                   # ∈ visited tags
+puts "done"`
+};

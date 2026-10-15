@@ -4,7 +4,7 @@ export function Header({ examples, example, onExample, lang, langs, onLang }) {
     <header className="site-header">
       <div>
         <h1>Step through an algorithm</h1>
-        <p>Run {langs[lang]} one statement at a time and watch {lang === 'python' ? 'lists, dicts, sets and objects' : lang === 'lua' ? 'tables' : 'arrays, objects, Maps and Sets'} change.</p>
+        <p>Run {langs[lang]} one statement at a time and watch {lang === 'python' ? 'lists, dicts, sets and objects' : lang === 'lua' ? 'tables' : lang === 'ruby' ? 'arrays, hashes, sets and objects' : 'arrays, objects, Maps and Sets'} change.</p>
       </div>
       <div className="actions">
         <label className="sel">Language

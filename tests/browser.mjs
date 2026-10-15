@@ -37,6 +37,13 @@ await page.context().route(/^https:\/\/cdn\.jsdelivr\.net\/pyodide\/v[^/]+\/full
   if (!fs.existsSync(file)) return r.abort();
   return r.fulfill({ status: 200, body: fs.readFileSync(file), headers: { 'content-type': PY_TYPES[path.extname(file)] || 'application/octet-stream', 'access-control-allow-origin': '*' } });
 });
+// Ruby: the page downloads ruby.wasm and its glue from the CDN; serve the same files from node_modules/@ruby instead
+await page.context().route(/^https:\/\/cdn\.jsdelivr\.net\/npm\/@ruby\//, r => {
+  const [, pkg, rest] = new URL(r.request().url()).pathname.match(/^\/npm\/@ruby\/([^@]+)@[^/]+\/(.*)$/) || [];
+  const file = pkg && path.join(ROOT, 'node_modules', '@ruby', pkg, rest);
+  if (!file || !fs.existsSync(file)) return r.abort();
+  return r.fulfill({ status: 200, body: fs.readFileSync(file), headers: { 'content-type': PY_TYPES[path.extname(file)] || 'application/octet-stream', 'access-control-allow-origin': '*' } });
+});
 const snap = async name => { if (shots) await page.screenshot({ path: path.join(shots, name + '.png') }); };
 const stepLabel = () => page.locator('#stepLabel').innerText();
 /** Pick an example and wait until ITS run is shown (the previous example's state panel is still there meanwhile). */
@@ -412,6 +419,46 @@ assert.match(await page.locator('#graphHelp').innerText(), /Every table in your 
 await page.keyboard.press('Escape');
 await replaceCode('local x = = 1');
 await bannerMatches(/Syntax error: line 1: unexpected symbol near '='/);
+await page.selectOption('#lang', 'javascript');
+
+// 6l. Ruby: traced by ruby.wasm (here served from node_modules/@ruby)
+await pick('Breadth-first search');
+await page.evaluate(() => {                         // remember whether the "Loading Ruby" banner was shown
+  window.__sawLoading = false;
+  new MutationObserver(() => { if (/Loading Ruby/.test(document.querySelector('#banner')?.textContent || '')) window.__sawLoading = true; })
+    .observe(document.body, { subtree: true, childList: true, characterData: true });
+});
+const nRb = await runs();
+await page.selectOption('#lang', 'ruby');
+await page.waitForFunction(k => +document.querySelector('.state-panel').dataset.run > k && !document.querySelector('.state-panel.stale'), nRb, { timeout: 60000 });
+assert.ok(await page.evaluate(() => window.__sawLoading), 'the first Ruby run says Ruby is loading');
+assert.equal(await page.locator('.cm-line').first().innerText(), 'require "set"', 'the Ruby version of the example');
+assert.match(await page.locator('.site-header p').innerText(), /^Run Ruby .* arrays, hashes, sets and objects change/);
+assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Ruby code$/);
+for (let i = 0; i < 14; i++) await page.click('#bNext');
+await page.locator('button[data-vt="GRAPH|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="GRAPH|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/, 'symbols name the nodes');
+await snap('07-ruby');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^18$/ }).click();   // order << cur
+await page.click('#bFirst'); await page.click('#bBpNext');
+assert.match(await stepLabel(), /· line 18$/, 'breakpoints work in Ruby');
+assert.equal(await page.locator('.cm-line.cm-step-cur').innerText(), '    order << cur');
+assert.match(await page.locator('#stack .frame.top').innerText(), /^bfs\(start=:a\)$/, 'the call stack shows the method and its arguments');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^18$/ }).click();
+await page.click('#graphHelpBtn');
+assert.match(await page.locator('#graphHelp').innerText(), /Every array, hash, set and object[\s\S]*\{ val: 1, next: \{ val: 2, next: nil \} \}/, 'the help speaks Ruby');
+await page.keyboard.press('Escape');
+await replaceCode('x = = 1');
+await bannerMatches(/Syntax error: line 1: /);
+await typeCode('i = 0\nloop { i += 1 }');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /Trace stopped after 3000 steps/, 'a runaway Ruby loop is stopped');
+await replaceCode('while true; end');                 // no line events at all: only the time limit stops it
+await bannerMatches(/Stopped after 3 seconds/);
+await edit(() => replaceCode('x = 1\ny = x / 0'),    // the stopped worker is replaced, so Ruby starts again
+  n => page.waitForFunction(k => +document.querySelector('.state-panel').dataset.run > k && !document.querySelector('.state-panel.stale'), n, { timeout: 60000 }));
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /ZeroDivisionError: divided by 0/);
 await page.selectOption('#lang', 'javascript');
 
 // 7. theme: dark mode renders without errors

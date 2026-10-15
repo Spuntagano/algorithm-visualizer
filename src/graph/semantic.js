@@ -5,7 +5,7 @@
  *   records  objects that point at similar objects: trees, linked lists, node-and-neighbour graphs
  *   refs     records that name each other by key, index or id: { a: {next: ["b"]} }, [{out: [1, 2]}]
  */
-import { dispOf, keyOf, short, stepIndex } from '../model.js';
+import { dispOf, isText, keyOf, short, stepIndex } from '../model.js';
 
 const SEM_MAX = 60;
 
@@ -73,7 +73,7 @@ function fromKeyed(root, resolve) {
   const ents = root.entries.map(([k, x]) => [root.t === 'obj' ? k : (k.t === 'p' ? keyOf(k) : null), x]);
   if (ents.length < 2 || ents.some(e => e[0] == null) || root.more) return null;
   const keys = ents.map(e => String(e[0])), keySet = new Set(keys), edges = [];
-  const isName = p => p.t === 'p' && (p.k === 'str' || p.k === 'num');
+  const isName = p => p.t === 'p' && (isText(p) || p.k === 'num');
   for (const [k, x] of ents) {
     const from = String(k), add = (to, w, attrs) => edges.push({ from, to: String(to), weight: w, attrs });
     if (x.t === 'arr' || x.t === 'set') {
@@ -213,17 +213,17 @@ function fromRefRecords(root, resolve) {
     if (recs.every(r => r.o)) {
       idKey = ['id', 'key', 'name'].find(k => {
         const vals = recs.map(r => primOf(r.o, k));
-        return vals.every(p => p && (p.k === 'str' || p.k === 'num')) && new Set(vals.map(p => p.s)).size === vals.length;
+        return vals.every(p => p && (isText(p) || p.k === 'num')) && new Set(vals.map(p => p.s)).size === vals.length;
       }) || null;
       if (idKey) recs.forEach(r => { r.key = String(keyOf(primOf(r.o, idKey))); });
-      strKeys = !!idKey && recs.some(r => primOf(r.o, idKey).k === 'str');
+      strKeys = !!idKey && recs.some(r => isText(primOf(r.o, idKey)));
     }
   } else return null;
   if (recs.some(r => r.key == null || !r.o || r.o.more)) return null;
 
   const keys = new Set(recs.map(r => r.key)), edges = [];
   const target = (field, p, named = false) => {      // the node a primitive names, or null
-    if (p.t !== 'p' || (p.k === 'str' ? !strKeys : p.k !== 'num' || !(named || LINK_NAME.test(field)))) return null;
+    if (p.t !== 'p' || (isText(p) ? !strKeys : p.k !== 'num' || !(named || LINK_NAME.test(field)))) return null;
     const k = String(keyOf(p));
     return keys.has(k) ? k : null;
   };

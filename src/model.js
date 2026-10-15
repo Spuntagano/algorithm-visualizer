@@ -24,7 +24,11 @@ export const clip = s => s.length > 22 ? s.slice(0, 21) + '…' : s;
 
 export const short = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
-export const keyOf = p => (p.k === 'str' ? JSON.parse(p.s) : p.s);
+/** The name a primitive gives a node: a string's text, a Ruby symbol without its colon (:b names node b), else as shown. */
+export const keyOf = p => (p.k === 'str' ? JSON.parse(p.s) : p.k === 'sym' && p.s.startsWith(':') ? p.s.slice(1) : p.s);
+
+/** A string, or a Ruby symbol (:b names node "b"): either can name a node. */
+export const isText = p => p.k === 'str' || (p.k === 'sym' && p.s.startsWith(':'));
 
 export const dispOf = p => (p.k === 'str' ? keyOf(p) : p.s);
 

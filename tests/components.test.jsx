@@ -34,7 +34,7 @@ test('App starts empty: no code, no example picked, no error', () => {
   const picker = m.match(/<select[^>]*id="example"[\s\S]*?<\/select>/)[0];
   assert.equal(count(picker, /<option value="[^"]+">/g), Object.keys(EXAMPLES).length, 'every example is offered');
   assert.doesNotMatch(m, /id="btnRun"|id="btnEdit"/, 'no Visualize / Edit code button: the code is always editable');
-  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="lua"[^>]*>Lua<\/option><option value="python"[^>]*>Python<\/option>/, 'a language picker');
+  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="lua"[^>]*>Lua<\/option><option value="python"[^>]*>Python<\/option><option value="ruby"[^>]*>Ruby<\/option><\/select>/, 'a language picker');
   assert.match(m, /<div class="splitter" role="separator" aria-orientation="vertical"[^>]*aria-valuenow="50"[^>]*tabindex="0"/, 'a focusable divider, half and half by default');
   assert.match(m, /<main class="grid" style="--split:50"/);
 });
@@ -50,6 +50,10 @@ test('the graph help is written for the language that is picked', () => {
   assert.match(py, /\(from, to\)/); assert.match(py, /\{&quot;age&quot;: 1\}/);
   for (const jsOnly of [/next: null/, /\{ age: 1 \}/, /const adj/, /an array or Set/]) assert.doesNotMatch(py, jsOnly, 'no JavaScript in the Python guide: ' + jsOnly);
   for (const pyOnly of [/None/, /&quot;age&quot;/, /a list or set/]) assert.doesNotMatch(js, pyOnly, 'no Python in the JavaScript guide: ' + pyOnly);
+  const rb = help('ruby');
+  assert.match(rb, /Every array, hash, set and object/); assert.match(rb, /\{ val: 1, next: \{ val: 2, next: nil \} \}/, 'Ruby syntax: nil');
+  assert.match(rb, /Node\.new\(&quot;A&quot;, \[b, c\]\)/); assert.match(rb, /\{ a: \{ next: \[:b\] \}/, 'symbols');
+  for (const other of [/None/, /next: null/, /const adj/]) assert.doesNotMatch(rb, other, 'no other language in the Ruby guide: ' + other);
 });
 
 test('StatePanel: the ? next to Variables opens the graph help', () => {
