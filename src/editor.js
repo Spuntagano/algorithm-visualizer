@@ -7,8 +7,8 @@
 import { indentLess, indentMore, defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { javascriptLanguage } from '@codemirror/lang-javascript';
 import { HighlightStyle, bracketMatching, indentUnit, syntaxHighlighting } from '@codemirror/language';
-import { Compartment, EditorState, Prec, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
-import { Decoration, EditorView, GutterMarker, drawSelection, gutterLineClass, keymap, lineNumbers } from '@codemirror/view';
+import { EditorState, Prec, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { Decoration, EditorView, GutterMarker, drawSelection, gutterLineClass, keymap, lineNumbers, placeholder } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 
 /** Sets the step lines (1-based; 0 = none). */
@@ -65,18 +65,21 @@ export const highlight = HighlightStyle.define([
 
 const theme = EditorView.theme({
   '&': { color: 'var(--ink)', backgroundColor: 'var(--surface)', fontSize: '13.5px', height: '100%' },
-  '&.cm-focused': { outline: 'none' },                       // the panel shows focus: see css/layout.css
+  '&.cm-focused': { outline: 'none' },                       // no focus border: the blinking cursor shows it
   '.cm-scroller': { fontFamily: 'inherit', lineHeight: '1.65', overflow: 'auto' },
   '.cm-content': { padding: '8px 0', caretColor: 'var(--ink)' },
   '.cm-line': { padding: '0 16px 0 4px', borderLeft: '3px solid transparent' },
   '.cm-gutters': { backgroundColor: 'var(--surface)', color: 'var(--muted)', border: 'none' },
   '.cm-lineNumbers .cm-gutterElement': { minWidth: '34px', padding: '0 8px 0 4px' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--ink)' },
-  '.cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': { backgroundColor: 'var(--accent-tint)' },
+  // the selection is drawn BELOW the text, so the step lines on top of it are translucent (css/tokens.css)
+  '.cm-selectionBackground': { backgroundColor: 'var(--code-sel-blur)' },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': { backgroundColor: 'var(--code-sel)' },
   '.cm-matchingBracket, &.cm-focused .cm-matchingBracket': { backgroundColor: 'var(--surface-2)', outline: '1px solid var(--line)' },
-  '.cm-line.cm-step-prev': { backgroundColor: 'var(--surface-2)' },
-  '.cm-line.cm-step-cur': { backgroundColor: 'var(--accent-tint)', borderLeftColor: 'var(--accent)' },
+  '.cm-line.cm-step-prev': { backgroundColor: 'var(--code-prev)' },
+  '.cm-line.cm-step-cur': { backgroundColor: 'var(--code-cur)', borderLeftColor: 'var(--accent)' },
   '.cm-gutterElement.cm-step-cur': { color: 'var(--accent)', fontWeight: '700' },
+  '.cm-placeholder': { color: 'var(--muted)', fontStyle: 'italic' },
 });
 
 /** Tab inserts two spaces at the cursor (or indents a selection); Shift-Tab outdents. */
@@ -86,22 +89,19 @@ const tabKeys = [
 ];
 
 /**
- * Everything the editor needs. `editable` is a Compartment the caller reconfigures between modes.
- * @param {{ onChange: (code: string) => void, onRun: () => void, editable: Compartment }} o
+ * Everything the editor needs.
+ * @param {{ onChange: (code: string) => void, onRun: () => void }} o
  */
-export function editorExtensions({ onChange, onRun, editable }) {
+export function editorExtensions({ onChange, onRun }) {
   return [
     lineNumbers(), history(), drawSelection(), bracketMatching(), indentUnit.of('  '), EditorState.tabSize.of(2),
     javascriptLanguage, syntaxHighlighting(highlight), theme, stepField,
+    placeholder('Write or paste JavaScript, or pick an example above'),
     Prec.highest(keymap.of([{ key: 'Mod-Enter', run: () => { onRun(); return true; } }])),
     keymap.of([...tabKeys, ...defaultKeymap, ...historyKeymap]),
-    editable.of(modeExtensions(true)),
     EditorView.contentAttributes.of({ id: 'editor', 'aria-label': 'JavaScript code', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }),
     EditorView.updateListener.of(u => { if (u.docChanged) onChange(u.state.doc.toString()); }),
   ];
 }
 
-/** Editable while editing; read-only while stepping. */
-export const modeExtensions = editing => [EditorView.editable.of(editing), EditorState.readOnly.of(!editing)];
-
-export { Compartment, EditorState, EditorView };
+export { EditorState, EditorView };

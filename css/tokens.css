@@ -20,6 +20,14 @@
   --code-str: #1a7a47;
   --code-num: #b5560a;
   --code-com: #7b8794;
+  /* editor line and selection backgrounds: translucent, because the selection is drawn beneath the lines */
+  --code-cur: color-mix(in srgb, var(--accent) 13%, transparent);
+  --code-prev: color-mix(in srgb, var(--ink) 5%, transparent);
+  --code-sel: color-mix(in srgb, var(--accent) 30%, transparent);
+  --code-sel-blur: color-mix(in srgb, var(--ink) 14%, transparent);
+  /* scrollbars: a quiet tint of the text colour, so they sit with the borders and muted text in either theme */
+  --scroll-thumb: color-mix(in srgb, var(--ink) 22%, transparent);
+  --scroll-thumb-hover: color-mix(in srgb, var(--ink) 38%, transparent);
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);

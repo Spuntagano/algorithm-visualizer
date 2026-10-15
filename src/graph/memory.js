@@ -1,5 +1,5 @@
 /**
- * The "Raw" view: how the values nest in memory, as a left-to-right tree.
+ * The "Memory" view: how the values nest in memory, as a left-to-right tree.
  * Every object appears once; a second reference becomes a "↪ #id" tag, so arrows never cross.
  *
  * buildMemoryView() is pure: it lays the tree out and returns drawable primitives plus whether anything

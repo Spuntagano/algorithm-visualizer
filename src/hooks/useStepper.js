@@ -6,8 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 import { runTraceAsync } from '../engine/runner.js';
 import { runTrace } from '../engine/trace.js';
 
-const EMPTY = { error: 'There is nothing to run yet. Add at least one statement.' };
-const fromTrace = trace => (trace.steps.length ? { trace } : EMPTY);
+const BLANK = { empty: true };                     // no code at all: not an error, the page just waits for some
+const NO_STEPS = { error: 'There is nothing to run yet. Add at least one statement.' };
+const fromTrace = trace => (trace.steps.length ? { trace } : NO_STEPS);
 const fromError = e => ({ error: e && e.timeout ? e.message : 'Syntax error: ' + (e && e.message ? e.message : e) });
 
 /**
@@ -15,44 +16,50 @@ const fromError = e => ({ error: e && e.timeout ? e.message : 'Syntax error: ' +
  * Returns an object with either a trace or an error message.
  */
 export function traceCode(code) {
-  if (!String(code).trim()) return EMPTY;
+  if (!String(code).trim()) return BLANK;
   try { return fromTrace(runTrace(code)); } catch (e) { return fromError(e); }
 }
 
-/** Like traceCode, but runs in a worker so a runaway program is stopped. */
-export function traceCodeAsync(code) {
-  if (!String(code).trim()) return Promise.resolve(EMPTY);
-  return runTraceAsync(code).then(fromTrace, fromError);
+/** Like traceCode, but runs in a worker so a runaway program is stopped. Resolves to null if `signal` aborted. */
+export function traceCodeAsync(code, signal) {
+  if (!String(code).trim()) return Promise.resolve(BLANK);
+  return runTraceAsync(code, signal).then(fromTrace, e => (e && e.aborted ? null : fromError(e)));
 }
 
 export function useStepper(initialCode) {
   const [first] = useState(() => traceCode(initialCode));      // computed once, so the first paint is already stepping
   const [trace, setTrace] = useState(first.trace || null);
-  const [mode, setMode] = useState(first.trace ? 'run' : 'edit');   // 'edit' | 'run'
-  const [notice, setNotice] = useState(first.error || null);   // syntax error etc., shown in edit mode
+  const [tracedCode, setTracedCode] = useState(initialCode);   // the code `trace` (or `notice`) belongs to
+  const [notice, setNotice] = useState(first.error || null);   // why the code cannot be shown: syntax error, timeout, no statements
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(500);
   const [running, setRunning] = useState(false);   // a trace is being computed
-  const latest = useRef(0);                         // ignores the result of a run that has been superseded
+  const [runs, setRuns] = useState(0);              // finished runs, so callers (and tests) can tell a new result arrived
+  const pending = useRef(null);                     // AbortController of the run in progress
 
   const steps = trace ? trace.steps : [];
   const last = Math.max(0, steps.length - 1);
   const step = steps[idx] || null;
   const prev = idx > 0 ? steps[idx - 1] : null;
 
-  /** Trace `code` and show step 1. Resolves to false (and shows why) if it cannot run. */
+  /**
+   * Trace `code` and show step 1; a run still in progress is stopped. Resolves to false (and shows why)
+   * if the code cannot run, or if a newer run replaced this one.
+   */
   const run = async code => {
-    const id = ++latest.current;
+    if (pending.current) pending.current.abort();
+    const ctl = pending.current = new AbortController();
     setPlaying(false); setRunning(true);
-    const r = await traceCodeAsync(code);
-    if (id !== latest.current) return false;
-    setRunning(false);
-    if (r.error) { setMode('edit'); setNotice(r.error); return false; }
-    setTrace(r.trace); setIdx(0); setNotice(null); setMode('run');
+    const r = await traceCodeAsync(code, ctl.signal);
+    if (!r || pending.current !== ctl) return false;
+    pending.current = null;
+    setRunning(false); setTracedCode(code); setIdx(0); setRuns(n => n + 1);
+    if (r.empty || r.error) { setTrace(null); setNotice(r.error || null); return false; }
+    setTrace(r.trace); setNotice(null);
     return true;
   };
-  const edit = () => { latest.current++; setRunning(false); setPlaying(false); setMode('edit'); setNotice(null); };
+  const pause = () => setPlaying(false);
 
   /** Jump to a step (pauses playback). */
   const go = i => { setPlaying(false); setIdx(Math.max(0, Math.min(last, i))); };
@@ -80,5 +87,5 @@ export function useStepper(initialCode) {
     return () => clearTimeout(t);
   }, [playing, idx, speed, last, trace]);
 
-  return { mode, trace, step, prev, idx, last, count: steps.length, playing, speed, setSpeed, notice, running, run, edit, go, togglePlay, stepOver, stepOut };
+  return { trace, tracedCode, runs, step, prev, idx, last, count: steps.length, playing, speed, setSpeed, notice, running, run, pause, go, togglePlay, stepOver, stepOut };
 }

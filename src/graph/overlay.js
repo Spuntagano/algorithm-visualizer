@@ -1,8 +1,11 @@
 /**
- * The "Graph" view, part 2: other variables shown as tags on the nodes they point at (↑ cur)
- * or contain (∈ visited), and the node sizing that leaves room for them.
+ * The "Graph" view, part 2: other variables shown as tags on the nodes they point at (↑ cur) or contain
+ * (∈ visited), the rows of a node's own values, and the node sizing that leaves room for both.
  */
 import { isCont, keyOf, stepIndex } from '../model.js';
+
+const MAX_ROWS = 8;     // value rows inside one node, before "+N more"
+export const ROW_H = 15;
 
 /* Other variables that point at, or contain, graph nodes: shown as small tags on those nodes. */
 export function semTags(step, sem, graphName) {
@@ -30,6 +33,23 @@ export function sizeNode(n, tags) {
   const shown = tags.slice(0, 3), more = tags.length - shown.length;
   n.pills = shown.map(t => ({ s: (t.kind === 'ptr' ? '↑ ' : '∈ ') + t.name, tag: t }));
   if (more > 0) n.pills.push({ s: '+' + more, tag: null });
-  n.w = Math.max(40, n.label.length * 8.8 + 22, n.caption.length * 6.3 + 20, ...n.pills.map(q => q.s.length * 6.4 + 22));
-  n.h = Math.max(34, 8 + 18 + (n.caption ? 14 : 0) + n.pills.length * 16 + (n.pills.length ? 4 : 0) + 6);
+  n.rows = nodeRows(n);
+  n.keyW = Math.max(0, ...n.rows.map(r => r.k.length * 6.4));          // keys in one column, values in the next
+  const rowW = Math.max(0, ...n.rows.map(r => (r.more ? 0 : n.keyW + 8) + r.text.length * 6.6));
+  n.top = titleless(n) ? 6 : 26;                                      // room for the title, if there is one
+  n.w = Math.max(40, titleless(n) ? 0 : n.label.length * 8.8 + 22, rowW + 20, ...n.pills.map(q => q.s.length * 6.4 + 22));
+  n.h = Math.max(34, n.top + (n.rows.length ? n.rows.length * ROW_H + 4 : 0) + n.pills.length * 16 + (n.pills.length ? 4 : 0) + 6);
+}
+
+/**
+ * A node whose label came from one of its fields, and that has other values too, lists every field as `key value`
+ * (the label field first) instead of a title, so { id: 1, weight: 3 } reads "id 1 / weight 3". A node with nothing
+ * but its label keeps the compact title.
+ */
+export const titleless = n => !!(n.labelField && n.fields && n.fields.length);
+
+/** The rows drawn inside a node: its own values (capped at MAX_ROWS). Other variables never add rows. */
+export function nodeRows(n) {
+  const rows = titleless(n) ? [{ ...n.labelField, main: true }, ...n.fields] : (n.fields || []);
+  return rows.length <= MAX_ROWS ? rows : [...rows.slice(0, MAX_ROWS - 1), { k: '', text: '+' + (rows.length - MAX_ROWS + 1) + ' more', kind: '', more: true }];
 }

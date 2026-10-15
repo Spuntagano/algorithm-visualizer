@@ -8,8 +8,18 @@ body {
   font-size: 15px;
   line-height: 1.45;
 }
-#root { min-height: 100vh; display: flex; flex-direction: column; }
-#root > main { flex: 1 0 auto; }
+/* full window: header on top, the two columns fill the rest and scroll inside themselves */
+#root { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+#root > main { flex: 1 1 auto; min-height: 0; }
+@media (max-width: 860px) { #root { height: auto; min-height: 100vh; } }   /* narrow: stacked, the page scrolls */
 #root > header, #root > main { width: 100%; }
 button, select, input { font: inherit; color: inherit; }
 .mono, pre, textarea, .code-editor, .prim, .vname, .k, .frame, .chip, .ref, .idx { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+/* Scrollbars: a thin, quiet pill tinted from the text colour (--scroll-thumb, stronger on hover), the track out of sight.
+   Firefox only knows thin + a colour. */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; background-color: var(--scroll-thumb); }
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: var(--scroll-thumb-hover); }
+@supports (-moz-appearance: none) { * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; } }

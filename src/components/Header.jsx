@@ -1,5 +1,5 @@
-/** Title, example picker and the Visualize / Edit code button. */
-export function Header({ examples, example, onExample, editing, busy, onRun, onEdit }) {
+/** Title and example picker. */
+export function Header({ examples, example, onExample }) {
   return (
     <header className="site-header">
       <div>
@@ -9,12 +9,10 @@ export function Header({ examples, example, onExample, editing, busy, onRun, onE
       <div className="actions">
         <label className="sel">Example
           <select id="example" aria-label="Choose an example" value={example} onChange={e => onExample(e.target.value)}>
+            <option value="" disabled>Choose an example…</option>
             {examples.map(name => <option key={name} value={name}>{name}</option>)}
           </select>
         </label>
-        {editing
-          ? <button className="btn primary" id="btnRun" disabled={busy} onClick={onRun}>{busy ? 'Running…' : 'Visualize'}</button>
-          : <button className="btn" id="btnEdit" onClick={onEdit}>Edit code</button>}
       </div>
     </header>
   );

@@ -1,24 +1,70 @@
 /* Layout */
+/* Layout: the editor on the left, the debugger on the right, each the full height of the window */
 .grid {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-  gap: 14px; padding: 14px 16px 18px; max-width: 1280px; margin: 0 auto; align-items: start;
+  /* --split is the editor's share of the width in percent, set by the divider (components/Splitter.jsx) */
+  --split: 50;
+  display: grid; grid-template-columns: minmax(0, calc(var(--split) * 1% - 6px)) 12px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr); padding: 0 16px 14px; height: 100%;
 }
-@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.splitter { position: relative; cursor: col-resize; touch-action: none; outline: none; }
+.splitter::after {                              /* a thin grip in the middle of the gap, shown on hover, focus and drag */
+  content: ""; position: absolute; top: 50%; left: 50%; width: 4px; height: 48px; transform: translate(-50%, -50%);
+  border-radius: 999px; background: var(--scroll-thumb); opacity: .6; transition: opacity .15s, height .15s, background .15s;
+}
+.splitter:hover::after, .resizing .splitter::after { opacity: 1; height: 72px; background: var(--scroll-thumb-hover); }
+.splitter:focus-visible::after { opacity: 1; height: 72px; background: var(--accent); }
+body.resizing { cursor: col-resize; user-select: none; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.code-panel { position: sticky; top: 12px; display: flex; flex-direction: column; max-height: calc(100vh - 170px); min-height: 300px; }
-@media (max-width: 860px) { .code-panel { position: static; max-height: 46vh; } }
+.code-panel { display: flex; flex-direction: column; min-height: 0; }
+.debug { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.debug > .state-panel { flex: 1 1 auto; min-height: 0; overflow: auto; }
+@media (max-width: 860px) {                    /* narrow: stacked, the page scrolls, the controls stick to the bottom */
+  .grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; height: auto; gap: 12px; }
+  .splitter { display: none; }
+  .code-panel { height: 46vh; min-height: 260px; }
+  .debug > .state-panel { flex: none; overflow: visible; min-height: 300px; }
+}
 
 /* the CodeMirror editor; its own colours are set in src/editor.js from the same variables */
 .code-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .code-editor > .cm-editor { flex: 1; min-height: 0; }
-.code-editor.editing { min-height: 360px; }
-.code-panel:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .banner { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 14px; background: var(--surface-2); }
 .banner.err { background: var(--err-bg); color: var(--err); border-top-color: var(--err); }
 
-.state-panel { min-height: 300px; }
 .sect { padding: 12px 14px 14px; border-bottom: 1px solid var(--line); }
 .sect:last-child { border-bottom: 0; }
 .sect h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--ink-soft); }
+.sect-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.sect-head h2 { margin: 0; }
+
+/* "?" next to Variables, and its popover (components/GraphHelp.jsx) */
+.help-btn {
+  width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+  color: var(--muted); font-size: 12px; font-weight: 700; line-height: 1; cursor: pointer; padding: 0;
+}
+.help-btn:hover, .help-btn:focus-visible { border-color: var(--accent); color: var(--accent); }
+.help-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.help-pop {
+  position: absolute; inset: auto; margin: 0; box-sizing: border-box; overflow: auto;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink); font-size: 13px; line-height: 1.45;
+  box-shadow: 0 8px 28px rgb(0 0 0 / .18);
+}
+.help-pop h3 { margin: 0 0 6px; font-size: 15px; }
+.help-pop h4 { margin: 14px 0 6px; font-size: 13.5px; padding-top: 10px; border-top: 1px solid var(--line); }
+.help-pop h5 { margin: 8px 0 4px; font-size: 12.5px; color: var(--ink-soft); }
+.help-pop p { margin: 6px 0; color: var(--ink-soft); }
+.help-views { margin: 6px 0 0; display: grid; gap: 4px; }
+.help-views div { display: grid; grid-template-columns: 64px 1fr; gap: 8px; }
+.help-views dt { font-weight: 700; }
+.help-views dd { margin: 0; color: var(--ink-soft); }
+.help-group ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.help-group li { display: grid; gap: 2px; }
+.help-group li span { color: var(--muted); font-size: 12px; }
+.help-notes { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--ink-soft); }
+.help-pop code { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;
+  background: var(--surface-2); border-radius: 4px; padding: 2px 6px; justify-self: start; overflow-wrap: anywhere; }
+.help-pop code.inline { padding: 0 4px; }
+.state-panel.stale #stateBody { opacity: .55; transition: opacity .15s .15s; }
 .placeholder { padding: 40px 24px; color: var(--muted); text-align: center; }

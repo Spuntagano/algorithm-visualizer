@@ -1,20 +1,18 @@
-/** The left panel: one CodeMirror editor, editable while editing, read-only with the current line while stepping. */
+/** The left panel: one CodeMirror editor, always editable, showing the current and previous step lines. */
 import { useEffect, useRef } from 'react';
-import { Compartment, EditorState, EditorView, editorExtensions, modeExtensions, setStep } from '../editor.js';
+import { EditorState, EditorView, editorExtensions, setStep } from '../editor.js';
 
-function CodeEditor({ editing, code, onCode, onRun, line, prevLine }) {
+function CodeEditor({ code, onCode, onRun, line, prevLine }) {
   const host = useRef(null), view = useRef(null);
   const latest = useRef({ onCode, onRun });
   latest.current = { onCode, onRun };
-  const editable = useRef(null);
 
   useEffect(() => {                                         // create once; React never touches its DOM
-    editable.current = new Compartment();
     const v = new EditorView({
       parent: host.current,
       state: EditorState.create({
         doc: code,
-        extensions: editorExtensions({ onChange: c => latest.current.onCode(c), onRun: () => latest.current.onRun(), editable: editable.current }),
+        extensions: editorExtensions({ onChange: c => latest.current.onCode(c), onRun: () => latest.current.onRun() }),
       }),
     });
     view.current = v;
@@ -27,30 +25,24 @@ function CodeEditor({ editing, code, onCode, onRun, line, prevLine }) {
     v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: code }, selection: { anchor: 0 }, scrollIntoView: true });
   }, [code]);
 
-  useEffect(() => {
-    const v = view.current;
-    if (v) v.dispatch({ effects: editable.current.reconfigure(modeExtensions(editing)) });
-  }, [editing]);
-
-  useEffect(() => {                                         // step lines, kept in view
+  useEffect(() => {                                         // step lines, kept in view unless the cursor is in use
     const v = view.current;
     if (!v) return;
-    const lines = editing ? { line: 0, prevLine: 0 } : { line, prevLine };
-    const n = lines.line, effects = [setStep.of(lines)];
-    if (n >= 1 && n <= v.state.doc.lines) effects.push(EditorView.scrollIntoView(v.state.doc.line(n).from, { y: 'nearest', yMargin: 48 }));
+    const effects = [setStep.of({ line, prevLine })];
+    if (!v.hasFocus && line >= 1 && line <= v.state.doc.lines) effects.push(EditorView.scrollIntoView(v.state.doc.line(line).from, { y: 'nearest', yMargin: 48 }));
     v.dispatch({ effects });
-  }, [editing, line, prevLine, code]);
+  }, [line, prevLine, code]);
 
-  return <div className={'code-editor' + (editing ? ' editing' : '')} ref={host} />;
+  return <div className="code-editor" ref={host} />;
 }
 
 /**
  * @param banner  status line under the code, as an object with `text` and `error`, or null
  */
-export function CodePanel({ editing, code, onCode, onRun, line, prevLine, banner }) {
+export function CodePanel({ code, onCode, onRun, line, prevLine, banner }) {
   return (
     <section className="panel code-panel" aria-label="Code">
-      <CodeEditor editing={editing} code={code} onCode={onCode} onRun={onRun} line={line} prevLine={prevLine} />
+      <CodeEditor code={code} onCode={onCode} onRun={onRun} line={line} prevLine={prevLine} />
       {banner && <div id="banner" className={'banner' + (banner.error ? ' err' : '')} role="status">{banner.text}</div>}
     </section>
   );

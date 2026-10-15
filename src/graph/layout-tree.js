@@ -2,11 +2,13 @@
  * Tidy-tree layout for trees and linked lists: parents sit centred over their children and subtrees
  * never overlap, so straight edges can never cross.
  */
-import { G } from './common.js';
+import { G, labelSize } from './common.js';
 
 /* Tidy tree: parents centred over their children, subtrees never overlap, so straight edges never cross. */
 export function layoutTree(sem, sp, lr) {
-  const PAD = G.PAD, GB = 22, GD = lr ? 64 : 54, PH = 34, FG = 36;
+  const PAD = G.PAD, GB = 22, PH = 34, FG = 36;
+  const lab = sem.edges.filter(e => e.lines && e.lines.length).map(e => labelSize(e.lines));   // labels sit between levels
+  const GD = (lr ? 64 : 54) + Math.max(0, ...lab.map(l => (lr ? l.width : l.height) - (lr ? 40 : 24)));
   const bre = n => (lr ? n.h : n.w), dep = n => (lr ? n.w : n.h);
   const binary = sem.edges.length > 0 && sem.edges.every(e => e.label === 'left' || e.label === 'right');
   const slotsOf = n => {

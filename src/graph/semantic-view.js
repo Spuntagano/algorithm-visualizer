@@ -3,9 +3,10 @@
  * Pure: returns primitives for <Graph> (components/Graph.jsx) to draw.
  */
 import { idBgFill, idFill } from '../color.js';
+import { EL_LINE, labelSize } from './common.js';
 import { layoutLayered } from './layout-layered.js';
 import { layoutTree } from './layout-tree.js';
-import { semTags, sizeNode } from './overlay.js';
+import { ROW_H, nodeRows, semTags, sizeNode, titleless } from './overlay.js';
 import { P } from './prims.js';
 import { semanticGraph } from './semantic.js';
 import { spanning } from './structure.js';
@@ -24,11 +25,19 @@ export function buildSemanticView(step, prev, name, sem, withPtrs) {
   const isTree = sem.edges.every((e, i) => e.from !== e.to && sp.treeEdge.has(i));
   const isList = isTree && sp.roots.length === 1 && sem.nodes.every(n => sp.treeKids.get(n.key).length <= 1);
   const layout = isList ? 'list' : isTree ? 'tree' : 'graph';
-  const geo = layout === 'graph' ? layoutLayered(sem) : layoutTree(sem, sp, isList);
 
+  /* edge labels, worked out before layout so it can leave room for them: an edge object's values as "key value" lines
+     ({ v: 1, start: 0, end: 3 } → start 0 / end 3), else a bare weight, else the field name when it helps */
   const labs = new Set(sem.edges.map(e => e.label).filter(Boolean));
   const showLab = labs.size > 1 || (labs.size === 1 && ![...labs].every(l => l === 'left' || l === 'right' || l === 'next' || l === 'children'));
-  const eKey = e => e.from + '\u0001' + e.to + '\u0001' + (e.label || '');
+  sem.edges.forEach(e => {
+    const onlyWeight = e.attrs && e.attrs.length === 1 && e.weight != null;
+    e.lines = e.attrs && e.attrs.length && !onlyWeight ? e.attrs.map(([k, v]) => (k == null ? v : k + ' ' + v))   // a tuple's values have no names
+      : e.weight != null ? [String(e.weight)] : showLab && e.label ? [e.label] : [];
+  });
+  const geo = layout === 'graph' ? layoutLayered(sem) : layoutTree(sem, sp, isList);
+
+  const eKey = e => e.from + '\u0001' + e.to + '\u0001' + (e.label || '') + '\u0001' + (e.weight ?? '') + '\u0001' + JSON.stringify(e.attrs || null);
   const prevEdges = psem ? new Set(psem.edges.map(eKey)) : null;
 
   const prims = [];
@@ -39,19 +48,37 @@ export function buildSemanticView(step, prev, name, sem, withPtrs) {
     const p = { d: g.d, className: 'g-edge' + (isNew ? ' chg' : '') };
     if (!g.e.undirected) p.markerEnd = isNew ? 'arrow-chg' : 'arrow';
     prims.push(P('path', p));
-    const text = g.e.weight != null ? String(g.e.weight) : (showLab && g.e.label ? g.e.label : '');
-    if (text) prims.push(P('text', { x: g.lx, y: g.ly + 4, textAnchor: 'middle', className: 'g-elabel' }, text));
+    if (g.e.lines.length) {                          // a box behind the label, so the arrow does not run through its text
+      const { width, height } = labelSize(g.e.lines);
+      prims.push(P('rect', { x: g.lx - width / 2, y: g.ly - height / 2, width, height, rx: 3, className: 'g-elabel-bg' }));
+    }
+    const y0 = g.ly + 4 - (g.e.lines.length - 1) * EL_LINE / 2;
+    g.e.lines.forEach((text, k) => prims.push(P('text', { x: g.lx, y: y0 + k * EL_LINE, textAnchor: 'middle', className: 'g-elabel' + (isNew ? ' chg' : '') }, text)));
   });
 
   sem.nodes.forEach(n => {
     const old = psem && psem.map.get(n.key), nt = tags.get(n.key) || [];
-    const ch = !!psem && (!old || old.label !== n.label || old.caption !== n.caption);
+    const ch = !!psem && (!old || old.label !== n.label);
     if (ch) changed = true;
     prims.push(P('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 8, className: 'g-snode' + (nt.some(t => t.kind === 'ptr') ? ' ptr' : '') + (ch ? ' chg' : '') }));
-    const plain = !n.caption && !n.pills.length;
-    prims.push(P('text', { x: n.x + n.w / 2, y: plain ? n.y + n.h / 2 + 4.5 : n.y + 21, textAnchor: 'middle', className: 'g-slabel' }, n.label));
-    if (n.caption) prims.push(P('text', { x: n.x + n.w / 2, y: n.y + 36, textAnchor: 'middle', className: 'g-scap' }, n.caption));
-    let py = n.y + 8 + 18 + (n.caption ? 14 : 0) + 4;
+    const plain = !n.rows.length && !n.pills.length;
+    if (!titleless(n)) prims.push(P('text', { x: n.x + n.w / 2, y: plain ? n.y + n.h / 2 + 4.5 : n.y + 21, textAnchor: 'middle', className: 'g-slabel' }, n.label));
+
+    /* rows: the node's own values; a value that changed since the last step is marked */
+    const oldRows = old ? nodeRows(old) : null;
+    let ry = n.y + n.top + 2;
+    n.rows.forEach(r => {
+      const was = oldRows && oldRows.find(q => q.k === r.k);
+      const fresh = !!old && !r.more && (!was || was.text !== r.text);
+      if (fresh) { changed = true; prims.push(P('rect', { x: n.x + 4, y: ry, width: n.w - 8, height: ROW_H, rx: 3, className: 'g-frow chg' })); }
+      if (r.more) prims.push(P('text', { x: n.x + 10, y: ry + 11, className: 'g-fkey' }, r.text));
+      else {
+        prims.push(P('text', { x: n.x + 10, y: ry + 11, className: 'g-fkey' }, r.k));
+        prims.push(P('text', { x: n.x + 10 + n.keyW + 8, y: ry + 11, className: 'g-fval g-t' + (r.kind ? ' ' + r.kind : '') + (r.main ? ' main' : '') }, r.text));
+      }
+      ry += ROW_H;
+    });
+    let py = n.y + n.top + (n.rows.length ? n.rows.length * ROW_H + 4 : 0) + 4;
     n.pills.forEach(q => {
       const pw = q.s.length * 6.4 + 12, px = n.x + (n.w - pw) / 2;
       const was = q.tag && (ptags.get(n.key) || []).some(t => t.name === q.tag.name && t.kind === q.tag.kind);

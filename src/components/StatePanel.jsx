@@ -1,4 +1,5 @@
 /** The right panel: call stack, variables and console output for the current step. */
+import { GraphHelp } from './GraphHelp.jsx';
 import { Variables } from './Variables.jsx';
 
 function CallStack({ stack }) {
@@ -23,15 +24,19 @@ function Output({ lines }) {
 }
 
 /** `vars` carries how variables are shown: `views`, `onView` and `showPtrs` (see Variables.jsx). */
-export function StatePanel({ run, step, prev, stepNo, logs, vars }) {
+/**
+ * `stale`: the code was edited and is being run again, so this state is about to be replaced.
+ * `runs`: how many runs have finished (exposed as data-run).
+ */
+export function StatePanel({ step, prev, stepNo, logs, stale, runs, vars }) {
   return (
-    <section className="panel state-panel" aria-label="Program state">
-      {!run
-        ? <div id="placeholder" className="placeholder">Write or paste some JavaScript, then press Visualize.<br />Tip: Ctrl/Cmd + Enter also runs it.</div>
+    <section className={'panel state-panel' + (stale ? ' stale' : '')} aria-label="Program state" aria-busy={stale || undefined} data-run={runs}>
+      {!step
+        ? <div id="placeholder" className="placeholder">Write or paste some JavaScript, or pick an example: it runs as you type.<br />Ctrl/Cmd + Enter runs it right away.</div>
         : (
           <div id="stateBody">
             <div className="sect"><h2>Call stack</h2><CallStack stack={step.stack} /></div>
-            <div className="sect"><h2>Variables</h2><Variables step={step} prev={prev} stepNo={stepNo} {...vars} /></div>
+            <div className="sect"><div className="sect-head"><h2>Variables</h2><GraphHelp /></div><Variables step={step} prev={prev} stepNo={stepNo} {...vars} /></div>
             <div className="sect"><h2>Output</h2><Output lines={logs.slice(0, step.logs)} /></div>
           </div>
         )}

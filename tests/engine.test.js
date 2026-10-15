@@ -79,3 +79,12 @@ test('infinite loops and runaway recursion are stopped', () => {
 test('syntax errors throw so the UI can show them', () => {
   assert.throws(() => runTrace('let = = 3'), /Unexpected token/);
 });
+
+test('a run that was superseded is dropped: an aborted signal rejects, and traceCodeAsync gives null', async () => {
+  const { runTraceAsync } = await import('../src/engine/runner.js');
+  const { traceCodeAsync } = await import('../src/hooks/useStepper.js');
+  const ctl = new AbortController(); ctl.abort();
+  await assert.rejects(runTraceAsync('let a = 1;', ctl.signal), e => e.aborted === true);
+  assert.equal(await traceCodeAsync('let a = 1;', ctl.signal), null);
+  assert.ok((await traceCodeAsync('let a = 1;')).trace, 'without a signal it still runs');
+});

@@ -18,15 +18,21 @@ function spawn() {
 }
 
 /**
- * Resolves with the trace. Rejects with an Error for a syntax error, or with a `timeout` Error
- * when the program ran longer than TIME_LIMIT.
+ * Resolves with the trace. Rejects with an Error for a syntax error, with a `timeout` Error
+ * when the program ran longer than TIME_LIMIT, or with an `aborted` Error once `signal` aborts
+ * (the worker is stopped at once, so a superseded run never keeps a CPU busy).
+ * @param {string} code
+ * @param {AbortSignal} [signal]
  */
-export function runTraceAsync(code) {
+export function runTraceAsync(code, signal) {
+  if (signal && signal.aborted) return Promise.reject(Object.assign(new Error('aborted'), { aborted: true }));
   const worker = spawn();
   if (!worker) return Promise.resolve().then(() => runTrace(code));
   return new Promise((resolve, reject) => {
     let timer = 0;
-    const finish = fn => { clearTimeout(timer); worker.terminate(); fn(); };
+    const onAbort = () => finish(() => reject(Object.assign(new Error('aborted'), { aborted: true })));
+    const finish = fn => { clearTimeout(timer); worker.terminate(); if (signal) signal.removeEventListener('abort', onAbort); fn(); };
+    if (signal) signal.addEventListener('abort', onAbort);
     const fallback = () => finish(() => { try { resolve(runTrace(code)); } catch (e) { reject(e); } });
     timer = setTimeout(fallback, START_LIMIT);                 // the worker never came up
     worker.onerror = fallback;

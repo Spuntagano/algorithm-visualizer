@@ -1,10 +1,10 @@
 /* Transport */
-.transport {
-  position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--line);
+.transport {                                    /* the timeline: full width along the bottom of the window */
+  flex: none; background: var(--surface); border-top: 1px solid var(--line);
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
   display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: center;
-  z-index: 5;
 }
+@media (max-width: 860px) { .transport { position: sticky; bottom: 0; z-index: 5; } }   /* narrow: the page scrolls, the timeline stays */
 .tc { display: flex; gap: 6px; align-items: center; }
 .ib {
   width: 40px; height: 40px; display: grid; place-items: center; background: var(--surface-2);

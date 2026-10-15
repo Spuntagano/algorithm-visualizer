@@ -28,9 +28,13 @@
 .g-snode.ptr { stroke: var(--accent); stroke-width: 2.5; }
 .g-snode.chg { fill: var(--chg-bg); stroke: var(--chg); stroke-width: 2.5; }
 .g-slabel { font-size: 13px; font-weight: 700; fill: var(--ink); }
-.g-scap { font-size: 10.5px; fill: var(--muted); }
+.g-fkey { font-size: 11px; fill: var(--muted); }
+.gsvg .g-fval { font-size: 11px; }
+.gsvg .g-fval.main { font-weight: 700; }
+.g-frow.chg { fill: var(--chg-bg); stroke: var(--chg); stroke-width: 1; }
 .g-pilltxt { font-size: 10.5px; font-weight: 700; }
 .g-pill.chg { stroke: var(--chg); stroke-width: 1.5; }
+.g-elabel-bg { fill: var(--surface-2); }
 .g-elabel { font-size: 11px; fill: var(--ink-soft); paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; stroke-linejoin: round; }
 .g-edge.chg { stroke: var(--chg); stroke-width: 2.5; }
 .g-head.chg { fill: var(--chg); }

@@ -1,9 +1,15 @@
-/** The bottom bar: first / back / play / forward / last, step over / out, scrubber, speed, pointer tags. */
+/** The bottom bar (the timeline): first / back / play / forward / last, step over / out, scrubber, speed, pointer tags. */
 const Icon = ({ children }) => <svg viewBox="0 0 16 16" aria-hidden="true">{children}</svg>;
 
-/** @param s  the object returned by useStepper() */
-export function Transport({ s, showPtrs, onPtrs }) {
-  const atFirst = s.idx === 0, atLast = s.idx === s.last;
+/**
+ * Always shown. With no trace (empty editor, syntax error, stopped run) the stepping controls are disabled;
+ * speed and pointer tags are settings and stay usable.
+ * @param s         the object returned by useStepper()
+ * @param disabled  the code was edited and is being run again: stepping waits for the new trace
+ */
+export function Transport({ s, disabled: busy, showPtrs, onPtrs }) {
+  const none = !s.trace || !s.step, disabled = busy || none;
+  const atFirst = disabled || s.idx === 0, atLast = disabled || s.idx === s.last;
   return (
     <footer className="transport" id="transport">
       <div className="tc">
@@ -11,7 +17,7 @@ export function Transport({ s, showPtrs, onPtrs }) {
           <Icon><rect x="3" y="3" width="2" height="10" /><path d="M13 3v10L6 8z" /></Icon></button>
         <button className="ib" id="bPrev" title="Back one step (Left arrow)" aria-label="Back one step" disabled={atFirst} onClick={() => s.go(s.idx - 1)}>
           <Icon><path d="M12 3v10L5 8z" /></Icon></button>
-        <button className="ib play" id="bPlay" title="Play / pause (Space)" aria-label={s.playing ? 'Pause' : 'Play'} onClick={s.togglePlay}>
+        <button className="ib play" id="bPlay" title="Play / pause (Space)" aria-label={s.playing ? 'Pause' : 'Play'} disabled={disabled} onClick={s.togglePlay}>
           {s.playing
             ? <Icon><rect x="4" y="3" width="3" height="10" /><rect x="9" y="3" width="3" height="10" /></Icon>
             : <Icon><path d="M5 3v10l8-5z" /></Icon>}
@@ -26,8 +32,8 @@ export function Transport({ s, showPtrs, onPtrs }) {
         <button className="btn small" id="bOut" title="Run until the current function returns" disabled={atLast} onClick={s.stepOut}>Step out</button>
       </div>
       <div className="scrub">
-        <input type="range" id="scrub" min={0} max={s.last} value={s.idx} aria-label="Step position" onChange={e => s.go(+e.target.value)} />
-        <span id="stepLabel">Step {s.idx + 1} of {s.count}{s.step.line > 0 ? ` · line ${s.step.line}` : ' · done'}</span>
+        <input type="range" id="scrub" min={0} max={s.last} value={s.idx} aria-label="Step position" disabled={disabled} onChange={e => s.go(+e.target.value)} />
+        <span id="stepLabel">{none ? 'No steps yet' : `Step ${s.idx + 1} of ${s.count}${s.step.line > 0 ? ` · line ${s.step.line}` : ' · done'}`}</span>
       </div>
       <div className="opts">
         <label>Speed
