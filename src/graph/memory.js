@@ -12,6 +12,30 @@ import { clip, markersFor, stepIndex } from '../model.js';
 import { G } from './common.js';
 import { P, runs } from './prims.js';
 
+const MARK_ROW = 13;   // height of one line under an array: the arrow, then each pointer name
+const MARK_CW = 7.2;   // width of one character of a pointer name
+
+/**
+ * Where each pointer name goes under an array strip, without widening any cell: centred under its cell (but not off the
+ * left of the box), names of one cell one under the other, and a name that would overlap one already on a row moves down.
+ * Sets g.markPos[i] = [{ nm, cx, row }] (cx relative to the box) and g.markRows.
+ */
+function placeMarks(g) {
+  const rows = []; let left = 0;
+  g.markPos = g.cw.map((w, i) => {
+    let r = 0;
+    const placed = ((g.markers && g.markers[i]) || []).map(nm => {
+      const half = nm.length * MARK_CW / 2, cx = Math.max(left + w / 2, half + 2), a = cx - half - 3, b = cx + half + 3;
+      while ((rows[r] || []).some(([p, q]) => a < q && p < b)) r++;
+      (rows[r] = rows[r] || []).push([a, b]);
+      return { nm, cx, row: r++ };
+    });
+    left += w;
+    return placed;
+  });
+  g.markRows = rows.length;
+}
+
 /**
  * The structure reachable from one variable, as a spanning tree.
  * A second reference to an object (shared, or a cycle) becomes a small tag instead of an arrow.
@@ -78,9 +102,10 @@ export function buildMemoryView(step, prev, name, withPtrs) {
   for (const g of vg.nodes.values()) {
     const head = ('#' + g.id + ' ' + g.title).length * 6.7 + 20;
     if (g.strip) {
-      g.cw = g.cells.map(cellW); if (g.more) g.cw.push(48); if (!g.cw.length) g.cw.push(64);
+      g.cw = g.cells.map(cellW); if (g.more) g.cw.push(48); if (!g.cw.length) g.cw.push(64);   // pointer names never widen a cell
+      if (g.markers) placeMarks(g);
       g.w = Math.max(head, g.cw.reduce((a, b) => a + b, 0));
-      g.h = HEAD + (g.kind === 'arr' ? IDX : 0) + CELL + (g.markRows ? g.markRows * 12 + 6 : 0);
+      g.h = HEAD + (g.kind === 'arr' ? IDX : 0) + CELL + (g.markRows ? (g.markRows + 1) * MARK_ROW + 6 : 0);   // one arrow row, then the names
     } else {
       g.kw = Math.max(30, ...g.cells.map(c => c.label.length * CW + 16));
       const vw = Math.max(44, ...g.cells.map(c => c.chip != null ? c.chip.length * 7 + 20 : c.childId != null ? 34 : cellW(c)));
@@ -106,6 +131,7 @@ export function buildMemoryView(step, prev, name, withPtrs) {
 
   /* draw */
   const prims = [];
+  let markRight = 0;                                 // right edge of the pointer names, which may stick out of their cells
   let changed = false;
   for (const g of vg.nodes.values()) {
     const old = pg && pg.nodes.get(g.id);
@@ -138,8 +164,13 @@ export function buildMemoryView(step, prev, name, withPtrs) {
         prims.push(P('rect', { x, y: top, width: w, height: CELL, className: 'g-cell' + (isChanged(i) ? ' chg' : '') }));
         if (g.kind === 'arr') prims.push(P('text', { x: x + w / 2, y: top - 3, textAnchor: 'middle', className: 'g-idx' }, c.label));
         prims.push(P('text', { x: x + w / 2, y: top + CELL / 2 + 4, textAnchor: 'middle', className: 'g-t ' + c.kind }, c.text));
-        if (g.markers && g.markers[i]) g.markers[i].forEach((nm, k) =>
-          prims.push(P('text', { x: x + w / 2, y: top + CELL + 12 + k * 12, textAnchor: 'middle', className: 'g-chiptxt', style: idFill(nm) }, '↑ ' + nm)));
+        if (g.markers && g.markers[i]) {             // pointer tags: one arrow up at the cell, then each name on its own line
+          prims.push(P('text', { x: x + w / 2, y: top + CELL + MARK_ROW, textAnchor: 'middle', className: 'g-ptrarrow' }, '↑'));
+          g.markPos[i].forEach(({ nm, cx, row }) => {
+            markRight = Math.max(markRight, g.x + cx + nm.length * MARK_CW / 2);
+            prims.push(P('text', { x: g.x + cx, y: top + CELL + MARK_ROW * (row + 2), textAnchor: 'middle', className: 'g-chiptxt', style: idFill(nm) }, nm));
+          });
+        }
         x += w;
       });
       if (g.more) prims.push(P('text', { x: x + 24, y: top + CELL / 2 + 4, textAnchor: 'middle', className: 'g-muted' }, '+' + g.more));
@@ -165,5 +196,5 @@ export function buildMemoryView(step, prev, name, withPtrs) {
 
   edges.forEach(d => prims.push(P('path', { d, className: 'g-edge', markerEnd: 'arrow' })));
 
-  return { width, height, prims, changed };
+  return { width: Math.max(width, markRight + PAD), height, prims, changed };   // room for a name past the last cell
 }

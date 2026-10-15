@@ -31,7 +31,12 @@ await page.route('**/*', r => {
 });
 const snap = async name => { if (shots) await page.screenshot({ path: path.join(shots, name + '.png') }); };
 const stepLabel = () => page.locator('#stepLabel').innerText();
-const pick = async name => { await page.selectOption('#example', name); await page.waitForSelector('#stateBody'); };
+/** Pick an example and wait until ITS run is shown (the previous example's state panel is still there meanwhile). */
+const pick = async name => {
+  const n = await page.locator('.state-panel').getAttribute('data-run').then(Number, () => 0);
+  await page.selectOption('#example', name);
+  await page.waitForFunction(k => { const p = document.querySelector('.state-panel'); return p && +p.dataset.run > k && !p.classList.contains('stale') && !!document.querySelector('#stateBody'); }, n, { timeout: 8000 });
+};
 /** Finished runs so far; take it BEFORE an edit and pass it to settled(). */
 const runs = async () => +(await page.locator('.state-panel').getAttribute('data-run'));
 /** Wait until a run newer than `since` has finished for the current code, and its state is shown. */
@@ -264,6 +269,42 @@ for (const want of ['id', 'weight', '3', '5']) assert.ok(wn.includes(want), want
 await page.locator('button[data-vt="intervals|graph"]').click();
 const iv = await page.locator('.var:has(button[data-vt="intervals|boxes"]) svg text').allTextContents();
 assert.ok(iv.includes('start 0') && iv.includes('end 3'), 'edge data on the intervals arrows');
+
+// 6h. breakpoints: set from the gutter, jump with continue / previous (and F8), Play pauses on them, ticks on the timeline
+await pick('Bubble sort');
+const dots = () => page.locator('.cm-bp-dot:visible').count();       // CodeMirror keeps one invisible spacer in the gutter
+assert.ok(await page.locator('#bBpNext').isDisabled(), 'continue is disabled until there is a breakpoint');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^8$/ }).click();   // arr[j] = arr[j + 1];
+assert.equal(await dots(), 1, 'clicking a line number sets a breakpoint');
+const nTicks = await page.locator('.bp-tick').count();
+assert.ok(nTicks >= 2, 'a tick on the timeline for each time the line runs: ' + nTicks);
+await page.click('#bBpNext'); const hit1 = await stepLabel();
+assert.match(hit1, /· line 8$/, 'continue stops on the breakpoint line');
+await page.click('#bBpNext'); const hit2 = await stepLabel();
+assert.match(hit2, /· line 8$/); assert.notEqual(hit2, hit1, 'and the next time on to the next hit');
+await page.click('#bBpPrev'); assert.equal(await stepLabel(), hit1, 'previous goes back to the earlier hit');
+await page.click('#bFirst'); await page.selectOption('#speed', '50'); await page.click('#bPlay');
+await page.waitForFunction(() => document.querySelector('#bPlay').getAttribute('aria-label') === 'Play', null, { timeout: 5000 });
+assert.equal(await stepLabel(), hit1, 'Play pauses when it reaches a breakpoint');
+await page.selectOption('#speed', '500');
+await page.locator('body').press('F8'); assert.equal(await stepLabel(), hit2, 'F8 continues');
+await page.locator('body').press('Shift+F8'); assert.equal(await stepLabel(), hit1, 'Shift+F8 goes back');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^8$/ }).click();
+assert.equal(await dots(), 0, 'clicking again removes it');
+assert.ok(await page.locator('#bBpNext').isDisabled());
+await page.click('.cm-line >> nth=7'); await page.keyboard.press('F9');
+assert.equal(await dots(), 1, 'F9 toggles a breakpoint on the cursor line');
+const nEnter = await runs();
+await page.keyboard.press('Home'); await page.keyboard.press('Home');            // the first Home stops at the indentation
+await page.keyboard.press('Enter');                                              // push the marked line down
+await settled(nEnter);
+const marked = await page.evaluate(() => [...document.querySelectorAll('.cm-bp-gutter .cm-gutterElement')].filter(e => e.querySelector('.cm-bp-dot') && getComputedStyle(e).visibility !== 'hidden')
+  .map(e => e.getBoundingClientRect().top));
+const line9 = await page.locator('.cm-line >> nth=8').boundingBox();
+assert.ok(marked.length === 1 && Math.abs(marked[0] - line9.y) < 4, 'the breakpoint moves down with its code');
+await page.click('#bBpNext'); assert.match(await stepLabel(), /· line 9$/, 'and continue now stops on line 9');
+await pick('Reverse a linked list');
+assert.equal(await dots(), 0, 'loading an example clears the breakpoints');
 
 // 6g. the divider between the editor and the debugger: drag, keys (which must not step), double-click to reset, remembered
 const widths = () => page.evaluate(() => ['.code-panel', '.debug'].map(q => document.querySelector(q).getBoundingClientRect().width));

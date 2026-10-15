@@ -1,14 +1,14 @@
 /**
- * CodeMirror 6 setup for the code panel: JavaScript highlighting, the editing keymap, and the
- * current / previous step lines while stepping. Colours come from the CSS variables in css/tokens.css,
+ * CodeMirror 6 setup for the code panel: JavaScript highlighting, the editing keymap, the
+ * current / previous step lines while stepping, and breakpoints. Colours come from the CSS variables in css/tokens.css,
  * so light and dark mode follow the rest of the page. Only the view needs a DOM; the state parts
  * (stepField, setStep) can be used and tested without one.
  */
 import { indentLess, indentMore, defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { javascriptLanguage } from '@codemirror/lang-javascript';
 import { HighlightStyle, bracketMatching, indentUnit, syntaxHighlighting } from '@codemirror/language';
-import { EditorState, Prec, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
-import { Decoration, EditorView, GutterMarker, drawSelection, gutterLineClass, keymap, lineNumbers, placeholder } from '@codemirror/view';
+import { EditorState, MapMode, Prec, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { Decoration, EditorView, GutterMarker, drawSelection, gutter, gutterLineClass, keymap, lineNumbers, placeholder } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 
 /** Sets the step lines (1-based; 0 = none). */
@@ -56,6 +56,59 @@ export function stepLines(state) {
   return out;
 }
 
+/* Breakpoints: one marker per marked line, anchored where its code starts (after the indentation), so it moves with
+   the code as it is edited: Enter before the code takes the marker down with it (Enter on an indented line replaces the
+   indentation, which a marker at the line start would stay in front of); re-indenting keeps it; deleting the line removes it. */
+export const toggleBreakpoint = StateEffect.define();   // value: any position on the line
+export const clearBreakpoints = StateEffect.define();
+
+const bpMarker = new class extends GutterMarker {
+  startSide = 1; endSide = 1;                        // stay with the code when text is inserted right before it (both sides, or it is dropped)
+  mapMode = MapMode.TrackDel;                        // gone only when the text on both sides of it is deleted, i.e. the line
+  toDOM() { const d = document.createElement('span'); d.className = 'cm-bp-dot'; return d; }
+}();
+
+/** Where a line's code starts: after its indentation (the line end for a blank line). */
+const codeStart = line => line.from + (/^\s*/.exec(line.text)[0].length);
+
+export const breakpointField = StateField.define({
+  create: () => RangeSet.empty,
+  update(set, tr) {
+    if (tr.effects.some(e => e.is(clearBreakpoints))) return RangeSet.empty;
+    const doc = tr.state.doc;
+    let lines = null;                                // a set of line numbers, rebuilt only when something changed
+    if (tr.docChanged) { set = set.map(tr.changes); lines = new Set(); set.between(0, doc.length, from => { lines.add(doc.lineAt(from).number); }); }
+    for (const e of tr.effects) if (e.is(toggleBreakpoint)) {
+      if (!lines) { lines = new Set(); set.between(0, doc.length, from => { lines.add(doc.lineAt(from).number); }); }
+      const n = doc.lineAt(Math.min(e.value, doc.length)).number;
+      if (lines.has(n)) lines.delete(n); else lines.add(n);
+    }
+    return lines ? RangeSet.of([...lines].sort((a, b) => a - b).map(n => bpMarker.range(codeStart(doc.line(n))))) : set;
+  },
+});
+
+/** The marked line numbers, in order. */
+export function breakpointLines(state) {
+  const out = [];
+  state.field(breakpointField).between(0, state.doc.length, from => { out.push(state.doc.lineAt(from).number); });
+  return out;
+}
+
+const toggleAt = (view, line) => { view.dispatch({ effects: toggleBreakpoint.of(line.from) }); return true; };
+// the gutter only draws markers placed at a line's start, while the anchors sit where the code starts: draw a copy
+const atLineStarts = new WeakMap();
+const gutterMarkers = state => {
+  const anchors = state.field(breakpointField);
+  if (!atLineStarts.has(anchors)) atLineStarts.set(anchors, RangeSet.of(breakpointLines(state).map(n => bpMarker.range(state.doc.line(n).from))));
+  return atLineStarts.get(anchors);
+};
+const breakpointGutter = [
+  gutter({
+    class: 'cm-bp-gutter', markers: v => gutterMarkers(v.state), initialSpacer: () => bpMarker,
+    domEventHandlers: { mousedown: toggleAt },
+  }),
+];
+
 export const highlight = HighlightStyle.define([
   { tag: [t.keyword, t.bool, t.null, t.self, t.atom], color: 'var(--code-kw)' },
   { tag: [t.string, t.special(t.string), t.regexp], color: 'var(--code-str)' },
@@ -80,6 +133,10 @@ const theme = EditorView.theme({
   '.cm-line.cm-step-cur': { backgroundColor: 'var(--code-cur)', borderLeftColor: 'var(--accent)' },
   '.cm-gutterElement.cm-step-cur': { color: 'var(--accent)', fontWeight: '700' },
   '.cm-placeholder': { color: 'var(--muted)', fontStyle: 'italic' },
+  '.cm-bp-gutter': { cursor: 'pointer', minWidth: '16px' },
+  '.cm-bp-gutter .cm-gutterElement': { display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  '.cm-bp-dot': { width: '9px', height: '9px', borderRadius: '50%', backgroundColor: 'var(--err)', display: 'block' },
+  '.cm-lineNumbers .cm-gutterElement': { cursor: 'pointer' },
 });
 
 /** Tab inserts two spaces at the cursor (or indents a selection); Shift-Tab outdents. */
@@ -90,17 +147,26 @@ const tabKeys = [
 
 /**
  * Everything the editor needs.
- * @param {{ onChange: (code: string) => void, onRun: () => void }} o
+ * @param {{ onChange: (code: string) => void, onRun: () => void, onBreakpoints?: (lines: number[]) => void }} o
  */
-export function editorExtensions({ onChange, onRun }) {
+export function editorExtensions({ onChange, onRun, onBreakpoints = () => {} }) {
   return [
-    lineNumbers(), history(), drawSelection(), bracketMatching(), indentUnit.of('  '), EditorState.tabSize.of(2),
+    breakpointField, breakpointGutter, lineNumbers({ domEventHandlers: { mousedown: toggleAt } }), history(), drawSelection(), bracketMatching(), indentUnit.of('  '), EditorState.tabSize.of(2),
     javascriptLanguage, syntaxHighlighting(highlight), theme, stepField,
     placeholder('Write or paste JavaScript, or pick an example above'),
-    Prec.highest(keymap.of([{ key: 'Mod-Enter', run: () => { onRun(); return true; } }])),
+    Prec.highest(keymap.of([
+      { key: 'Mod-Enter', run: () => { onRun(); return true; } },
+      { key: 'F9', run: v => { v.dispatch({ effects: toggleBreakpoint.of(v.state.selection.main.head) }); return true; } },
+    ])),
     keymap.of([...tabKeys, ...defaultKeymap, ...historyKeymap]),
     EditorView.contentAttributes.of({ id: 'editor', 'aria-label': 'JavaScript code', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }),
-    EditorView.updateListener.of(u => { if (u.docChanged) onChange(u.state.doc.toString()); }),
+    EditorView.updateListener.of(u => {
+      if (u.docChanged) onChange(u.state.doc.toString());
+      if (u.startState.field(breakpointField) !== u.state.field(breakpointField)) {      // rebuilt on edits: report real changes only
+        const before = breakpointLines(u.startState), after = breakpointLines(u.state);
+        if (before.join() !== after.join()) onBreakpoints(after);
+      }
+    }),
   ];
 }
 

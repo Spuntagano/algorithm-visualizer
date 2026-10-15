@@ -3,6 +3,12 @@
 Step through JavaScript one statement at a time and watch arrays, objects, Maps and Sets change.
 Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`); the choice is kept per variable while you step and edit.
 
+## Breakpoints
+Click a line number (or press F9 on a line) to toggle a breakpoint. **Continue** (F8) jumps to the next step on a marked
+line, **previous** (Shift+F8) to the one before; Play pauses when it reaches one, and the timeline has a tick for every hit.
+Because the whole run is recorded first, going back to an earlier breakpoint is as instant as going forward. Breakpoints
+follow their code as you edit (`breakpointField` in `src/editor.js`) and are cleared when an example is loaded.
+
 ## What gets drawn as a graph
 **Boxes** works for every value and **Memory** for every array, object, Map and Set. **Graph** is offered only when the value is one
 of these shapes. A Graph choice survives a step where the value is not a graph (a list shrunk to one node): the card shows boxes and says so.

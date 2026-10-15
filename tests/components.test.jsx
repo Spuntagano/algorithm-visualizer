@@ -10,10 +10,10 @@ import { StepContext, Value } from '../src/components/Values.jsx';
 import { Variables } from '../src/components/Variables.jsx';
 import { buildSemanticView } from '../src/graph/semantic-view.js';
 import { semanticGraph } from '../src/graph/semantic.js';
-import { traceCode } from '../src/hooks/useStepper.js';
+import { breakpointStep, traceCode } from '../src/hooks/useStepper.js';
 import { highlightCode } from '@lezer/highlight';
 import { javascriptLanguage } from '@codemirror/lang-javascript';
-import { EditorState, EditorView, highlight, setStep, stepField, stepLines } from '../src/editor.js';
+import { EditorState, EditorView, breakpointField, breakpointLines, clearBreakpoints, highlight, setStep, stepField, stepLines, toggleBreakpoint } from '../src/editor.js';
 import { EXAMPLES } from '../src/examples.js';
 
 const count = (s, re) => (s.match(re) || []).length;
@@ -175,4 +175,45 @@ test('stepField: one current line, a faint previous line, aria-current, cleared 
   assert.deepEqual(stepLines(st.update({ changes: { from: 0, insert: 'x' } }).state), { cur: [], prev: [] }, 'an edit clears the step');
   const both = st.update({ changes: { from: 0, insert: 'x\n' }, effects: setStep.of({ line: 2, prevLine: 0 }) }).state;
   assert.deepEqual(stepLines(both), { cur: [2], prev: [] }, 'new code and its step in one transaction');
+});
+
+test('breakpoints: toggled per line, and they follow the code as it is edited', () => {
+  let st = EditorState.create({ doc: 'a\nb\nc\nd', extensions: breakpointField });
+  const toggle = n => { st = st.update({ effects: toggleBreakpoint.of(st.doc.line(n).from + 1) }).state; };   // any position on the line
+  const edit = changes => { st = st.update({ changes }).state; };
+  toggle(2); toggle(4);
+  assert.deepEqual(breakpointLines(st), [2, 4]);
+  toggle(4);
+  assert.deepEqual(breakpointLines(st), [2], 'toggling again removes it');
+  edit({ from: 0, insert: 'x\n' });
+  assert.deepEqual(breakpointLines(st), [3], 'a line added above moves it down with its code');
+  edit({ from: st.doc.line(3).from, insert: '\n' });
+  assert.deepEqual(breakpointLines(st), [4], 'Enter at the start of the marked line takes it along with the code');
+  assert.equal(st.doc.line(4).text, 'b');
+  edit({ from: st.doc.line(4).from, insert: 'zz' });
+  assert.deepEqual(breakpointLines(st), [4], 'typing on the line keeps it');
+  edit({ from: st.doc.line(3).to, to: st.doc.line(4).to });
+  assert.deepEqual(breakpointLines(st), [], 'deleting the line removes it');
+  // Enter on an indented line replaces its indentation with "line break + indentation" (insertNewlineAndIndent does that)
+  let ind = EditorState.create({ doc: 'if (a) {\n  b = 1;\n  c = 2;\n}', extensions: breakpointField });
+  ind = ind.update({ effects: toggleBreakpoint.of(ind.doc.line(3).from) }).state;
+  ind = ind.update({ changes: { from: ind.doc.line(3).from, to: ind.doc.line(3).from + 2, insert: '\n  ' } }).state;
+  assert.deepEqual(breakpointLines(ind), [4], 'Enter before indented code takes it along too');
+  ind = ind.update({ changes: { from: ind.doc.line(4).from, to: ind.doc.line(4).from + 2 } }).state;
+  assert.deepEqual(breakpointLines(ind), [4], 'removing the indentation keeps it');
+  ind = ind.update({ changes: { from: ind.doc.line(4).from, insert: '    ' } }).state;
+  assert.deepEqual(breakpointLines(ind), [4], 'adding indentation keeps it');
+  toggle(1); toggle(2);
+  st = st.update({ effects: clearBreakpoints.of(null) }).state;
+  assert.deepEqual(breakpointLines(st), [], 'cleared when a new example is loaded');
+});
+
+test('breakpointStep finds the next / previous step on a marked line', () => {
+  const steps = [3, 5, 7, 5, 7, 9].map(line => ({ line }));
+  const bps = new Set([7]);
+  assert.equal(breakpointStep(steps, 0, bps), 2);
+  assert.equal(breakpointStep(steps, 2, bps), 4, 'from a breakpoint, continue goes to the next hit');
+  assert.equal(breakpointStep(steps, 4, bps), -1, 'none left: the caller goes to the end');
+  assert.equal(breakpointStep(steps, 5, bps, -1), 4);
+  assert.equal(breakpointStep(steps, 2, bps, -1), -1, 'none before: the caller goes to the start');
 });

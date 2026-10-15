@@ -12,6 +12,7 @@
 .g-idx { font-size: 10px; fill: var(--muted); }
 .g-muted { font-size: 12px; fill: var(--muted); }
 .g-chiptxt { font-size: 11.5px; font-weight: 700; }
+.g-ptrarrow { font-size: 12px; font-weight: 700; fill: var(--muted); }
 .g-t { font-size: 13px; fill: var(--ink); }
 .g-t.num { fill: var(--num); }
 .g-t.str { fill: var(--str); }

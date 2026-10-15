@@ -291,3 +291,24 @@ test('index adjacency with [node, …] tuples: the node is the first position ho
   assert.equal(lines('adj', 'const adj = [[[7, 8]], []];'), null, 'no position holds node numbers');
   assert.equal(lines('lines', 'const lines = [[[1, 0, 3]], [[0, 2, 2]]];'), null, 'like plain number lists, the variable name decides');
 });
+
+test('Memory view pointer tags: one arrow under each pointed-at cell, the names below it, cells keep their width', () => {
+  const s = runTrace('const arr = [5, 2, 9, 1, 6]; let i = 1, j = 2, lo = 2, pivot = 4;').steps.at(-1);
+  const view = buildMemoryView(s, null, 'arr', true);
+  const arrows = view.prims.filter(q => q.p.className === 'g-ptrarrow');
+  const names = view.prims.filter(q => q.p.className === 'g-chiptxt').map(q => q.text);
+  assert.equal(arrows.length, 3, 'cells 1, 2 and 4: one arrow each, however many names point there');
+  assert.deepEqual(names, ['i', 'j', 'lo', 'pivot'], 'names on their own, without an arrow glued to them');
+  const cells = view.prims.filter(q => q.tag === 'rect' && q.p.className.startsWith('g-cell'));
+  const plain = buildMemoryView(runTrace('const arr = [5, 2, 9, 1, 6];').steps.at(-1), null, 'arr', true);
+  const plainCells = plain.prims.filter(q => q.tag === 'rect' && q.p.className.startsWith('g-cell'));
+  assert.deepEqual(cells.map(c => c.p.width), plainCells.map(c => c.p.width), 'pointer names never change the width of the cells');
+  const crowd = buildMemoryView(runTrace('const arr = [5, 2, 9, 1]; let currentIndex = 0, i = 1, j = 2;').steps.at(-1), null, 'arr', true);
+  const boxes = crowd.prims.filter(q => q.p.className === 'g-chiptxt').map(q => ({ t: q.text, y: q.p.y, a: q.p.x - q.text.length * 3.6, b: q.p.x + q.text.length * 3.6 }));
+  for (const u of boxes) for (const v of boxes) if (u !== v && u.y === v.y) assert.ok(u.b <= v.a || v.b <= u.a, `"${u.t}" and "${v.t}" do not overlap`);
+  assert.ok(boxes.find(q => q.t === 'i').y > boxes.find(q => q.t === 'currentIndex').y, 'a name that would overlap a long one moves down a row');
+  const pv = view.prims.find(q => q.text === 'pivot');
+  assert.ok(pv.p.x + 'pivot'.length * 7.2 / 2 <= view.width, 'a name past the last cell still fits in the drawing');
+  const below = n => view.prims.find(q => q.text === n).p.y, arrowY = arrows[1].p.y;
+  assert.ok(below('j') > arrowY && below('lo') > below('j'), 'names are stacked under the arrow');
+});

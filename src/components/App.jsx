@@ -34,7 +34,8 @@ export function App() {
   const [split, setSplitState] = useState(readSplit);  // the editor's share of the width, in percent
   const grid = useRef(null);
   const setSplit = v => { setSplitState(v); try { localStorage.setItem(SPLIT_KEY, String(v)); } catch { /* storage blocked: not kept */ } };
-  const s = useStepper(code);
+  const [breakpoints, setBreakpoints] = useState([]);  // marked line numbers, kept by the editor as the code changes
+  const s = useStepper(code, breakpoints);
   const stale = code !== s.tracedCode;               // edited since the last run: its trace no longer matches the code
 
   const runNow = () => { s.run(code); };
@@ -52,9 +53,10 @@ export function App() {
     return () => clearTimeout(t);
   }, [code, stale]);                                // `s` is new every render; only the code matters here
 
-  useEffect(() => {                                // keyboard: ← → Home End Space, unless typing or on a control
+  useEffect(() => {                                // keyboard: ← → Home End Space (unless typing or on a control), F8 / Shift+F8
     const onKey = e => {
       if (!s.trace || stale) return;
+      if (e.key === 'F8') { e.preventDefault(); if (e.shiftKey) s.prevBreak(); else s.nextBreak(); return; }   // also from the editor
       const t = e.target;
       if (['TEXTAREA', 'SELECT', 'INPUT', 'BUTTON'].includes(t.tagName) || t.isContentEditable || (t.closest && t.closest('.cm-editor, [role=separator]'))) return;
       if (e.key === 'ArrowRight') s.go(s.idx + 1);
@@ -77,7 +79,7 @@ export function App() {
     <>
       <Header examples={NAMES} example={example} onExample={pickExample} />
       <main className="grid" ref={grid} style={{ '--split': String(split) }}>   {/* left: the editor; right: the debugger; the timeline runs along the bottom */}
-        <CodePanel code={code} onCode={setCode} onRun={runNow}
+        <CodePanel code={code} onCode={setCode} onRun={runNow} onBreakpoints={setBreakpoints}
           line={showing && s.step ? s.step.line : 0} prevLine={showing && s.prev ? s.prev.line : 0} banner={banner} />
         <Splitter value={split} onChange={setSplit} gridRef={grid} />
         <div className="debug">
