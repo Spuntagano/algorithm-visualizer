@@ -23,7 +23,10 @@ export function semTags(step, sem, graphName) {
     const k = keyFor(w.node);
     if (k != null) { add(k, w.name, 'ptr'); return; }
     const c = resolve(w.node);
-    if (c && (c.t === 'arr' || c.t === 'set') && c.id !== sem.rootId) c.items.forEach(it => { const kk = keyFor(it); if (kk != null) add(kk, w.name, 'in'); });
+    // an array of flags, one per numbered node (bool visited[N] in C): the nodes whose flag is true
+    if (c && c.t === 'arr' && prim && c.id !== sem.rootId && c.items.length && c.items.every(x => x.t === 'p' && x.k === 'bool'))
+      c.items.forEach((x, i) => { const kk = String(i + (c.base || 0)); if (x.s === 'true' && sem.map.has(kk)) add(kk, w.name, 'in'); });
+    else if (c && (c.t === 'arr' || c.t === 'set') && c.id !== sem.rootId) c.items.forEach(it => { const kk = keyFor(it); if (kk != null) add(kk, w.name, 'in'); });
     // a set written as a table of trues, visited = { A = true } (Lua's way; { A: true } in JavaScript)
     else if (c && c.t === 'obj' && c.id !== sem.rootId && c.entries.length && c.entries.every(([, x]) => x.t === 'p' && x.k === 'bool' && /^true$/i.test(x.s)))
       c.entries.forEach(([k]) => { const kk = keyFor({ t: 'p', k: 'str', s: JSON.stringify(k) }); if (kk != null) add(kk, w.name, 'in'); });

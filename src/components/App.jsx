@@ -1,6 +1,6 @@
 /** The whole page: wires the stepper hook to the panels. */
 import { useEffect, useRef, useState } from 'react';
-import { EXAMPLES, LUA_EXAMPLES, PY_EXAMPLES, RB_EXAMPLES, TS_EXAMPLES } from '../examples.js';
+import { C_EXAMPLES, EXAMPLES, LUA_EXAMPLES, PY_EXAMPLES, RB_EXAMPLES, TS_EXAMPLES } from '../examples.js';
 import { LANG_NAMES } from '../editor.js';
 import { useStepper } from '../hooks/useStepper.js';
 import { CodePanel } from './CodePanel.jsx';
@@ -9,7 +9,7 @@ import { SPLIT_DEFAULT, Splitter } from './Splitter.jsx';
 import { StatePanel } from './StatePanel.jsx';
 import { Transport } from './Transport.jsx';
 
-const EXAMPLES_BY_LANG = { javascript: EXAMPLES, typescript: TS_EXAMPLES, lua: LUA_EXAMPLES, python: PY_EXAMPLES, ruby: RB_EXAMPLES };
+const EXAMPLES_BY_LANG = { javascript: EXAMPLES, typescript: TS_EXAMPLES, lua: LUA_EXAMPLES, python: PY_EXAMPLES, ruby: RB_EXAMPLES, c: C_EXAMPLES };
 /** The runtimes downloaded on first use, and roughly how much. */
 const DOWNLOADS = { python: 'about 12 MB', ruby: 'about 8 MB' };
 
@@ -38,7 +38,7 @@ export const RERUN_DELAY = 350;
 export function App() {
   const [example, setExample] = useState('');       // '' until an example is picked: the page starts with an empty editor
   const [code, setCode] = useState('');
-  const [lang, setLangState] = useState(readLang);   // 'javascript' | 'typescript' | 'lua' | 'python' | 'ruby'
+  const [lang, setLangState] = useState(readLang);   // 'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'c'
   const examples = EXAMPLES_BY_LANG[lang];
   const [views, setViews] = useState({});          // per-variable choice: 'boxes' | 'graph' | 'memory' (absent: DEFAULT_VIEW)
   const [showPtrs, setShowPtrs] = useState(true);

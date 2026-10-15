@@ -7,8 +7,10 @@
 import { useEffect, useRef } from 'react';
 
 /**
- * Everything the guide says that depends on the language. SHAPES items are [example, explanation, program?]:
- * `program` is what the tests run for an example that is not a whole program on its own.
+ * Everything the guide says that depends on the language. SHAPES items are [example, explanation, program?, variable?]:
+ * `program` is what the tests run for an example that is not a whole program on its own, and `variable` the one in it
+ * that is drawn (C's programs declare several). `groups` says which of the four kinds of shape each group of SHAPES is
+ * (C has no dictionaries, so it has no neighbour lists by name), and `names` renames a kind in the explanations.
  */
 const NODE_CLASS = 'class Node:\n    def __init__(self, name, nbrs=()):\n        self.name = name\n        self.nbrs = list(nbrs)\n';
 export const HELP = {
@@ -135,13 +137,45 @@ export const HELP = {
     arrowObject: '{ to: "B", w: 4 }', pair: '[from, to]', tuples: ['[1, 0, 3]', '[0, 3, 1]', '[0, 1, 3]'],
     nodeData: '{ id: 1, weight: 3 }', arrowData: '{ to: "B", start: 0, end: 3 }', age: '{ age: 1 }', fruits: '{ fruits: ["apple"] }',
   },
+  c: {
+    values: 'Every array, struct and pointer',
+    memory: 'each array or struct is a box, and a pointer is an arrow to the memory it points at',
+    containers: 'an array (or an array of bool flags, one per node)',
+    groups: ['nested', 'named', 'numbers'],
+    names: { nested: 'Structs that point at structs', named: 'Structs that name each other', numbers: 'Arrays of numbers' },
+    shapes: [
+      ['Structs that point at each other', [
+        ['struct Node { int val; struct Node *next; };', 'A linked list: next points at the next node, and NULL ends it.',
+          'struct Node { int val; struct Node *next; };\nint main(void) {\n    struct Node c = {3, NULL}, b = {2, &c}, a = {1, &b};\n    return 0;\n}', 'a'],
+        ['struct Tree { int val; struct Tree *left, *right; };', 'A binary tree.',
+          'struct Tree { int val; struct Tree *left, *right; };\nint main(void) {\n    struct Tree l = {2, NULL, NULL}, r = {3, NULL, NULL}, root = {1, &l, &r};\n    return 0;\n}', 'root'],
+        ['struct Vertex { char name; struct Vertex *nbrs[3]; };', 'Structs holding pointers to other structs (malloc\'d or not): any graph.',
+          'struct Vertex { char name; struct Vertex *nbrs[3]; };\nint main(void) {\n    struct Vertex b = {\'B\'}, c = {\'C\'}, a = {\'A\', {&b, &c}};\n    b.nbrs[0] = &c;\n    return 0;\n}', 'a'],
+      ]],
+      ['Structs that name each other', [
+        ['struct Job { char id; char next[3]; } jobs[] = {{\'A\', "BC"}, {\'B\', "C"}, {\'C\', ""}};', 'By an id, key or name field: A points to B and C.', null, 'jobs'],
+        ['struct Item { int val; int next; } items[] = {{5, 2}, {9, -1}, {7, 1}};', 'By position in the array: a list kept in an array (-1 ends it).', null, 'items'],
+      ]],
+      ['Arrays of numbers (the variable\'s name decides)', [
+        ['int adj[3][3] = {{0, 1, 1}, {0, 0, 1}, {0, 0, 0}};', 'An adjacency matrix: adj[a][b] is 1 when a points to b. The name must contain adj, graph, neigh or tree, or be g.'],
+        ['int graph[3][3] = {{0, 4, 2}, {0, 0, 5}, {0, 1, 0}};', 'The same with weights: 0 is no edge (and the diagonal is all 0).'],
+        ['int edges[2][2] = {{0, 1}, {1, 2}};', 'One {from, to} pair per arrow; a third number is its weight. The name must contain edge.'],
+      ]],
+    ],
+    arrowObject: '{.to = 1, .w = 4}', pair: '{from, to}', tuples: ['{1, 0, 3}', '{0, 3, 1}', '{0, 1, 3}'],
+    nodeData: '{.id = 1, .weight = 3}', arrowData: '{.to = 1, .start = 0, .end = 3}', age: 'struct { int age; }', fruits: '{"apple", "pear"}',
+  },
 };
 /** The JavaScript shapes (kept under their old name for the tests). */
 export const SHAPES = HELP.javascript.shapes;
+const GROUPS = ['keyed', 'nested', 'named', 'numbers'];
+const NAMES = { keyed: 'Neighbour lists', nested: 'Objects inside objects', named: 'Objects that name each other', numbers: 'Lists of numbers' };
 
-/** @param lang  'javascript' | 'typescript' | 'lua' | 'python' | 'ruby': which language the guide's examples are written in (TypeScript uses JavaScript's) */
+/** @param lang  'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'c': which language the guide's examples are written in (TypeScript uses JavaScript's) */
 export function GraphHelp({ lang = 'javascript' }) {
   const h = HELP[lang] || HELP.javascript;
+  const groups = h.groups || GROUPS, no = id => groups.indexOf(id) + 1, has = id => groups.includes(id);
+  const title = id => <b>{no(id)}. {(h.names && h.names[id]) || NAMES[id]}:</b>;
   const btn = useRef(null), pop = useRef(null);
 
   useEffect(() => {
@@ -189,20 +223,21 @@ export function GraphHelp({ lang = 'javascript' }) {
         ))}
 
         <h4>How connections are found</h4>
-        <p>The app checks the shapes in the order 1, 4, 2, 3 and uses the first one that fits. For each one:</p>
+        <p>The app checks the shapes in the order {['keyed', 'numbers', 'nested', 'named'].filter(has).map(no).join(', ')} and uses the first one that fits. For each one:</p>
         <ul className="help-notes">
-          <li><b>1. Neighbour lists:</b> every key is a node. Each name in a key's list is an arrow from that key to the node with
+          {has('keyed') && <li>{title('keyed')} every key is a node. Each name in a key's list is an arrow from that key to the node with
             that name. A name that has no key of its own still becomes a node. In <code className="inline">{h.arrowObject}</code>,
             the target is the first of <i>to, node, target, dest, id, key, name, vertex, neighbor, v, n</i>; the weight is
-            a <i>weight, w, cost, dist, length, capacity</i> or <i>time</i> field.</li>
-          <li><b>2. Objects inside objects:</b> every object is a node, and a field holding another object (or a list of them)
+            a <i>weight, w, cost, dist, length, capacity</i> or <i>time</i> field.</li>}
+          <li>{title('nested')} every object is a node, and a field holding another object (or a list of them)
             is an arrow, labelled with the field's name. The same object is always the same node, so shared objects and
             loops connect correctly.</li>
-          <li><b>3. Objects that name each other:</b> a node is named by its key, by a field <i>id</i>, <i>key</i> or <i>name</i> that
+          <li>{title('named')} a node is named by its key, by a field <i>id</i>, <i>key</i> or <i>name</i> that
             every object has and that is different in each, or else by its position. A field becomes arrows when every value in
             it is the name of another node.</li>
-          <li><b>4. Lists of numbers:</b> in <code className="inline">adj</code>, list number <i>i</i> holds the neighbours of
-            node <i>i</i>, as numbers or as lists of values. In those lists the node is the first position where every list holds a
+          <li>{title('numbers')} in <code className="inline">adj</code>, list number <i>i</i> holds the neighbours of
+            node <i>i</i>, as numbers or as lists of values; a square table of 0s and 1s (or of weights, with 0s down the diagonal)
+            is an adjacency matrix, where row <i>a</i>, column <i>b</i> is the arrow from <i>a</i> to <i>b</i>. In those lists the node is the first position where every list holds a
             number of a node that exists (<i>{h.tuples[0]}</i>, <i>{h.tuples[1]}</i> and <i>{h.tuples[2]}</i> all work); if several positions fit, the
             first one is used. In <code className="inline">edges</code>, each <i>{h.pair}</i> is
             one arrow, and a third number is its weight.</li>
@@ -210,8 +245,9 @@ export function GraphHelp({ lang = 'javascript' }) {
 
         <h5>Making sure the right values are connected</h5>
         <ul className="help-notes">
-          <li><b>All or nothing:</b> a list counts as connections only if every value in it is a node's name. In shape 1, one
-            value that is not a name means the data is not a graph at all; in shape 3, that field is shown as data instead.</li>
+          <li><b>All or nothing:</b> a list counts as connections only if every value in it is a node's name.{has('keyed') ? <> In shape {no('keyed')}, one
+            value that is not a name means the data is not a graph at all; in shape {no('named')}, that field is shown as data instead.</> : <> Otherwise
+            that field is shown as data.</>}</li>
           <li><b>Names must match:</b> an arrow is only drawn to a node that exists, matched by its exact name (or number).
             At least one arrow must lead to another entry, so lists of plain values are never mistaken for a graph.</li>
           <li><b>Numbers are careful:</b> a number is a connection only in a field named like a link (<i>next, out, to, parent,

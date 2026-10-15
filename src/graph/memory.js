@@ -51,9 +51,9 @@ export function buildVarGraph(step, name) {
   const make = src => {
     const g = { id: src.id, kind: src.t, cells: [], kids: [], more: src.more || 0 };
     nodes.set(src.id, g); onPath.add(src.id);
-    // cls / tn are Python's type names (list, tuple, dict, set…); JavaScript values leave them empty
+    // cls / tn are Python's type names (list, tuple, dict, set…) or C's (int[5]); JavaScript values leave them empty
     g.title = src.t === 'obj' ? (src.cls || src.tn || 'Object') : src.t === 'map' ? (src.cls || 'Map') + '(' + (src.entries.length + src.more) + ')'
-      : src.t === 'set' ? (src.cls || 'Set') + '(' + (src.items.length + src.more) + ')' : (src.cls || 'Array') + '(' + src.len + ')';
+      : src.t === 'set' ? (src.cls || 'Set') + '(' + (src.items.length + src.more) + ')' : src.tn || (src.cls || 'Array') + '(' + src.len + ')';
     let rows;
     if (src.t === 'arr') rows = src.items.map((x, i) => [String(i + (src.base || 0)), x]);   // base 1: a Lua table
     else if (src.t === 'set') rows = src.items.map(x => ['•', x]);

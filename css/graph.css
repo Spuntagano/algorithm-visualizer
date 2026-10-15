@@ -15,7 +15,8 @@
 .g-ptrarrow { font-size: 12px; font-weight: 700; fill: var(--muted); }
 .g-t { font-size: 13px; fill: var(--ink); }
 .g-t.num { fill: var(--num); }
-.g-t.str { fill: var(--str); }
+.g-t.str, .g-t.char { fill: var(--str); }
+.g-t.ptr { fill: var(--accent); }
 .g-t.bool { fill: var(--bool); }
 .g-t.null, .g-t.undef, .g-t.sym { fill: var(--muted); }
 .g-dot { fill: var(--ink-soft); }

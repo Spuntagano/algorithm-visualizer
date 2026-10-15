@@ -14,6 +14,8 @@ import { breakpointStep } from '../src/hooks/useStepper.js';
 import { traceCode } from '../src/engine/sync.js';
 import { highlightCode } from '@lezer/highlight';
 import { javascriptLanguage } from '@codemirror/lang-javascript';
+import { StreamLanguage } from '@codemirror/language';
+import { cMode } from '../src/c-mode.js';
 import { EditorState, EditorView, breakpointField, breakpointLines, clearBreakpoints, highlight, setStep, stepField, stepLines, toggleBreakpoint } from '../src/editor.js';
 import { EXAMPLES } from '../src/examples.js';
 
@@ -34,7 +36,7 @@ test('App starts empty: no code, no example picked, no error', () => {
   const picker = m.match(/<select[^>]*id="example"[\s\S]*?<\/select>/)[0];
   assert.equal(count(picker, /<option value="[^"]+">/g), Object.keys(EXAMPLES).length, 'every example is offered');
   assert.doesNotMatch(m, /id="btnRun"|id="btnEdit"/, 'no Visualize / Edit code button: the code is always editable');
-  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="lua"[^>]*>Lua<\/option><option value="python"[^>]*>Python<\/option><option value="ruby"[^>]*>Ruby<\/option><\/select>/, 'a language picker');
+  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="lua"[^>]*>Lua<\/option><option value="python"[^>]*>Python<\/option><option value="ruby"[^>]*>Ruby<\/option><option value="c"[^>]*>C<\/option><\/select>/, 'a language picker');
   assert.match(m, /<div class="splitter" role="separator" aria-orientation="vertical"[^>]*aria-valuenow="50"[^>]*tabindex="0"/, 'a focusable divider, half and half by default');
   assert.match(m, /<main class="grid" style="--split:50"/);
 });
@@ -54,6 +56,12 @@ test('the graph help is written for the language that is picked', () => {
   assert.match(rb, /Every array, hash, set and object/); assert.match(rb, /\{ val: 1, next: \{ val: 2, next: nil \} \}/, 'Ruby syntax: nil');
   assert.match(rb, /Node\.new\(&quot;A&quot;, \[b, c\]\)/); assert.match(rb, /\{ a: \{ next: \[:b\] \}/, 'symbols');
   for (const other of [/None/, /next: null/, /const adj/]) assert.doesNotMatch(rb, other, 'no other language in the Ruby guide: ' + other);
+  const c = help('c');
+  assert.match(c, /Every array, struct and pointer/); assert.match(c, /struct Node \{ int val; struct Node \*next; \};/);
+  assert.match(c, /checks the shapes in the order 3, 1, 2 /, 'C has three kinds of shape, numbered from 1');
+  assert.match(c, /<b>1\. Structs that point at structs:<\/b>/); assert.doesNotMatch(c, /Neighbour lists:/, 'no lists by name: C has no dictionaries');
+  assert.match(js, /checks the shapes in the order 1, 4, 2, 3 /); assert.match(js, /<b>1\. Neighbour lists:<\/b>/);
+  for (const other of [/None/, /next: null/, /const adj/, /nil/]) assert.doesNotMatch(c, other, 'no other language in the C guide: ' + other);
 });
 
 test('StatePanel: the ? next to Variables opens the graph help', () => {
@@ -158,10 +166,10 @@ test('traceCode reports problems instead of throwing', () => {
 });
 
 /** [text, css] for each highlighted token, with the CSS rule the HighlightStyle generated for its class. */
-function colours(code) {
+function colours(code, parser = javascriptLanguage.parser) {
   const rules = Object.fromEntries(highlight.module.getRules().split('\n').map(r => r.match(/^\.(\S+) \{(.*)\}$/)).filter(Boolean).map(m => [m[1], m[2]]));
   const out = [];
-  highlightCode(code, javascriptLanguage.parser.parse(code), highlight, (text, cls) => { if (cls) out.push([text, cls.split(' ').map(c => rules[c]).join(';')]); }, () => out.push(['\n', '']));
+  highlightCode(code, parser.parse(code), highlight, (text, cls) => { if (cls) out.push([text, cls.split(' ').map(c => rules[c]).join(';')]); }, () => out.push(['\n', '']));
   return out;
 }
 
@@ -175,6 +183,18 @@ test('editor highlighting uses the theme variables, and a multi-line comment is 
   assert.match(css('// hi'), /var\(--code-com\).*italic/);
   const lines = colours('/* one\ntwo */\nlet y;').map(([t, c]) => t === '\n' ? '\n' : c).join('').split('\n');
   assert.match(lines[0], /--code-com/); assert.match(lines[1], /--code-com/);
+});
+
+test('C highlighting: keywords and types, strings and chars, numbers, comments, #include lines', () => {
+  const parser = StreamLanguage.define(cMode).parser;
+  const tok = colours('#include <stdio.h>\nint main(void) {\n    char c = \'a\'; /* x\n y */ return 0x1F + 2.5f; // end\n}', parser);
+  const css = text => (tok.find(([t]) => t === text) || [])[1] || '';
+  for (const kw of ['#include <stdio.h>', 'int', 'void', 'char', 'return']) assert.match(css(kw), /var\(--code-kw\)/, kw);
+  assert.match(css("'a'"), /var\(--code-str\)/);
+  assert.match(css('0x1F'), /var\(--code-num\)/); assert.match(css('2.5f'), /var\(--code-num\)/);
+  assert.match(css('/* x'), /var\(--code-com\)/); assert.match(css(' y */'), /var\(--code-com\)/, 'a block comment over two lines');
+  assert.match(css('// end'), /var\(--code-com\)/);
+  assert.equal(css('main'), '', 'names are plain');
 });
 
 test('stepField: one current line, a faint previous line, aria-current, cleared by an edit', () => {

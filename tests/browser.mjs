@@ -461,6 +461,43 @@ await page.click('#bLast');
 assert.match(await page.locator('#banner').innerText(), /ZeroDivisionError: divided by 0/);
 await page.selectOption('#lang', 'javascript');
 
+// 6m. C: run by its own interpreter in the worker, offline; pointers are arrows, malloc'd memory has an #id
+await pick('Reverse a linked list');
+const nC = await runs();
+await page.selectOption('#lang', 'c');
+await settled(nC);
+assert.equal(await page.locator('.cm-line').first().innerText(), '#include <stdio.h>', 'the C version of the example');
+assert.match(await page.locator('.site-header p').innerText(), /^Run C .* arrays, structs, pointers and memory change/);
+assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^C code$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^23$/ }).click();   // curr->next = prev;
+await page.click('#bBpNext'); await page.click('#bBpNext');            // a fresh run starts at step 1: on to the second hit
+assert.match(await stepLabel(), /· line 23$/, 'breakpoints work in C');
+assert.equal(await page.locator('#stack .frame.top').innerText(), 'main()', 'main is a frame of its own');
+assert.match(await page.locator('.var:has(button[data-vt="curr|boxes"]) svg').textContent(), /Node/, 'Memory names the struct type');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^23$/ }).click();
+await page.click('#bLast');
+await page.locator('button[data-vt="prev|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="prev|boxes"]) .gcap').innerText(), /^Linked list · 3 nodes/, 'pointers between structs make a graph');
+await snap('08-c');
+await page.click('#graphHelpBtn');
+assert.match(await page.locator('#graphHelp').innerText(), /Every array, struct and pointer[\s\S]*struct Node \{ int val; struct Node \*next; \};/, 'the help speaks C');
+await page.keyboard.press('Escape');
+await pick('Breadth-first search');
+for (let i = 0; i < 12; i++) await page.click('#bNext');
+await page.locator('button[data-vt="graph|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="graph|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/, 'an adjacency matrix is a graph');
+assert.ok(await page.locator('.var:has(button[data-vt="graph|boxes"]) text', { hasText: '∈ visited' }).count() > 0, 'bool visited[N] tags the visited nodes');
+await snap('09-c-bfs');
+await replaceCode('int main(void) {\n    int x = = 1;\n}');
+await bannerMatches(/Syntax error: line 2: expected an expression before '='/);
+await typeCode('int main(void) {\n    int a[3] = {1, 2, 3};\n    int i = 3;\n    a[i] = 4;\n}');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /Error on line 4: a\[3\] is out of bounds: a has 3 elements \(indexes 0 to 2\)/);
+await typeCode('int main(void) {\n    while (1);\n}');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /Trace stopped after 3000 steps/, 'a runaway C loop is stopped');
+await page.selectOption('#lang', 'javascript');
+
 // 7. theme: dark mode renders without errors
 await page.emulateMedia({ colorScheme: 'dark' });
 await pick('Breadth-first search');

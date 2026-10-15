@@ -16,7 +16,8 @@
 
 .prim { font-size: 14px; white-space: pre; }
 .prim.num { color: var(--num); }
-.prim.str { color: var(--str); }
+.prim.str, .prim.char { color: var(--str); }
+.prim.ptr { color: var(--accent); }
 .prim.bool { color: var(--bool); }
 .prim.null, .prim.undef, .prim.sym { color: var(--muted); }
 .empty { color: var(--muted); font-size: 13px; }

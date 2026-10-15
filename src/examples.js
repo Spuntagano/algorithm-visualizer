@@ -753,3 +753,220 @@ cur = "B"                                 # tags node B in g1
 visited = Set["A", "C"]                   # ∈ visited tags
 puts "done"`
 };
+
+/** The same kind of examples in C (same names where there is a JavaScript twin). C has no hash map, so two sum uses a lookup table. */
+export const C_EXAMPLES = {
+"Bubble sort": `#include <stdio.h>
+
+void bubble_sort(int arr[], int n) {
+    for (int i = 0; i < n - 1; i++) {
+        int swapped = 0;
+        for (int j = 0; j < n - 1 - i; j++) {
+            if (arr[j] > arr[j + 1]) {
+                int tmp = arr[j];
+                arr[j] = arr[j + 1];
+                arr[j + 1] = tmp;
+                swapped = 1;
+            }
+        }
+        if (!swapped) break;
+    }
+}
+
+int main(void) {
+    int data[] = {5, 2, 9, 1, 6};
+    int n = sizeof data / sizeof data[0];
+    bubble_sort(data, n);
+    for (int i = 0; i < n; i++) printf("%d ", data[i]);
+    printf("\\n");
+    return 0;
+}`,
+
+"Binary search": `#include <stdio.h>
+
+int binary_search(const int *arr, int n, int target) {
+    int lo = 0;
+    int hi = n - 1;
+    while (lo <= hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (arr[mid] == target) {
+            return mid;
+        } else if (arr[mid] < target) {
+            lo = mid + 1;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    return -1;
+}
+
+int main(void) {
+    int sorted[] = {2, 5, 8, 12, 16, 23, 38, 56, 72, 91};
+    int found = binary_search(sorted, 10, 23);
+    printf("found at index %d\\n", found);
+    return 0;
+}`,
+
+"Two sum (lookup table)": `#include <stdio.h>
+
+#define MAX_VALUE 16
+
+/* seen[v] is the index where the value v was met, or -1 */
+int two_sum(const int *nums, int n, int target, int result[2]) {
+    int seen[MAX_VALUE];
+    for (int v = 0; v < MAX_VALUE; v++) seen[v] = -1;
+    for (int i = 0; i < n; i++) {
+        int need = target - nums[i];
+        if (need >= 0 && need < MAX_VALUE && seen[need] != -1) {
+            result[0] = seen[need];
+            result[1] = i;
+            return 1;
+        }
+        seen[nums[i]] = i;
+    }
+    return 0;
+}
+
+int main(void) {
+    int nums[] = {3, 8, 11, 4, 7};
+    int result[2];
+    if (two_sum(nums, 5, 15, result)) {
+        printf("[%d, %d]\\n", result[0], result[1]);
+    }
+    return 0;
+}`,
+
+"Fibonacci with memo": `#include <stdio.h>
+
+long long memo[50];          /* 0 means "not worked out yet" */
+
+long long fib(int n) {
+    if (n <= 1) return n;
+    if (memo[n] != 0) return memo[n];
+    memo[n] = fib(n - 1) + fib(n - 2);
+    return memo[n];
+}
+
+int main(void) {
+    printf("%lld\\n", fib(6));
+    return 0;
+}`,
+
+"Reverse a linked list": `#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct Node {
+    int val;
+    struct Node *next;
+} Node;
+
+Node *node(int val, Node *next) {
+    Node *n = malloc(sizeof(Node));
+    n->val = val;
+    n->next = next;
+    return n;
+}
+
+int main(void) {
+    Node *list = node(1, node(2, node(3, NULL)));
+
+    Node *prev = NULL;
+    Node *curr = list;
+    while (curr != NULL) {
+        Node *next_node = curr->next;
+        curr->next = prev;
+        prev = curr;
+        curr = next_node;
+    }
+    printf("%d\\n", prev->val);
+    return 0;
+}`,
+
+"Breadth-first search": `#include <stdio.h>
+#include <stdbool.h>
+
+#define N 6
+
+/* graph[a][b] is 1 when there is an edge from a to b (A is 0, B is 1…) */
+int graph[N][N] = {
+    {0, 1, 1, 0, 0, 0},   /* A: B, C */
+    {0, 0, 0, 1, 0, 0},   /* B: D */
+    {0, 0, 0, 1, 1, 0},   /* C: D, E */
+    {0, 0, 0, 0, 0, 1},   /* D: F */
+    {0, 0, 0, 0, 0, 1},   /* E: F */
+    {0, 0, 0, 0, 0, 0},   /* F */
+};
+
+void bfs(int start) {
+    bool visited[N] = {false};
+    int queue[N];
+    int head = 0, tail = 0;
+    visited[start] = true;
+    queue[tail++] = start;
+    while (head < tail) {
+        int cur = queue[head++];
+        printf("%c ", 'A' + cur);
+        for (int next = 0; next < N; next++) {
+            if (graph[cur][next] && !visited[next]) {
+                visited[next] = true;
+                queue[tail++] = next;
+            }
+        }
+    }
+    printf("\\n");
+}
+
+int main(void) {
+    bfs(0);
+    return 0;
+}`,
+
+"Data structures": `#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+struct Point { int x, y; };
+enum Color { RED, GREEN, BLUE };
+
+struct TreeNode { int val; struct TreeNode *left, *right; };
+struct ListNode { int val; struct ListNode *next; };
+struct Vertex { char name; struct Vertex *nbrs[2]; };
+struct Job { char id; const char *color; char next[3]; };
+struct Item { int val; int next; };
+
+int main(void) {
+    // ---- Memory / Boxes: any value ----
+    int nums[] = {5, 2, 9, 1, 6};
+    int i = 1, *p = &nums[3];                  // pointer tags under nums[1] and nums[3]
+    char word[] = "hi";
+    double ratio = 2.0 / 3;
+    bool done = false;
+    enum Color color = GREEN;
+    struct Point pt = {1, 2};
+    struct Point *ptp = &pt;                   // the same struct twice: #id badge
+    int *heap = calloc(3, sizeof(int));        // memory from malloc / calloc
+    heap[0] = 7;
+
+    // ---- Graph: numbers (the variable's name decides) ----
+    int adj[4][4] = {{0, 1, 1, 0}, {0, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 0, 0}};   // adjacency matrix
+    int graph_w[3][3] = {{0, 4, 2}, {0, 0, 5}, {0, 1, 0}};                     // weights, 0: no edge
+    int edges[3][2] = {{0, 1}, {1, 2}, {2, 0}};                                // one {from, to} per arrow
+
+    // ---- Graph: structs that point at each other ----
+    struct TreeNode n4 = {4, NULL, NULL}, n3 = {3, NULL, NULL};
+    struct TreeNode n2 = {2, &n4, NULL};
+    struct TreeNode tree = {1, &n2, &n3};
+    struct ListNode l3 = {3, NULL}, l2 = {2, &l3};
+    struct ListNode linked = {1, &l2};
+    struct Vertex va = {'A'}, vb = {'B'}, vc = {'C'};
+    va.nbrs[0] = &vb; va.nbrs[1] = &vc; vb.nbrs[0] = &vc; vc.nbrs[0] = &va;
+
+    // ---- Graph: structs that name each other by id, or by index ----
+    struct Job jobs[3] = {{'A', "red", "BC"}, {'B', "blue", "C"}, {'C', "green", ""}};
+    struct Item pool[3] = {{5, 2}, {9, -1}, {7, 1}};        // a list kept in an array: 5 -> 7 -> 9
+
+    printf("done\\n");
+    free(heap);
+    return 0;
+}`
+};

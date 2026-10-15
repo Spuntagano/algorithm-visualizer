@@ -16,6 +16,9 @@
  * Arrays may have `base: 1` (Lua tables numbered from 1): views number their cells, and index-based rules count, from it.
  * Python values (engine/python/tracer.py) use the same nodes, plus the type name: `cls` on arrays, sets and maps
  * ('list', 'tuple', 'deque', 'set', 'dict'…) and `tn` on dicts shown as objects (their keys are all strings).
+ * C values (engine/c/interp.js) add `tn` on arrays (the C type: 'int[5]'), primitives of kind 'char' ("'a'") and
+ * 'ptr' (a pointer into an array or to a scalar: s '&nums[2]', with `to` (the array's id) and `at` (the index) when
+ * it points at an array cell); a pointer to a struct or to the start of an array is shown as that memory itself.
  */
 
 export const isCont = n => n.t === 'arr' || n.t === 'obj' || n.t === 'map' || n.t === 'set';
@@ -25,10 +28,11 @@ export const clip = s => s.length > 22 ? s.slice(0, 21) + '…' : s;
 export const short = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
 /** The name a primitive gives a node: a string's text, a Ruby symbol without its colon (:b names node b), else as shown. */
-export const keyOf = p => (p.k === 'str' ? JSON.parse(p.s) : p.k === 'sym' && p.s.startsWith(':') ? p.s.slice(1) : p.s);
+export const keyOf = p => (p.k === 'str' ? JSON.parse(p.s) : p.k === 'sym' && p.s.startsWith(':') ? p.s.slice(1)
+  : p.k === 'char' ? p.s.slice(1, -1) : p.s);
 
-/** A string, or a Ruby symbol (:b names node "b"): either can name a node. */
-export const isText = p => p.k === 'str' || (p.k === 'sym' && p.s.startsWith(':'));
+/** A string, a Ruby symbol (:b names node "b") or a C char ('b'): any can name a node. */
+export const isText = p => p.k === 'str' || p.k === 'char' || (p.k === 'sym' && p.s.startsWith(':'));
 
 export const dispOf = p => (p.k === 'str' ? keyOf(p) : p.s);
 
@@ -50,8 +54,11 @@ export function stepIndex(step) {
 export function markersFor(arr, vars, selfName) {
   const m = {};
   for (const v of vars) {
-    if (v.name === selfName || v.node.t !== 'p' || v.node.k !== 'num' || !/^\d+$/.test(v.node.s)) continue;
-    const i = +v.node.s - (arr.base || 0);          // a Lua array starts at 1: i = 1 points at the first cell
+    if (v.name === selfName || v.node.t !== 'p') continue;
+    let i;
+    if (v.node.k === 'ptr') { if (v.node.to !== arr.id) continue; i = v.node.at; }   // a C pointer to one of its cells
+    else if (v.node.k !== 'num' || !/^\d+$/.test(v.node.s)) continue;
+    else i = +v.node.s - (arr.base || 0);          // a Lua array starts at 1: i = 1 points at the first cell
     if (i >= 0 && i < arr.items.length) (m[i] = m[i] || []).push(v.name);
   }
   return m;

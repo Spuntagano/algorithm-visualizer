@@ -1,5 +1,5 @@
 /**
- * CodeMirror 6 setup for the code panel: JavaScript / TypeScript / Lua / Python / Ruby highlighting, the editing keymap, the
+ * CodeMirror 6 setup for the code panel: JavaScript / TypeScript / Lua / Python / Ruby / C highlighting, the editing keymap, the
  * current / previous step lines while stepping, and breakpoints. Colours come from the CSS variables in css/tokens.css,
  * so light and dark mode follow the rest of the page. Only the view needs a DOM; the state parts
  * (stepField, setStep) can be used and tested without one.
@@ -10,6 +10,7 @@ import { pythonLanguage } from '@codemirror/lang-python';
 import { HighlightStyle, StreamLanguage, bracketMatching, indentUnit, syntaxHighlighting } from '@codemirror/language';
 import { lua as luaMode } from '@codemirror/legacy-modes/mode/lua';
 import { ruby as rubyMode } from '@codemirror/legacy-modes/mode/ruby';
+import { cMode } from './c-mode.js';
 import { Compartment, EditorState, MapMode, Prec, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
 import { Decoration, EditorView, GutterMarker, drawSelection, gutter, gutterLineClass, keymap, lineNumbers, placeholder } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
@@ -141,15 +142,15 @@ const theme = EditorView.theme({
   '.cm-bp-dot': { width: '9px', height: '9px', borderRadius: '50%', backgroundColor: 'var(--err)', display: 'block' },
 });
 
-/** @typedef {'javascript' | 'typescript' | 'lua' | 'python' | 'ruby'} Lang */
-export const LANG_NAMES = { javascript: 'JavaScript', typescript: 'TypeScript', lua: 'Lua', python: 'Python', ruby: 'Ruby' };
-const luaLanguage = StreamLanguage.define(luaMode), rubyLanguage = StreamLanguage.define(rubyMode);
+/** @typedef {'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'c'} Lang */
+export const LANG_NAMES = { javascript: 'JavaScript', typescript: 'TypeScript', lua: 'Lua', python: 'Python', ruby: 'Ruby', c: 'C' };
+const luaLanguage = StreamLanguage.define(luaMode), rubyLanguage = StreamLanguage.define(rubyMode), cLanguage = StreamLanguage.define(cMode);
 
 /* Everything about the editor that depends on the language: highlighting, indentation, the hint and the label. */
 const languageConf = new Compartment();
 const languageExtensions = lang => [
-  lang === 'python' ? pythonLanguage : lang === 'typescript' ? typescriptLanguage : lang === 'lua' ? luaLanguage : lang === 'ruby' ? rubyLanguage : javascriptLanguage,
-  indentUnit.of(lang === 'python' ? '    ' : '  '), EditorState.tabSize.of(lang === 'python' ? 4 : 2),
+  lang === 'python' ? pythonLanguage : lang === 'typescript' ? typescriptLanguage : lang === 'lua' ? luaLanguage : lang === 'ruby' ? rubyLanguage : lang === 'c' ? cLanguage : javascriptLanguage,
+  indentUnit.of(lang === 'python' || lang === 'c' ? '    ' : '  '), EditorState.tabSize.of(lang === 'python' || lang === 'c' ? 4 : 2),
   placeholder(`Write or paste ${LANG_NAMES[lang]}, or pick an example above`),
   EditorView.contentAttributes.of({ 'aria-label': LANG_NAMES[lang] + ' code' }),
 ];

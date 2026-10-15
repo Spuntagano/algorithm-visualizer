@@ -1,6 +1,6 @@
 # Algorithm Stepper (React edition)
 
-Step through JavaScript, TypeScript, Lua, Python or Ruby one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables…) change.
+Step through JavaScript, TypeScript, Lua, Python, Ruby or C one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
 Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`); the choice is kept per variable while you step and edit.
 
 ## TypeScript
@@ -36,6 +36,21 @@ line with a `TracePoint`: arrays are arrays, hashes objects (string or symbol ke
 objects with instance variables objects with their class name. Symbols name graph nodes like strings do (`{ a: [:b] }`),
 methods show `self`, and the program's own `$globals` and constants are shown. A loop with no lines in its body
 (`while true; end`) is only stopped by the 3 s time limit.
+
+## C
+Pick **C** in the Language menu. C runs in an interpreter written for this page (`src/engine/c/`: `parse.js` is the
+preprocessor and parser, `interp.js` runs the tree, `printf.js` formats like glibc), so it works offline. It covers C99
+as algorithms use it: structs, unions, enums, typedefs, pointers and pointer arithmetic, arrays (also variable-length
+and 2-D), `malloc`/`calloc`/`realloc`/`free`, function pointers, `switch`, `static` locals, `#define` with arguments and
+`#ifdef`, and the usual parts of `<stdio.h>`, `<stdlib.h>`, `<string.h>`, `<ctype.h>` and `<math.h>` (`printf`, `qsort`,
+`strcpy`, `sqrt`…). Not supported: `goto`, bit fields, `scanf` (there is no input) and `#include` of your own files.
+Memory is a set of blocks with a type per byte offset, laid out like on a 64-bit Linux machine (`sizeof(int)` is 4,
+`sizeof(long)` and pointers 8, structs padded), and ints wrap around like on the real machine. Every access is checked,
+so where real C silently goes wrong the run stops with an explanation: out of bounds, NULL, use after free, double free,
+a pointer to a local that no longer exists, reading a variable before it is set, division by zero, a printf `%d` given a
+double. In the views a pointer to a struct (or to the start of an array or of a `malloc`'d block) is drawn as that memory,
+so linked structs become arrows and graphs; a pointer into an array is shown as `&a[2]` and tags that cell. Memory
+from `malloc` is named by its `#id`, and an adjacency matrix (`int graph[N][N]` of 0s and 1s, or of weights) is a graph.
 
 ## Breakpoints
 Click a line number (or press F9 on a line) to toggle a breakpoint. **Continue** (F8) jumps to the next step on a marked
@@ -85,7 +100,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 - **Limits**: 60 nodes in Graph, 50 boxes in Memory; snapshots expand 5 levels deep, 60 items / 30 entries per container.
 
 ## Structure
-- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, `python/` for Python and `ruby/` for Ruby (each hosted one: the tracer, and where its runtime is loaded from). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker for Python and one for Ruby. `sync.js` traces JavaScript on the current thread, for tests.
+- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, `python/` for Python and `ruby/` for Ruby (each hosted one: the tracer, and where its runtime is loaded from), and `c/` for C (an interpreter of its own). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker for Python and one for Ruby. `sync.js` traces JavaScript on the current thread, for tests.
 - `src/graph/` – graph math (general graphs and the Memory view are laid out by dagre, trees and lists by a small tidy-tree layout) and **view-model builders**. They return drawable primitives (`{tag, p, text}`), so geometry is testable without a DOM.
 - `src/hooks/useStepper.js` – trace, step index, playback, re-runs.
 - `src/editor.js` – CodeMirror 6 setup: highlighting, keys, and the current/previous step lines (the step state is testable without a DOM).
@@ -94,7 +109,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 
 ## Commands
     npm install
-    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~1.4 MB; Python and Ruby are downloaded on first use)
+    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~1.45 MB; Python and Ruby are downloaded on first use)
     npm run dev          # watch + unminified build (shows React warnings), served on http://localhost:8000/
     npm run check        # lint + unit tests
     npm run test:browser # Playwright against the built file

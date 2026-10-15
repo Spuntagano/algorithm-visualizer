@@ -1,7 +1,7 @@
 /**
  * The "Graph" view, part 1: decide whether a variable *is* a graph and extract nodes and edges
  * from its keys and values.
- *   keyed    { A: ["B","C"] }, { A: {B: 4} }, Map          indexed  adj = [[1,2],[0]], edges = [[0,1]]
+ *   keyed    { A: ["B","C"] }, { A: {B: 4} }, Map          indexed  adj = [[1,2],[0]], edges = [[0,1]], matrix [[0,1],[1,0]]
  *   records  objects that point at similar objects: trees, linked lists, node-and-neighbour graphs
  *   refs     records that name each other by key, index or id: { a: {next: ["b"]} }, [{out: [1, 2]}]
  */
@@ -105,7 +105,7 @@ function fromKeyed(root, resolve) {
   return finishSem('keyed', 'prim', [...keys, ...sinks].map(k => ({ key: k, label: short(k, 10), fields: [] })), edges);
 }
 
-/* [[1,2],[0],[0]] or [[[1, 4]], [[2, 0, 3]]] named like a graph, or [[0,1],[1,2]] named like an edge list */
+/* [[1,2],[0],[0]], [[[1, 4]], [[2, 0, 3]]] or an adjacency matrix [[0,1],[1,0]] named like a graph, or [[0,1],[1,2]] named like an edge list */
 function fromIndexed(root0, name, resolve) {
   if (root0.t !== 'arr' || !root0.items.length || root0.more) return null;
   // a list or pair that also appears elsewhere is a reference here (Python even shares equal constant tuples): follow it
@@ -128,6 +128,17 @@ function fromIndexed(root0, name, resolve) {
   const isIndex = q => q.t === 'p' && q.k === 'num' && /^\d+$/.test(q.s) && +q.s >= base && +q.s < n + base;
   const lists = root.items.every(r => r.t === 'arr' && !r.more) ? root.items : null;
   if (!lists || !/graph|adj|neigh|tree|^g$/i.test(name)) return null;
+  // an adjacency matrix: n rows of n numbers, 0 where there is no edge and 1 (or, with 0 down the diagonal, a weight) where there is
+  const cells = lists.every(r => r.items.length === n && r.items.every(q => q.t === 'p' && q.k === 'num' && /^\d+(\.\d+)?$/.test(q.s)));
+  if (n >= 2 && cells) {
+    const ones = lists.every(r => r.items.every(q => +q.s === 0 || +q.s === 1));
+    if (ones || lists.every((r, i) => +r.items[i].s === 0)) {
+      const edges = [];
+      lists.forEach((r, i) => r.items.forEach((q, j) => { if (+q.s !== 0) edges.push({ from: String(i + base), to: String(j + base), weight: ones ? undefined : q.s }); }));
+      if (!edges.length) return null;
+      return finishSem('matrix', 'prim', root.items.map((_, i) => ({ key: String(i + base), label: String(i + base), fields: [] })), edges);
+    }
+  }
   // a neighbour is a node number, or a tuple of plain values holding one: [1, 4], [1, 0, 3], [0, 3, 1]…
   const tuples = lists.flatMap(r => r.items.filter(q => q.t !== 'p'));
   if (lists.some(r => r.items.some(q => q.t === 'p' ? !isIndex(q) : q.t !== 'arr' || q.more || !q.items.length || q.items.some(x => x.t !== 'p')))) return null;
@@ -236,8 +247,12 @@ function fromRefRecords(root, resolve) {
     for (const [field, x] of o.entries) {
       if (LABEL_KEYS.includes(field) || field === idKey) continue;
       const c = x.t === 'p' ? null : resolve(x);
-      const vals = x.t === 'p' ? [x] : c && (c.t === 'arr' || c.t === 'set') && !c.more ? c.items : null;
+      let vals = x.t === 'p' ? [x] : c && (c.t === 'arr' || c.t === 'set') && !c.more ? c.items : null;
       if (!vals) continue;
+      if (vals.length && vals.every(p => p.t === 'p' && p.k === 'char')) {         // a C string ends at its '\0'
+        const end = vals.findIndex(p => p.s === "'\\0'");
+        if (end >= 0) vals = vals.slice(0, end);
+      }
       const real = vals.filter(p => !(p.t === 'p' && (p.k === 'null' || p.k === 'undef')));
       const tos = real.map(p => link(field, p));
       if (!tos.length || tos.some(t => t == null)) continue;

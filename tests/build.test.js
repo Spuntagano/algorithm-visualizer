@@ -16,6 +16,7 @@ test('the build is one self-contained HTML file', async () => {
   assert.match(html, /<style>[\s\S]*--chipL/);
   assert.equal((html.match(/<\/script>/g) || []).length, 1, 'bundled code cannot end the script early');
   // react-dom ~205 KB, CodeMirror ~430 KB (JavaScript, TypeScript, Lua and Python grammars), the tracing worker ~540 KB
-  // (acorn; Sucrase ~200 KB so TypeScript runs offline; Fengari ~210 KB so Lua does). Python is downloaded on first use.
+  // (acorn; Sucrase ~200 KB so TypeScript runs offline; Fengari ~210 KB so Lua does; the C interpreter ~70 KB).
+  // Python and Ruby are downloaded on first use.
   assert.ok(html.length < 1.5 * 1024 * 1024, 'bundle stays small: ' + html.length);
 });
