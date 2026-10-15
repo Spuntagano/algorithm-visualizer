@@ -1,7 +1,23 @@
 # Algorithm Stepper (React edition)
 
-Step through JavaScript one statement at a time and watch arrays, objects, Maps and Sets change.
+Step through JavaScript, TypeScript or Python one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, sets and objects) change.
 Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`); the choice is kept per variable while you step and edit.
+
+## TypeScript
+Pick **TypeScript** in the Language menu. The types are stripped by [Sucrase](https://github.com/alangpierce/sucrase)
+(`src/engine/typescript.js`) and the JavaScript tracer runs the rest, so everything works as for JavaScript, offline.
+Sucrase keeps every line where it was (interfaces become blank lines; enums and constructor parameter properties stay on
+their lines), so steps, breakpoints and the current line point at the TypeScript you wrote. Types are not checked: like
+compiling with type errors allowed, only syntax errors stop a run.
+
+## Python
+Pick **Python** in the Language menu. Python runs in the browser too: real CPython via [Pyodide](https://pyodide.org)
+(version pinned in `src/engine/python/pyodide.js`, the same as the `pyodide` devDependency). It is downloaded from the
+jsDelivr CDN the first time Python is run (about 12 MB; the banner says so) and kept loaded, so later runs are instant;
+JavaScript needs no download and works offline. `src/engine/python/tracer.py` records a snapshot before every line with
+`sys.settrace`, in the same format as the JavaScript tracer, so Memory, Boxes, Graph, breakpoints and the timeline all work
+the same: lists, tuples and deques are arrays, dicts objects (string keys) or maps, sets sets, class instances objects
+with their class name. Switching language swaps an untouched example for its twin; code you wrote or edited is kept.
 
 ## Breakpoints
 Click a line number (or press F9 on a line) to toggle a breakpoint. **Continue** (F8) jumps to the next step on a marked
@@ -51,7 +67,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 - **Limits**: 60 nodes in Graph, 50 boxes in Memory; snapshots expand 5 levels deep, 60 items / 30 entries per container.
 
 ## Structure
-- `src/engine/` – acorn instrumentation, snapshotting and tracing. Plain JS, no DOM, no React. `runner.js` runs the tracer in a Web Worker (bundled from `worker.js` by `build.mjs`) so an infinite loop is stopped after 3 s; it falls back to the main thread where workers are unavailable.
+- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), and `python/` for Python (the tracer, and where Pyodide is loaded from). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker for Python. `sync.js` traces JavaScript on the current thread, for tests.
 - `src/graph/` – graph math (general graphs and the Memory view are laid out by dagre, trees and lists by a small tidy-tree layout) and **view-model builders**. They return drawable primitives (`{tag, p, text}`), so geometry is testable without a DOM.
 - `src/hooks/useStepper.js` – trace, step index, playback, re-runs.
 - `src/editor.js` – CodeMirror 6 setup: highlighting, keys, and the current/previous step lines (the step state is testable without a DOM).
@@ -60,7 +76,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 
 ## Commands
     npm install
-    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~970 KB)
+    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~1.1 MB; Python is downloaded on first use)
     npm run dev          # watch + unminified build (shows React warnings), served on http://localhost:8000/
     npm run check        # lint + unit tests
     npm run test:browser # Playwright against the built file

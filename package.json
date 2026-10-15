@@ -15,6 +15,7 @@
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-python": "^6.2.1",
     "@codemirror/language": "^6.13.1",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.14",
@@ -22,11 +23,13 @@
     "acorn": "^8.11.3",
     "dagre-d3-es": "^7.0.14",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "sucrase": "^3.35.1"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
     "playwright": "^1.49.0",
+    "pyodide": "314.0.7",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }

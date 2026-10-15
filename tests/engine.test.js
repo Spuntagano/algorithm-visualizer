@@ -81,8 +81,9 @@ test('syntax errors throw so the UI can show them', () => {
 });
 
 test('a run that was superseded is dropped: an aborted signal rejects, and traceCodeAsync gives null', async () => {
-  const { runTraceAsync } = await import('../src/engine/runner.js');
+  const { runTraceAsync, setMainThreadTracer } = await import('../src/engine/runner.js');
   const { traceCodeAsync } = await import('../src/hooks/useStepper.js');
+  setMainThreadTracer(code => runTrace(code));        // Node has no Worker: the page never needs this
   const ctl = new AbortController(); ctl.abort();
   await assert.rejects(runTraceAsync('let a = 1;', ctl.signal), e => e.aborted === true);
   assert.equal(await traceCodeAsync('let a = 1;', ctl.signal), null);

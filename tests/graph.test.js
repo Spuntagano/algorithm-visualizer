@@ -82,6 +82,8 @@ test('plain data is NOT mistaken for a graph', () => {
   assert.deepEqual(r3.kinds, [], 'lists of values that never name another entry are not a graph');
   const r4 = semAll('const teams={t1:[{name:"bob",age:30}],t2:[{name:"amy",age:25}]}; const orders=[{id:1,items:[{sku:5,qty:2}]},{id:2,items:[{sku:1,qty:1}]}]; const pts={a:[{x:1,y:2}],b:[{x:3,y:4}]};');
   assert.deepEqual(r4.kinds, [], 'arrays of objects that never name another entry are data');
+  const r5 = semAll('const Color = { Red: 0, Green: 1, 0: "Red", 1: "Green" }; const parent = { B: "A", C: "B", A: null };');
+  assert.deepEqual(r5.kinds, ['parent:Linked list'], 'a two-way lookup table (a TypeScript enum) is data; a one-way map is still a graph');
   assert.deepEqual(r.kinds, []);
 });
 
@@ -311,4 +313,10 @@ test('Memory view pointer tags: one arrow under each pointed-at cell, the names 
   assert.ok(pv.p.x + 'pivot'.length * 7.2 / 2 <= view.width, 'a name past the last cell still fits in the drawing');
   const below = n => view.prims.find(q => q.text === n).p.y, arrowY = arrows[1].p.y;
   assert.ok(below('j') > arrowY && below('lo') > below('j'), 'names are stacked under the arrow');
+});
+
+test('lists of numbers still count when a pair or list is shared with another variable (a reference in the snapshot)', () => {
+  const s = runTrace('const point = [1, 2]; const edges = [[0, 1], point, [2, 0]]; const row = [2]; const adj = [[1], row, [0], row];').steps.at(-1);
+  assert.deepEqual(semanticGraph(s, 'edges').edges.map(e => e.from + '>' + e.to), ['0>1', '1>2', '2>0']);
+  assert.ok(semanticGraph(s, 'adj'), 'an adjacency list with a shared row');
 });

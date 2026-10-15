@@ -1,8 +1,8 @@
 /** The left panel: one CodeMirror editor, always editable, showing the current and previous step lines. */
 import { useEffect, useRef } from 'react';
-import { EditorState, EditorView, clearBreakpoints, editorExtensions, setStep } from '../editor.js';
+import { EditorState, EditorView, clearBreakpoints, editorExtensions, setLanguage, setStep } from '../editor.js';
 
-function CodeEditor({ code, onCode, onRun, onBreakpoints, line, prevLine }) {
+function CodeEditor({ code, lang, onCode, onRun, onBreakpoints, line, prevLine }) {
   const host = useRef(null), view = useRef(null);
   const latest = useRef({ onCode, onRun, onBreakpoints });
   latest.current = { onCode, onRun, onBreakpoints };
@@ -12,7 +12,7 @@ function CodeEditor({ code, onCode, onRun, onBreakpoints, line, prevLine }) {
       parent: host.current,
       state: EditorState.create({
         doc: code,
-        extensions: editorExtensions({ onChange: c => latest.current.onCode(c), onRun: () => latest.current.onRun(), onBreakpoints: b => latest.current.onBreakpoints(b) }),
+        extensions: editorExtensions({ lang, onChange: c => latest.current.onCode(c), onRun: () => latest.current.onRun(), onBreakpoints: b => latest.current.onBreakpoints(b) }),
       }),
     });
     view.current = v;
@@ -24,6 +24,8 @@ function CodeEditor({ code, onCode, onRun, onBreakpoints, line, prevLine }) {
     if (!v || v.state.doc.toString() === code) return;
     v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: code }, effects: clearBreakpoints.of(null), selection: { anchor: 0 }, scrollIntoView: true });
   }, [code]);
+
+  useEffect(() => { if (view.current) setLanguage(view.current, lang); }, [lang]);
 
   useEffect(() => {                                         // step lines, kept in view unless the cursor is in use
     const v = view.current;
@@ -40,10 +42,10 @@ function CodeEditor({ code, onCode, onRun, onBreakpoints, line, prevLine }) {
  * @param banner         status line under the code, as an object with `text` and `error`, or null
  * @param onBreakpoints  called with the marked line numbers whenever breakpoints are added, removed or moved
  */
-export function CodePanel({ code, onCode, onRun, onBreakpoints, line, prevLine, banner }) {
+export function CodePanel({ code, lang, onCode, onRun, onBreakpoints, line, prevLine, banner }) {
   return (
     <section className="panel code-panel" aria-label="Code">
-      <CodeEditor code={code} onCode={onCode} onRun={onRun} onBreakpoints={onBreakpoints} line={line} prevLine={prevLine} />
+      <CodeEditor code={code} lang={lang} onCode={onCode} onRun={onRun} onBreakpoints={onBreakpoints} line={line} prevLine={prevLine} />
       {banner && <div id="banner" className={'banner' + (banner.error ? ' err' : '')} role="status">{banner.text}</div>}
     </section>
   );

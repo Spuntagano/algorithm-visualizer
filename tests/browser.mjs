@@ -24,10 +24,18 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
 page.on('console', m => { if ((m.type() === 'error' || m.type() === 'warning') && !/Failed to load resource|ERR_/.test(m.text())) errors.push(m.text()); });
-await page.route('**/*', r => {
+// on the context, so the tracing workers' requests are covered too; of several matching routes the last one added wins
+await page.context().route('**/*', r => {
   const u = r.request().url();
-  if (u.startsWith('file:')) return r.continue();
+  if (u.startsWith('file:') || u.startsWith('data:')) return r.continue();
   return r.abort();                                  // fonts etc: not needed offline
+});
+// Python: the page downloads Pyodide from the CDN; serve the very same files from node_modules/pyodide instead
+const PY_TYPES = { '.mjs': 'text/javascript', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.zip': 'application/zip' };
+await page.context().route(/^https:\/\/cdn\.jsdelivr\.net\/pyodide\/v[^/]+\/full\//, r => {
+  const file = path.join(ROOT, 'node_modules', 'pyodide', new URL(r.request().url()).pathname.split('/full/')[1]);
+  if (!fs.existsSync(file)) return r.abort();
+  return r.fulfill({ status: 200, body: fs.readFileSync(file), headers: { 'content-type': PY_TYPES[path.extname(file)] || 'application/octet-stream', 'access-control-allow-origin': '*' } });
 });
 const snap = async name => { if (shots) await page.screenshot({ path: path.join(shots, name + '.png') }); };
 const stepLabel = () => page.locator('#stepLabel').innerText();
@@ -322,6 +330,66 @@ assert.ok(Math.abs(+(await page.evaluate(() => localStorage.getItem('algorithm-s
 await page.locator('.splitter').dblclick();
 const [w2, d2] = await widths();
 assert.ok(Math.abs(w2 - d2) < 1, 'double-click resets to half and half');
+
+// 6i. Python: the same views, traced by Pyodide (here served from node_modules/pyodide)
+await page.evaluate(() => {                         // remember whether the "Loading Python" banner was shown
+  window.__sawLoading = false;
+  new MutationObserver(() => { if (/Loading Python/.test(document.querySelector('#banner')?.textContent || '')) window.__sawLoading = true; })
+    .observe(document.body, { subtree: true, childList: true, characterData: true });
+});
+assert.equal(await page.locator('#example').inputValue(), 'Reverse a linked list');
+const nPy = await runs();
+await page.selectOption('#lang', 'python');          // an open example is swapped for its Python twin
+await page.waitForFunction(k => +document.querySelector('.state-panel').dataset.run > k && !document.querySelector('.state-panel.stale'), nPy, { timeout: 60000 });
+assert.ok(await page.evaluate(() => window.__sawLoading), 'the first Python run says Python is loading');
+assert.equal(await page.locator('.cm-line').first().innerText(), 'class Node:', 'the Python version of the example');
+assert.match(await page.locator('.site-header p').innerText(), /^Run Python/);
+assert.equal(await page.evaluate(() => localStorage.getItem('algorithm-stepper.lang')), 'python', 'the language is remembered');
+await page.click('#bLast');
+await page.locator('button[data-vt="head|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="head|boxes"]) .gcap').innerText(), /^Linked list · 3 nodes/);
+await page.click('#graphHelpBtn');
+assert.match(await page.locator('#graphHelp').innerText(), /Every list, tuple, dict, set and object[\s\S]*\{"val": 1, "next": \{"val": 2, "next": None\}\}/, 'the help speaks Python');
+await page.keyboard.press('Escape');
+await pick('Breadth-first search');
+for (let i = 0; i < 20; i++) await page.click('#bNext');
+await page.locator('button[data-vt="graph|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="graph|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/);
+assert.match(await page.locator('.var:has(button[data-vt="queue|boxes"]) svg').textContent(), /deque\(/, 'Memory names Python types');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^18$/ }).click();   // order.append(cur)
+await page.click('#bFirst'); await page.click('#bBpNext');
+assert.match(await stepLabel(), /· line 18$/, 'breakpoints work in Python too');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^18$/ }).click();
+await replaceCode('def f(:\n    pass');
+await bannerMatches(/Syntax error: invalid syntax \(line 1\)/);
+await typeCode('while True:\n    pass');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /Trace stopped after 3000 steps/, 'a runaway Python loop is stopped');
+await typeCode('x = 1\ny = x / 0');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /ZeroDivisionError: division by zero/);
+await page.selectOption('#lang', 'javascript');      // own (or edited) code is kept when switching back, never replaced
+await page.waitForFunction(() => !document.querySelector('.state-panel.stale'), null, { timeout: 8000 });
+assert.equal(await page.locator('.cm-line').first().innerText(), 'x = 1');
+
+// 6j. TypeScript: types are stripped and the JavaScript tracer runs, with the TypeScript line numbers
+await pick('Breadth-first search');
+const nTs = await runs();
+await page.selectOption('#lang', 'typescript');      // the untouched example is swapped for its typed twin
+await settled(nTs);
+assert.equal(await page.locator('.cm-line').first().innerText(), 'type Graph = Record<string, string[]>;');
+assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^TypeScript code$/);
+for (let i = 0; i < 14; i++) await page.click('#bNext');
+await page.locator('button[data-vt="graph|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="graph|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^18$/ }).click();   // order.push(cur), below a type alias
+await page.click('#bFirst'); await page.click('#bBpNext');
+assert.match(await stepLabel(), /· line 18$/, 'breakpoints hit the TypeScript line');
+assert.equal(await page.locator('.cm-line.cm-step-cur').innerText(), '    order.push(cur);', 'and the highlighted line is that line');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^18$/ }).click();
+await replaceCode('let x: = 1;');
+await bannerMatches(/Syntax error: Unexpected token/);
+await page.selectOption('#lang', 'javascript');
 
 // 7. theme: dark mode renders without errors
 await page.emulateMedia({ colorScheme: 'dark' });

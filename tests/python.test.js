@@ -1,0 +1,93 @@
+/** The Python tracer (src/engine/python/tracer.py), run in Node through the same Pyodide version the page downloads. */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import { loadPyodide } from 'pyodide';
+import { PYODIDE_VERSION } from '../src/engine/python/pyodide.js';
+import { PY_EXAMPLES } from '../src/examples.js';
+import { HELP } from '../src/components/GraphHelp.jsx';
+import { semanticGraph } from '../src/graph/semantic.js';
+import { buildSemanticView } from '../src/graph/semantic-view.js';
+import { buildMemoryView } from '../src/graph/memory.js';
+
+const py = await loadPyodide();
+py.runPython(fs.readFileSync(new URL('../src/engine/python/tracer.py', import.meta.url), 'utf8'));
+/** { steps, logs, error } or { syntax } */
+const trace = src => JSON.parse(py.globals.get('trace_json')(src));
+const vars = step => Object.fromEntries(step.vars.map(v => [v.name, v]));
+const kind = (step, name) => {
+  const sem = semanticGraph(step, name);
+  return sem ? buildSemanticView(step, null, name, sem, true).caption.split(' · ')[0] : null;
+};
+
+test('the page downloads the same Pyodide the tests run', () => {
+  const pkg = createRequire(import.meta.url)('../package.json');
+  assert.equal(pkg.devDependencies.pyodide, PYODIDE_VERSION, 'src/engine/python/pyodide.js and package.json must name the same version');
+});
+
+test('a snapshot before every line, with the call stack, locals and globals', () => {
+  const r = trace('def double(x):\n    y = x * 2\n    return y\n\nn = 3\nm = double(n)\nprint(m)');
+  assert.equal(r.error, null);
+  assert.deepEqual(r.logs, [{ type: 'log', s: '6' }]);
+  assert.deepEqual(r.steps.map(s => s.line), [1, 5, 6, 2, 3, 7, -1], 'before each line, then the end');
+  const inside = r.steps[4];
+  assert.deepEqual(inside.stack, [{ name: 'double', args: 'x=3' }]);
+  assert.deepEqual(inside.vars.map(v => [v.name, v.scope, v.node.s]), [['x', 'local', '3'], ['y', 'local', '6'], ['n', 'global', '3']],
+    'locals first; functions are not variables');
+  assert.equal(r.steps.at(-1).stack.length, 0);
+});
+
+test('Python values become the same snapshot nodes as JavaScript values, with their type names', () => {
+  const s = trace([
+    'from collections import deque', 'class P:', '    def __init__(self):', '        self.x = 1',
+    'a = [1, "s", None, True, 2.5]', 't = (1, 2)', 'd = {"k": [1]}', 'm = {1: "one"}', 'st = {3}', 'q = deque([1])', 'o = P()', 'same = [a, a]',
+  ].join('\n')).steps.at(-1);
+  const v = vars(s);
+  assert.deepEqual(v.a.node.items.map(n => [n.k, n.s]), [['num', '1'], ['str', '"s"'], ['null', 'None'], ['bool', 'True'], ['num', '2.5']]);
+  assert.equal(v.a.node.cls, 'list'); assert.equal(v.t.node.cls, 'tuple'); assert.equal(v.q.node.cls, 'deque');
+  assert.equal(v.d.node.t, 'obj', 'a dict with string keys is an object'); assert.equal(v.d.node.tn, 'dict');
+  assert.equal(v.m.node.t, 'map', 'other keys: a map'); assert.equal(v.st.node.t, 'set');
+  assert.equal(v.o.node.t, 'obj'); assert.equal(v.o.node.cls, 'P'); assert.deepEqual(v.o.node.entries.map(e => e[0]), ['x']);
+  assert.deepEqual(v.same.node.items.map(n => n.t), ['ref', 'ref'], 'the same list twice: references, as in JavaScript');
+  assert.ok(!('P' in v) && !('deque' in v), 'classes and imports are not variables');
+  assert.match(JSON.stringify(buildMemoryView(s, null, 't', true).prims), /"tuple\(2\)"/, 'Memory shows the Python type (in the box title)');
+});
+
+test('errors: syntax errors are reported, the program\'s own errors end the trace, runaway programs are stopped', () => {
+  assert.match(trace('def f(:\n    pass').syntax, /line 1/);
+  assert.deepEqual(trace('x = 1\ny = x / 0').error, { msg: 'ZeroDivisionError: division by zero' });
+  assert.match(trace('while True:\n    pass').error.msg, /Trace stopped after 3000 steps/);
+  const caught = trace('try:\n    while True:\n        pass\nexcept Exception:\n    print("caught")');
+  assert.match(caught.error.msg, /Trace stopped/, 'the step limit is not swallowed by except Exception');
+  assert.deepEqual(caught.logs, []);
+  assert.match(trace('def f(n):\n    return f(n + 1)\nf(0)').error.msg, /more than 300 nested calls/);
+});
+
+test('every Python example runs, and its graphs are found', () => {
+  for (const [name, code] of Object.entries(PY_EXAMPLES)) {
+    const r = trace(code);
+    assert.equal(r.error, null, name);
+    assert.ok(r.steps.length > 3 && r.logs.length > 0, name);
+  }
+  const bfs = trace(PY_EXAMPLES['Breadth-first search']);
+  assert.deepEqual(bfs.logs.map(l => l.s), ["['A', 'B', 'C', 'D', 'E', 'F']"]);
+  assert.equal(kind(bfs.steps[20], 'graph'), 'Graph');
+  const ds = trace(PY_EXAMPLES['Data structures']).steps.at(-1);
+  for (const [n, k] of [['g1', 'Graph'], ['g2', 'Graph'], ['g3', 'Graph'], ['adj', 'Graph'], ['edges', 'Graph'], ['tree', 'Tree'], ['linked', 'Linked list'], ['jobs', 'Graph'], ['intervals', 'Graph']])
+    assert.equal(kind(ds, n), k, n);
+  for (const n of ['nums', 'person', 'scores', 'pair']) assert.equal(kind(ds, n), null, n + ' is data');
+  const rev = trace(PY_EXAMPLES['Reverse a linked list']).steps.at(-1);
+  assert.equal(kind(rev, 'head'), 'Linked list');
+});
+
+test('every Python example in the graph help really is drawn as a graph', () => {
+  for (const [, items] of HELP.python.shapes) for (const [code, , full] of items) {
+    const program = full || (/^\w+ = /.test(code) ? code : 'g = ' + code);
+    const name = program.split('\n').at(-1).match(/^(\w+) =/)[1];
+    const r = trace(program);
+    assert.equal(r.error, null, code);
+    assert.ok(semanticGraph(r.steps.at(-1), name), 'not a graph: ' + code);
+  }
+  for (const code of [HELP.python.age, HELP.python.fruits]) assert.equal(semanticGraph(trace('x = ' + code).steps.at(-1), 'x'), null, code + ' is data');
+});

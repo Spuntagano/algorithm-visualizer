@@ -72,7 +72,7 @@ export function Value({ node: n, prev: p, markers = null }) {
                 {n.more > 0 && <div className="more">+{n.more} more</div>}
               </div>
             )}
-            <div className={'len' + (lenChanged ? ' chg' : '')}>{n.len === 0 ? 'empty array' : 'length ' + n.len}</div>
+            <div className={'len' + (lenChanged ? ' chg' : '')}>{(n.cls && n.cls !== 'list' ? n.cls + ' · ' : '') + (n.len === 0 ? (n.cls ? 'empty' : 'empty array') : 'length ' + n.len)}</div>
           </div>
         </Badge>
       );
@@ -82,7 +82,7 @@ export function Value({ node: n, prev: p, markers = null }) {
       return (
         <Badge node={n}>
           <div>
-            <div className="len">Set · size {n.items.length + n.more}</div>
+            <div className="len">{n.cls || 'Set'} · size {n.items.length + n.more}</div>
             <div className="set">
               {!n.items.length && <span className="empty">empty set</span>}
               {n.items.map((it, i) => {
@@ -97,7 +97,7 @@ export function Value({ node: n, prev: p, markers = null }) {
     }
     case 'map': case 'obj': {
       const same = p && p.t === n.t;
-      const title = n.t === 'map' ? 'Map · size ' + (n.entries.length + n.more) : n.cls;
+      const title = n.t === 'map' ? (n.cls || 'Map') + ' · size ' + (n.entries.length + n.more) : n.cls || n.tn;   // cls / tn: Python type names
       return (
         <Badge node={n}>
           <div className="obj">

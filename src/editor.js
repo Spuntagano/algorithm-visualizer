@@ -1,13 +1,14 @@
 /**
- * CodeMirror 6 setup for the code panel: JavaScript highlighting, the editing keymap, the
+ * CodeMirror 6 setup for the code panel: JavaScript / TypeScript / Python highlighting, the editing keymap, the
  * current / previous step lines while stepping, and breakpoints. Colours come from the CSS variables in css/tokens.css,
  * so light and dark mode follow the rest of the page. Only the view needs a DOM; the state parts
  * (stepField, setStep) can be used and tested without one.
  */
 import { indentLess, indentMore, defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { javascriptLanguage } from '@codemirror/lang-javascript';
+import { javascriptLanguage, typescriptLanguage } from '@codemirror/lang-javascript';
+import { pythonLanguage } from '@codemirror/lang-python';
 import { HighlightStyle, bracketMatching, indentUnit, syntaxHighlighting } from '@codemirror/language';
-import { EditorState, MapMode, Prec, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { Compartment, EditorState, MapMode, Prec, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
 import { Decoration, EditorView, GutterMarker, drawSelection, gutter, gutterLineClass, keymap, lineNumbers, placeholder } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 
@@ -123,7 +124,7 @@ const theme = EditorView.theme({
   '.cm-content': { padding: '8px 0', caretColor: 'var(--ink)' },
   '.cm-line': { padding: '0 16px 0 4px', borderLeft: '3px solid transparent' },
   '.cm-gutters': { backgroundColor: 'var(--surface)', color: 'var(--muted)', border: 'none' },
-  '.cm-lineNumbers .cm-gutterElement': { minWidth: '34px', padding: '0 8px 0 4px' },
+  '.cm-lineNumbers .cm-gutterElement': { minWidth: '34px', padding: '0 8px 0 4px', cursor: 'pointer' },   // click: toggle a breakpoint
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--ink)' },
   // the selection is drawn BELOW the text, so the step lines on top of it are translucent (css/tokens.css)
   '.cm-selectionBackground': { backgroundColor: 'var(--code-sel-blur)' },
@@ -136,30 +137,42 @@ const theme = EditorView.theme({
   '.cm-bp-gutter': { cursor: 'pointer', minWidth: '16px' },
   '.cm-bp-gutter .cm-gutterElement': { display: 'flex', alignItems: 'center', justifyContent: 'center' },
   '.cm-bp-dot': { width: '9px', height: '9px', borderRadius: '50%', backgroundColor: 'var(--err)', display: 'block' },
-  '.cm-lineNumbers .cm-gutterElement': { cursor: 'pointer' },
 });
 
-/** Tab inserts two spaces at the cursor (or indents a selection); Shift-Tab outdents. */
+/** @typedef {'javascript' | 'typescript' | 'python'} Lang */
+export const LANG_NAMES = { javascript: 'JavaScript', typescript: 'TypeScript', python: 'Python' };
+
+/* Everything about the editor that depends on the language: highlighting, indentation, the hint and the label. */
+const languageConf = new Compartment();
+const languageExtensions = lang => [
+  lang === 'python' ? pythonLanguage : lang === 'typescript' ? typescriptLanguage : javascriptLanguage,
+  indentUnit.of(lang === 'python' ? '    ' : '  '), EditorState.tabSize.of(lang === 'python' ? 4 : 2),
+  placeholder(`Write or paste ${LANG_NAMES[lang]}, or pick an example above`),
+  EditorView.contentAttributes.of({ 'aria-label': LANG_NAMES[lang] + ' code' }),
+];
+/** Switches an editor to another language (the code itself is left as it is). */
+export function setLanguage(view, lang) { view.dispatch({ effects: languageConf.reconfigure(languageExtensions(lang)) }); }
+
+/** Tab inserts one indent (two spaces, or four in Python) at the cursor, or indents a selection; Shift-Tab outdents. */
 const tabKeys = [
-  { key: 'Tab', run: v => v.state.selection.ranges.some(r => !r.empty) ? indentMore(v) : (v.dispatch(v.state.replaceSelection('  '), { scrollIntoView: true, userEvent: 'input' }), true) },
+  { key: 'Tab', run: v => v.state.selection.ranges.some(r => !r.empty) ? indentMore(v) : (v.dispatch(v.state.replaceSelection(v.state.facet(indentUnit)), { scrollIntoView: true, userEvent: 'input' }), true) },
   { key: 'Shift-Tab', run: indentLess },
 ];
 
 /**
  * Everything the editor needs.
- * @param {{ onChange: (code: string) => void, onRun: () => void, onBreakpoints?: (lines: number[]) => void }} o
+ * @param {{ onChange: (code: string) => void, onRun: () => void, onBreakpoints?: (lines: number[]) => void, lang?: Lang }} o
  */
-export function editorExtensions({ onChange, onRun, onBreakpoints = () => {} }) {
+export function editorExtensions({ onChange, onRun, onBreakpoints = () => {}, lang = 'javascript' }) {
   return [
-    breakpointField, breakpointGutter, lineNumbers({ domEventHandlers: { mousedown: toggleAt } }), history(), drawSelection(), bracketMatching(), indentUnit.of('  '), EditorState.tabSize.of(2),
-    javascriptLanguage, syntaxHighlighting(highlight), theme, stepField,
-    placeholder('Write or paste JavaScript, or pick an example above'),
+    breakpointField, breakpointGutter, lineNumbers({ domEventHandlers: { mousedown: toggleAt } }), history(), drawSelection(), bracketMatching(),
+    languageConf.of(languageExtensions(lang)), syntaxHighlighting(highlight), theme, stepField,
     Prec.highest(keymap.of([
       { key: 'Mod-Enter', run: () => { onRun(); return true; } },
       { key: 'F9', run: v => { v.dispatch({ effects: toggleBreakpoint.of(v.state.selection.main.head) }); return true; } },
     ])),
     keymap.of([...tabKeys, ...defaultKeymap, ...historyKeymap]),
-    EditorView.contentAttributes.of({ id: 'editor', 'aria-label': 'JavaScript code', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }),
+    EditorView.contentAttributes.of({ id: 'editor', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }),
     EditorView.updateListener.of(u => {
       if (u.docChanged) onChange(u.state.doc.toString());
       if (u.startState.field(breakpointField) !== u.state.field(breakpointField)) {      // rebuilt on edits: report real changes only

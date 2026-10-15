@@ -1,12 +1,17 @@
-/** Title and example picker. */
-export function Header({ examples, example, onExample }) {
+/** Title, language and example pickers. */
+export function Header({ examples, example, onExample, lang, langs, onLang }) {
   return (
     <header className="site-header">
       <div>
         <h1>Step through an algorithm</h1>
-        <p>Run JavaScript one statement at a time and watch arrays, objects, Maps and Sets change.</p>
+        <p>Run {langs[lang]} one statement at a time and watch {lang === 'python' ? 'lists, dicts, sets and objects' : 'arrays, objects, Maps and Sets'} change.</p>
       </div>
       <div className="actions">
+        <label className="sel">Language
+          <select id="lang" aria-label="Choose a language" value={lang} onChange={e => onLang(e.target.value)}>
+            {Object.entries(langs).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </label>
         <label className="sel">Example
           <select id="example" aria-label="Choose an example" value={example} onChange={e => onExample(e.target.value)}>
             <option value="" disabled>Choose an example…</option>

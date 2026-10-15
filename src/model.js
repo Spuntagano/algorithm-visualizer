@@ -13,6 +13,8 @@
  *
  * A step is { line, stack: [{name, args}], vars: [{name, scope, node}], refs: [id], logs: n }.
  * `more` counts items that were cut off by the size limits.
+ * Python values (engine/python/tracer.py) use the same nodes, plus the type name: `cls` on arrays, sets and maps
+ * ('list', 'tuple', 'deque', 'set', 'dict'…) and `tn` on dicts shown as objects (their keys are all strings).
  */
 
 export const isCont = n => n.t === 'arr' || n.t === 'obj' || n.t === 'map' || n.t === 'set';

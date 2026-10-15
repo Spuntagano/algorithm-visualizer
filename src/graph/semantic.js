@@ -98,13 +98,22 @@ function fromKeyed(root, resolve) {
   }
   // at least one edge has to reach another entry, or this is just lists of values: {fruits: ["apple"], veg: ["kale"]}
   if (!edges.some(e => keySet.has(e.to) && e.to !== e.from)) return null;
+  // a two-way lookup table, each name mapped to one value that maps straight back (a TypeScript enum: {Red: 0, 0: "Red"}), is data
+  const lone = ents.every(([, x]) => x.t === 'p'), pairs = new Set(edges.map(e => e.from + '\u0001' + e.to));
+  if (lone && edges.length === ents.length && edges.every(e => pairs.has(e.to + '\u0001' + e.from))) return null;
   const sinks = [...new Set(edges.map(e => e.to).filter(t => !keySet.has(t)))];
   return finishSem('keyed', 'prim', [...keys, ...sinks].map(k => ({ key: k, label: short(k, 10), fields: [] })), edges);
 }
 
 /* [[1,2],[0],[0]] or [[[1, 4]], [[2, 0, 3]]] named like a graph, or [[0,1],[1,2]] named like an edge list */
-function fromIndexed(root, name) {
-  if (root.t !== 'arr' || !root.items.length || root.more) return null;
+function fromIndexed(root0, name, resolve) {
+  if (root0.t !== 'arr' || !root0.items.length || root0.more) return null;
+  // a list or pair that also appears elsewhere is a reference here (Python even shares equal constant tuples): follow it
+  const deref = x => ((x.t === 'ref' || x.t === 'trunc') && resolve(x)) || x;
+  const root = { ...root0, items: root0.items.map(x => {
+    const r = deref(x);
+    return r.t === 'arr' ? { ...r, items: r.items.map(deref) } : r;
+  }) };
   const isPair = e => e.t === 'arr' && (e.items.length === 2 || e.items.length === 3) && e.items.slice(0, 2).every(p => p.t === 'p');
   if (/edge/i.test(name) && root.items.every(isPair)) {
     const order = [], seen = new Set(), edges = [];
@@ -255,7 +264,7 @@ export function semanticGraph(step, name) {
   const { resolve } = stepIndex(step);
   const root = resolve(v.node);
   if (!root) return null;
-  const sem = fromKeyed(root, resolve) || fromIndexed(root, name) || fromRecords(root, resolve) || fromRefRecords(root, resolve);
+  const sem = fromKeyed(root, resolve) || fromIndexed(root, name, resolve) || fromRecords(root, resolve) || fromRefRecords(root, resolve);
   if (!sem || sem.nodes.length > SEM_MAX) return null;
   sem.rootId = root.id;
   return sem;

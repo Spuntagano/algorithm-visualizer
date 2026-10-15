@@ -10,7 +10,8 @@ import { StepContext, Value } from '../src/components/Values.jsx';
 import { Variables } from '../src/components/Variables.jsx';
 import { buildSemanticView } from '../src/graph/semantic-view.js';
 import { semanticGraph } from '../src/graph/semantic.js';
-import { breakpointStep, traceCode } from '../src/hooks/useStepper.js';
+import { breakpointStep } from '../src/hooks/useStepper.js';
+import { traceCode } from '../src/engine/sync.js';
 import { highlightCode } from '@lezer/highlight';
 import { javascriptLanguage } from '@codemirror/lang-javascript';
 import { EditorState, EditorView, breakpointField, breakpointLines, clearBreakpoints, highlight, setStep, stepField, stepLines, toggleBreakpoint } from '../src/editor.js';
@@ -33,8 +34,22 @@ test('App starts empty: no code, no example picked, no error', () => {
   const picker = m.match(/<select[^>]*id="example"[\s\S]*?<\/select>/)[0];
   assert.equal(count(picker, /<option value="[^"]+">/g), Object.keys(EXAMPLES).length, 'every example is offered');
   assert.doesNotMatch(m, /id="btnRun"|id="btnEdit"/, 'no Visualize / Edit code button: the code is always editable');
+  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="python"[^>]*>Python<\/option>/, 'a language picker');
   assert.match(m, /<div class="splitter" role="separator" aria-orientation="vertical"[^>]*aria-valuenow="50"[^>]*tabindex="0"/, 'a focusable divider, half and half by default');
   assert.match(m, /<main class="grid" style="--split:50"/);
+});
+
+test('the graph help is written for the language that is picked', () => {
+  const step = traceCode('const a = [1];').trace.steps.at(-1);
+  const help = lang => html(<StatePanel step={step} prev={null} stepNo={0} logs={[]} stale={false} runs={1} lang={lang} vars={{ views: {}, onView: () => {}, showPtrs: true }} />);
+  const js = help('javascript'), py = help('python');
+  assert.match(js, /Every array, object, Map and Set/); assert.match(js, /\{ val: 1, next: \{ val: 2, next: null \} \}/);
+  assert.match(py, /Every list, tuple, dict, set and object/);
+  assert.match(py, /\{&quot;val&quot;: 1, &quot;next&quot;: \{&quot;val&quot;: 2, &quot;next&quot;: None\}\}/, 'Python syntax: quoted keys, None');
+  assert.match(py, /Node\(&quot;A&quot;, \[b, c\]\)/, 'objects of a class');
+  assert.match(py, /\(from, to\)/); assert.match(py, /\{&quot;age&quot;: 1\}/);
+  for (const jsOnly of [/next: null/, /\{ age: 1 \}/, /const adj/, /an array or Set/]) assert.doesNotMatch(py, jsOnly, 'no JavaScript in the Python guide: ' + jsOnly);
+  for (const pyOnly of [/None/, /&quot;age&quot;/, /a list or set/]) assert.doesNotMatch(js, pyOnly, 'no Python in the JavaScript guide: ' + pyOnly);
 });
 
 test('StatePanel: the ? next to Variables opens the graph help', () => {
@@ -47,10 +62,10 @@ test('StatePanel: the ? next to Variables opens the graph help', () => {
 });
 
 test('every example in the graph help really is drawn as a graph', () => {
-  for (const [, items] of SHAPES) for (const [code] of items) {
-    const named = code.match(/^const (\w+) =/);
-    const program = named ? code : code.startsWith('a = ') ? 'const b = { id: "B" }, c = { id: "C" };\nconst ' + code : 'const g = ' + code;
-    const name = named ? named[1] : code.startsWith('a = ') ? 'a' : 'g';
+  for (const [, items] of SHAPES) for (const [code, , full] of items) {
+    const named = (full || code).match(/(?:^|\n)const (\w+) = [^\n]*$/) || code.match(/^const (\w+) =/);
+    const program = full || (named ? code : 'const g = ' + code);
+    const name = full ? named[1] : named ? named[1] : 'g';
     assert.ok(semanticGraph(traceCode(program).trace.steps.at(-1), name), 'not a graph: ' + code);
   }
 });

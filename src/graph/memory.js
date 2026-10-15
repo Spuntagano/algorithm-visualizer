@@ -51,8 +51,9 @@ export function buildVarGraph(step, name) {
   const make = src => {
     const g = { id: src.id, kind: src.t, cells: [], kids: [], more: src.more || 0 };
     nodes.set(src.id, g); onPath.add(src.id);
-    g.title = src.t === 'obj' ? (src.cls || 'Object') : src.t === 'map' ? 'Map(' + (src.entries.length + src.more) + ')'
-      : src.t === 'set' ? 'Set(' + (src.items.length + src.more) + ')' : 'Array(' + src.len + ')';
+    // cls / tn are Python's type names (list, tuple, dict, set…); JavaScript values leave them empty
+    g.title = src.t === 'obj' ? (src.cls || src.tn || 'Object') : src.t === 'map' ? (src.cls || 'Map') + '(' + (src.entries.length + src.more) + ')'
+      : src.t === 'set' ? (src.cls || 'Set') + '(' + (src.items.length + src.more) + ')' : (src.cls || 'Array') + '(' + src.len + ')';
     let rows;
     if (src.t === 'arr') rows = src.items.map((x, i) => [String(i), x]);
     else if (src.t === 'set') rows = src.items.map(x => ['•', x]);
