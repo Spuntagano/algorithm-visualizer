@@ -1,6 +1,6 @@
 # Algorithm Stepper (React edition)
 
-Step through JavaScript, TypeScript, Lua, Python, Ruby or C one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
+Step through JavaScript, TypeScript, Lua, Python, Ruby, PHP, C or C++ one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
 Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`); the choice is kept per variable while you step and edit.
 
 ## TypeScript
@@ -37,6 +37,17 @@ objects with instance variables objects with their class name. Symbols name grap
 methods show `self`, and the program's own `$globals` and constants are shown. A loop with no lines in its body
 (`while true; end`) is only stopped by the 3 s time limit.
 
+## PHP
+Pick **PHP** in the Language menu. PHP 8.4 runs as WebAssembly from the [php-wasm](https://github.com/seanmorris/php-wasm)
+project (version pinned in `src/engine/php/php.js`, the same as the `php-wasm` devDependency), downloaded from jsDelivr
+the first time PHP is run (about 3 MB) and compiled once; every run then gets a fresh PHP (about 100 ms). PHP has no
+hook that can see a function's local variables, so `src/engine/php/tracer.php` rewrites the program first, from PHP's
+own tokens: a call with `get_defined_vars()` goes in before every statement, on that statement's line, so line numbers
+and messages are those of the code as written. Lists are arrays, arrays with keys objects (string keys) or maps, objects
+show their properties (private ones too) with their class name, and `SplStack`, `SplQueue` and the other SPL
+structures are lists. Warnings are shown in the output, and `exit` / `die` end the run like the end of the program.
+The `<?php` tag is optional.
+
 ## C
 Pick **C** in the Language menu. C runs in an interpreter written for this page (`src/engine/c/`: `parse.js` is the
 preprocessor and parser, `interp.js` runs the tree, `printf.js` formats like glibc), so it works offline. It covers C99
@@ -51,6 +62,19 @@ a pointer to a local that no longer exists, reading a variable before it is set,
 double. In the views a pointer to a struct (or to the start of an array or of a `malloc`'d block) is drawn as that memory,
 so linked structs become arrows and graphs; a pointer into an array is shown as `&a[2]` and tags that cell. Memory
 from `malloc` is named by its `#id`, and an adjacency matrix (`int graph[N][N]` of 0s and 1s, or of weights) is a graph.
+
+## C++
+Pick **C++** in the Language menu. C++ runs in the same interpreter as C, with its C++ parts switched on, so it works
+offline too: classes and structs with methods, constructors (with member initializer lists and default member
+initializers), destructors, static members and operator overloading; references; `new` / `delete`; overloading and
+default arguments; `auto`, range-for and structured bindings; lambdas (with captures) and `function<…>`; `try` / `catch`
+/ `throw`; and the standard library that algorithms use (`src/engine/c/stl.js`): `string`, `vector`, `pair`, `map`,
+`set`, their `unordered_` and `multi` kinds, `queue`, `stack`, `deque`, `priority_queue` (with `greater<>`), `cout` with
+`endl`, `setw`, `setprecision` and `fixed`, and `sort`, `reverse`, `swap`, `min` / `max`, `find`, `count`, `accumulate`,
+`lower_bound`, `next_permutation` and their kin. A `vector` or `string` keeps its elements in a heap buffer that
+grows by doubling, as in libstdc++, so `&v[i]` and `v.begin()` are ordinary pointers (shown as tags on the vector's
+cells), and a reference or iterator kept across a `push_back` that reallocates is caught and explained. Not supported:
+templates of your own, inheritance and virtual functions, namespaces other than `std`, and `cin` (there is no input).
 
 ## Breakpoints
 Click a line number (or press F9 on a line) to toggle a breakpoint. **Continue** (F8) jumps to the next step on a marked
@@ -100,7 +124,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 - **Limits**: 60 nodes in Graph, 50 boxes in Memory; snapshots expand 5 levels deep, 60 items / 30 entries per container.
 
 ## Structure
-- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, `python/` for Python and `ruby/` for Ruby (each hosted one: the tracer, and where its runtime is loaded from), and `c/` for C (an interpreter of its own). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker for Python and one for Ruby. `sync.js` traces JavaScript on the current thread, for tests.
+- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, `python/` for Python, `ruby/` for Ruby and `php/` for PHP (each hosted one: the tracer, and where its runtime is loaded from), and `c/` for C and C++ (an interpreter of its own, with `stl.js` for the C++ library). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker each for Python, Ruby and PHP. `sync.js` traces JavaScript on the current thread, for tests.
 - `src/graph/` – graph math (general graphs and the Memory view are laid out by dagre, trees and lists by a small tidy-tree layout) and **view-model builders**. They return drawable primitives (`{tag, p, text}`), so geometry is testable without a DOM.
 - `src/hooks/useStepper.js` – trace, step index, playback, re-runs.
 - `src/editor.js` – CodeMirror 6 setup: highlighting, keys, and the current/previous step lines (the step state is testable without a DOM).
@@ -109,7 +133,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 
 ## Commands
     npm install
-    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~1.45 MB; Python and Ruby are downloaded on first use)
+    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~1.45 MB; Python, Ruby and PHP are downloaded on first use)
     npm run dev          # watch + unminified build (shows React warnings), served on http://localhost:8000/
     npm run check        # lint + unit tests
     npm run test:browser # Playwright against the built file

@@ -15,7 +15,8 @@ import { traceCode } from '../src/engine/sync.js';
 import { highlightCode } from '@lezer/highlight';
 import { javascriptLanguage } from '@codemirror/lang-javascript';
 import { StreamLanguage } from '@codemirror/language';
-import { cMode } from '../src/c-mode.js';
+import { cMode, cppMode } from '../src/c-mode.js';
+import { phpMode } from '../src/php-mode.js';
 import { EditorState, EditorView, breakpointField, breakpointLines, clearBreakpoints, highlight, setStep, stepField, stepLines, toggleBreakpoint } from '../src/editor.js';
 import { EXAMPLES } from '../src/examples.js';
 
@@ -36,7 +37,7 @@ test('App starts empty: no code, no example picked, no error', () => {
   const picker = m.match(/<select[^>]*id="example"[\s\S]*?<\/select>/)[0];
   assert.equal(count(picker, /<option value="[^"]+">/g), Object.keys(EXAMPLES).length, 'every example is offered');
   assert.doesNotMatch(m, /id="btnRun"|id="btnEdit"/, 'no Visualize / Edit code button: the code is always editable');
-  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="lua"[^>]*>Lua<\/option><option value="python"[^>]*>Python<\/option><option value="ruby"[^>]*>Ruby<\/option><option value="c"[^>]*>C<\/option><\/select>/, 'a language picker');
+  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="lua"[^>]*>Lua<\/option><option value="python"[^>]*>Python<\/option><option value="ruby"[^>]*>Ruby<\/option><option value="php"[^>]*>PHP<\/option><option value="c"[^>]*>C<\/option><option value="cpp"[^>]*>C\+\+<\/option><\/select>/, 'a language picker');
   assert.match(m, /<div class="splitter" role="separator" aria-orientation="vertical"[^>]*aria-valuenow="50"[^>]*tabindex="0"/, 'a focusable divider, half and half by default');
   assert.match(m, /<main class="grid" style="--split:50"/);
 });
@@ -56,6 +57,13 @@ test('the graph help is written for the language that is picked', () => {
   assert.match(rb, /Every array, hash, set and object/); assert.match(rb, /\{ val: 1, next: \{ val: 2, next: nil \} \}/, 'Ruby syntax: nil');
   assert.match(rb, /Node\.new\(&quot;A&quot;, \[b, c\]\)/); assert.match(rb, /\{ a: \{ next: \[:b\] \}/, 'symbols');
   for (const other of [/None/, /next: null/, /const adj/]) assert.doesNotMatch(rb, other, 'no other language in the Ruby guide: ' + other);
+  const php = help('php');
+  assert.match(php, /Every array and object/); assert.match(php, /\[&#x27;val&#x27; =&gt; 1, &#x27;next&#x27; =&gt; \[&#x27;val&#x27; =&gt; 2, &#x27;next&#x27; =&gt; null\]\]/, 'PHP arrays');
+  assert.match(php, /checks the shapes in the order 1, 4, 2, 3 /);
+  for (const other of [/None/, /next: null/, /const adj/, /nil/]) assert.doesNotMatch(php, other, 'no other language in the PHP guide: ' + other);
+  const cp = help('cpp');
+  assert.match(cp, /Every array, vector, map, set, string, struct and pointer/); assert.match(cp, /map&lt;string, vector&lt;string&gt;&gt; g/);
+  assert.match(cp, /<b>1\. Neighbour lists \(in a map\):<\/b>/); assert.match(cp, /checks the shapes in the order 1, 4, 2, 3 /);
   const c = help('c');
   assert.match(c, /Every array, struct and pointer/); assert.match(c, /struct Node \{ int val; struct Node \*next; \};/);
   assert.match(c, /checks the shapes in the order 3, 1, 2 /, 'C has three kinds of shape, numbered from 1');
@@ -185,6 +193,19 @@ test('editor highlighting uses the theme variables, and a multi-line comment is 
   assert.match(lines[0], /--code-com/); assert.match(lines[1], /--code-com/);
 });
 
+test('PHP highlighting: tags, keywords, $variables, strings, heredocs, numbers, comments', () => {
+  const parser = StreamLanguage.define(phpMode).parser;
+  const tok = colours('<p>hi</p><?php\n$n = 2.5; # note\nfunction f(): array { return [\'a\' => true]; }\n$t = <<<EOT\n  text\n  EOT;\n/* a\n b */ ?>', parser);
+  const css = text => (tok.find(([t]) => t === text) || [])[1] || '';
+  for (const kw of ['<?php', 'function', 'array', 'return', '?>']) assert.match(css(kw), /var\(--code-kw\)/, kw);
+  assert.match(css('true'), /var\(--code-kw\)/);
+  assert.match(css("'a'"), /var\(--code-str\)/); assert.match(css('<<<EOT'), /var\(--code-str\)/); assert.match(css('  text'), /var\(--code-str\)/, 'inside the heredoc');
+  assert.match(css('2.5'), /var\(--code-num\)/);
+  assert.match(css('# note'), /var\(--code-com\)/); assert.match(css(' b */'), /var\(--code-com\)/, 'a block comment over two lines');
+  assert.equal(css('<p>hi</p>'), '', 'text outside the tags is plain');
+  assert.equal(css('$n'), '', '$variables are plain names');
+});
+
 test('C highlighting: keywords and types, strings and chars, numbers, comments, #include lines', () => {
   const parser = StreamLanguage.define(cMode).parser;
   const tok = colours('#include <stdio.h>\nint main(void) {\n    char c = \'a\'; /* x\n y */ return 0x1F + 2.5f; // end\n}', parser);
@@ -195,6 +216,11 @@ test('C highlighting: keywords and types, strings and chars, numbers, comments, 
   assert.match(css('/* x'), /var\(--code-com\)/); assert.match(css(' y */'), /var\(--code-com\)/, 'a block comment over two lines');
   assert.match(css('// end'), /var\(--code-com\)/);
   assert.equal(css('main'), '', 'names are plain');
+  const cpp = colours('class A { public: bool ok = true; };\nauto p = new A(); cout << nullptr;', StreamLanguage.define(cppMode).parser);
+  const ccss = text => (cpp.find(([t]) => t === text) || [])[1] || '';
+  for (const kw of ['class', 'public', 'bool', 'auto', 'new']) assert.match(ccss(kw), /var\(--code-kw\)/, 'C++: ' + kw);
+  for (const at of ['true', 'nullptr', 'cout']) assert.match(ccss(at), /var\(--code-kw\)/, 'C++: ' + at);
+  assert.equal(css('class'), '', 'class is not a keyword in C');
 });
 
 test('stepField: one current line, a faint previous line, aria-current, cleared by an edit', () => {

@@ -970,3 +970,391 @@ int main(void) {
     return 0;
 }`
 };
+
+/** The same kind of examples in PHP (same names where there is a JavaScript twin). An array with keys is PHP's map. */
+export const PHP_EXAMPLES = {
+"Bubble sort": `<?php
+
+function bubble_sort(array $arr): array
+{
+    $n = count($arr);
+    for ($i = 0; $i < $n - 1; $i++) {
+        $swapped = false;
+        for ($j = 0; $j < $n - 1 - $i; $j++) {
+            if ($arr[$j] > $arr[$j + 1]) {
+                [$arr[$j], $arr[$j + 1]] = [$arr[$j + 1], $arr[$j]];
+                $swapped = true;
+            }
+        }
+        if (!$swapped) break;
+    }
+    return $arr;
+}
+
+$data = [5, 2, 9, 1, 6];
+$sorted = bubble_sort($data);
+echo implode(", ", $sorted), "\\n";`,
+
+"Binary search": `<?php
+
+function binary_search(array $arr, int $target): int
+{
+    $lo = 0;
+    $hi = count($arr) - 1;
+    while ($lo <= $hi) {
+        $mid = intdiv($lo + $hi, 2);
+        if ($arr[$mid] === $target) {
+            return $mid;
+        } elseif ($arr[$mid] < $target) {
+            $lo = $mid + 1;
+        } else {
+            $hi = $mid - 1;
+        }
+    }
+    return -1;
+}
+
+$sorted = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
+$found = binary_search($sorted, 23);
+echo "found at index $found\\n";`,
+
+"Two sum (array)": `<?php
+
+function two_sum(array $nums, int $target): ?array
+{
+    $seen = [];                       // value => index
+    foreach ($nums as $i => $x) {
+        $need = $target - $x;
+        if (isset($seen[$need])) {
+            return [$seen[$need], $i];
+        }
+        $seen[$x] = $i;
+    }
+    return null;
+}
+
+$result = two_sum([3, 8, 11, 4, 7], 15);
+echo json_encode($result), "\\n";`,
+
+"Fibonacci with memo": `<?php
+
+$memo = [];
+
+function fib(int $n): int
+{
+    global $memo;
+    if ($n <= 1) return $n;
+    if (isset($memo[$n])) return $memo[$n];
+    $memo[$n] = fib($n - 1) + fib($n - 2);
+    return $memo[$n];
+}
+
+echo fib(6), "\\n";`,
+
+"Reverse a linked list": `<?php
+
+class Node
+{
+    public function __construct(public int $val, public ?Node $next = null) {}
+}
+
+$list = new Node(1, new Node(2, new Node(3)));
+
+$prev = null;
+$curr = $list;
+while ($curr !== null) {
+    $nextNode = $curr->next;
+    $curr->next = $prev;
+    $prev = $curr;
+    $curr = $nextNode;
+}
+echo $prev->val, "\\n";`,
+
+"Breadth-first search": `<?php
+
+$graph = [
+    'A' => ['B', 'C'],
+    'B' => ['D'],
+    'C' => ['D', 'E'],
+    'D' => ['F'],
+    'E' => ['F'],
+    'F' => [],
+];
+
+function bfs(array $graph, string $start): array
+{
+    $visited = [$start => true];
+    $queue = [$start];
+    $order = [];
+    while ($queue) {
+        $cur = array_shift($queue);
+        $order[] = $cur;
+        foreach ($graph[$cur] as $next) {
+            if (!isset($visited[$next])) {
+                $visited[$next] = true;
+                $queue[] = $next;
+            }
+        }
+    }
+    return $order;
+}
+
+echo implode(" ", bfs($graph, 'A')), "\\n";`,
+
+"Data structures": `<?php
+
+// ---- Memory / Boxes: any value ----
+$nums = [5, 2, 9, 1, 6];
+$i = 1; $j = 3;                                // pointer tags under $nums[1] and $nums[3]
+$person = ['name' => 'Ada', 'tags' => ['math', 'code']];
+$scores = [90 => 'gold', 80 => 'silver'];      // number keys: a map
+$stack = new SplStack(); $stack->push(1); $stack->push(2);
+$queue = new SplQueue(); $queue->enqueue('a');
+class Point { public function __construct(public int $x = 0, public int $y = 0) {} }
+$p = new Point(1, 2);
+$pair = [$p, $p];                              // the same object twice: #id badge
+
+// ---- Graph: neighbour lists in an array ----
+$g1 = ['A' => ['B', 'C'], 'B' => ['D'], 'C' => ['D'], 'D' => []];
+$g2 = ['a' => ['b' => 4, 'c' => 2], 'b' => ['d' => 5], 'c' => ['b' => 1]];   // weighted
+$adj = [[1, 2], [3], [3], []];                                             // by position
+$edges = [[0, 1], [1, 2], [2, 0]];
+
+// ---- Graph: objects that point at each other ----
+class TreeNode { public function __construct(public int $val, public ?TreeNode $left = null, public ?TreeNode $right = null) {} }
+class ListNode { public function __construct(public int $val, public ?ListNode $next = null) {} }
+$tree = new TreeNode(1, new TreeNode(2, new TreeNode(4)), new TreeNode(3));
+$linked = new ListNode(1, new ListNode(2, new ListNode(3)));
+
+// ---- Graph: data in the nodes and on the arrows ----
+$jobs = [
+    ['id' => 'A', 'color' => 'red', 'next' => ['B', 'C']],
+    ['id' => 'B', 'color' => 'blue', 'next' => ['C']],
+    ['id' => 'C', 'color' => 'green', 'next' => []],
+];
+$intervals = [
+    'a' => [['to' => 'b', 'start' => 0, 'end' => 3], ['to' => 'c', 'start' => 1, 'end' => 5]],
+    'b' => [['to' => 'c', 'start' => 7, 'end' => 8]],
+    'c' => [],
+];
+
+$cur = 'B';                                    // tags node B in $g1
+$visited = ['A' => true, 'C' => true];         // ∈ $visited tags
+echo "done\\n";`
+};
+
+/** The same kind of examples in C++ (same names where there is a JavaScript twin), with the standard library. */
+export const CPP_EXAMPLES = {
+"Bubble sort": `#include <iostream>
+#include <vector>
+using namespace std;
+
+void bubble_sort(vector<int>& arr) {
+    int n = arr.size();
+    for (int i = 0; i < n - 1; i++) {
+        bool swapped = false;
+        for (int j = 0; j < n - 1 - i; j++) {
+            if (arr[j] > arr[j + 1]) {
+                swap(arr[j], arr[j + 1]);
+                swapped = true;
+            }
+        }
+        if (!swapped) break;
+    }
+}
+
+int main() {
+    vector<int> data = {5, 2, 9, 1, 6};
+    bubble_sort(data);
+    for (int x : data) cout << x << " ";
+    cout << endl;
+    return 0;
+}`,
+
+"Binary search": `#include <iostream>
+#include <vector>
+using namespace std;
+
+int binary_search(const vector<int>& arr, int target) {
+    int lo = 0;
+    int hi = arr.size() - 1;
+    while (lo <= hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (arr[mid] == target) {
+            return mid;
+        } else if (arr[mid] < target) {
+            lo = mid + 1;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    return -1;
+}
+
+int main() {
+    vector<int> sorted = {2, 5, 8, 12, 16, 23, 38, 56, 72, 91};
+    int found = binary_search(sorted, 23);
+    cout << "found at index " << found << endl;
+    return 0;
+}`,
+
+"Two sum (unordered_map)": `#include <iostream>
+#include <unordered_map>
+#include <vector>
+using namespace std;
+
+vector<int> two_sum(const vector<int>& nums, int target) {
+    unordered_map<int, int> seen;          // value -> index
+    for (int i = 0; i < nums.size(); i++) {
+        int need = target - nums[i];
+        if (seen.count(need)) {
+            return {seen[need], i};
+        }
+        seen[nums[i]] = i;
+    }
+    return {};
+}
+
+int main() {
+    vector<int> result = two_sum({3, 8, 11, 4, 7}, 15);
+    cout << "[" << result[0] << ", " << result[1] << "]" << endl;
+    return 0;
+}`,
+
+"Fibonacci with memo": `#include <iostream>
+#include <unordered_map>
+using namespace std;
+
+unordered_map<int, long long> memo;
+
+long long fib(int n) {
+    if (n <= 1) return n;
+    if (memo.count(n)) return memo[n];
+    memo[n] = fib(n - 1) + fib(n - 2);
+    return memo[n];
+}
+
+int main() {
+    cout << fib(6) << endl;
+    return 0;
+}`,
+
+"Reverse a linked list": `#include <iostream>
+using namespace std;
+
+struct Node {
+    int val;
+    Node* next;
+    Node(int v, Node* n = nullptr) : val(v), next(n) {}
+};
+
+int main() {
+    Node* list = new Node(1, new Node(2, new Node(3)));
+
+    Node* prev = nullptr;
+    Node* curr = list;
+    while (curr != nullptr) {
+        Node* nextNode = curr->next;
+        curr->next = prev;
+        prev = curr;
+        curr = nextNode;
+    }
+    cout << prev->val << endl;
+    return 0;
+}`,
+
+"Breadth-first search": `#include <iostream>
+#include <map>
+#include <queue>
+#include <set>
+#include <vector>
+using namespace std;
+
+map<char, vector<char>> graph = {
+    {'A', {'B', 'C'}},
+    {'B', {'D'}},
+    {'C', {'D', 'E'}},
+    {'D', {'F'}},
+    {'E', {'F'}},
+    {'F', {}},
+};
+
+vector<char> bfs(char start) {
+    set<char> visited = {start};
+    queue<char> q;
+    q.push(start);
+    vector<char> order;
+    while (!q.empty()) {
+        char cur = q.front();
+        q.pop();
+        order.push_back(cur);
+        for (char next : graph[cur]) {
+            if (!visited.count(next)) {
+                visited.insert(next);
+                q.push(next);
+            }
+        }
+    }
+    return order;
+}
+
+int main() {
+    for (char c : bfs('A')) cout << c << " ";
+    cout << endl;
+    return 0;
+}`,
+
+"Data structures": `#include <bits/stdc++.h>
+using namespace std;
+
+struct Point {
+    int x, y;
+    Point(int x = 0, int y = 0) : x(x), y(y) {}
+};
+struct TreeNode {
+    int val;
+    TreeNode *left = nullptr, *right = nullptr;
+    TreeNode(int v) : val(v) {}
+};
+struct ListNode {
+    int val;
+    ListNode* next;
+    ListNode(int v, ListNode* n = nullptr) : val(v), next(n) {}
+};
+struct Job { string id; string color; vector<string> next; };
+
+int main() {
+    // ---- Memory / Boxes: any value ----
+    vector<int> nums = {5, 2, 9, 1, 6};
+    int i = 1;
+    auto it = nums.begin() + 3;                       // tags nums[1] and nums[3]
+    string word = "hi";
+    map<string, int> scores = {{"ada", 90}, {"alan", 85}};
+    set<int> primes = {2, 3, 5};
+    pair<int, string> pr = {1, "one"};
+    stack<int> st; st.push(1); st.push(2);
+    Point p(1, 2);
+    Point* pp = &p;                                   // the same object twice: #id badge
+
+    // ---- Graph: neighbour lists ----
+    map<string, vector<string>> g1 = {{"A", {"B", "C"}}, {"B", {"D"}}, {"C", {"D"}}, {"D", {}}};
+    map<char, map<char, int>> g2 = {{'a', {{'b', 4}, {'c', 2}}}, {'b', {{'d', 5}}}, {'c', {{'b', 1}}}};
+    vector<vector<int>> adj = {{1, 2}, {3}, {3}, {}};  // by position
+    vector<pair<int, int>> edges = {{0, 1}, {1, 2}, {2, 0}};
+
+    // ---- Graph: objects that point at each other ----
+    TreeNode* tree = new TreeNode(1);
+    tree->left = new TreeNode(2);
+    tree->right = new TreeNode(3);
+    tree->left->left = new TreeNode(4);
+    ListNode* linked = new ListNode(1, new ListNode(2, new ListNode(3)));
+
+    // ---- Graph: data in the nodes ----
+    vector<Job> jobs = {{"A", "red", {"B", "C"}}, {"B", "blue", {"C"}}, {"C", "green", {}}};
+
+    string cur = "B";                                 // tags node B in g1
+    set<string> visited = {"A", "C"};                 // ∈ visited tags
+    cout << "done" << endl;
+    return 0;
+}`
+};

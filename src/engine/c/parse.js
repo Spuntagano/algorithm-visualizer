@@ -1,18 +1,24 @@
 /**
- * The C front end: preprocessor (#include of the standard headers, #define with arguments, #ifdef…), lexer and a
- * recursive-descent parser for C99 (most of it: no goto, no K&R definitions, no bit fields). The result is a tree of
- * plain objects for ./interp.js; every statement and expression has the `line` it starts on.
- * parseC(source) throws an Error "line N: …" for a syntax error.
+ * The C and C++ front end: preprocessor (#include of the standard headers, #define with arguments, #ifdef…), lexer and
+ * a recursive-descent parser for C99 (most of it: no goto, no K&R definitions, no bit fields) and, with { cpp: true },
+ * the C++ that algorithms use: classes with methods, constructors and operators, references, new / delete, auto,
+ * range-for, structured bindings, lambdas, brace lists, the standard library's templates (vector<int>…), casts,
+ * try / catch / throw. Not templates of one's own, inheritance or namespaces other than std.
+ * The result is a tree of plain objects for ./interp.js; every statement and expression has the `line` it starts on.
+ * parseC(source, { cpp }) throws an Error "line N: …" for a syntax error.
  */
-import { FILE_T, STD_TYPEDEFS, T, arr, fnType, layout, ptr } from './types.js';
+import { AUTO, FILE_T, STD_TYPEDEFS, STL, T, arr, fnType, layout, ptr, ref, stlType } from './types.js';
 
 export const fail = (line, msg) => { throw new Error('line ' + line + ': ' + msg); };
 
 const PUNCT = ['...', '<<=', '>>=', '->', '++', '--', '<<', '>>', '<=', '>=', '==', '!=', '&&', '||', '+=', '-=', '*=', '/=', '%=',
   '&=', '^=', '|=', '##'];
-const KEYWORDS = new Set(['auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum', 'extern',
+const C_KEYWORDS = ['auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum', 'extern',
   'float', 'for', 'goto', 'if', 'inline', 'int', 'long', 'register', 'restrict', 'return', 'short', 'signed', 'sizeof', 'static',
-  'struct', 'switch', 'typedef', 'union', 'unsigned', 'void', 'volatile', 'while', '_Bool']);
+  'struct', 'switch', 'typedef', 'union', 'unsigned', 'void', 'volatile', 'while', '_Bool'];
+const CPP_KEYWORDS = ['bool', 'class', 'public', 'private', 'protected', 'new', 'delete', 'this', 'nullptr', 'true', 'false', 'namespace',
+  'using', 'template', 'typename', 'operator', 'virtual', 'override', 'friend', 'explicit', 'constexpr', 'mutable', 'try', 'catch',
+  'throw', 'noexcept', 'static_cast', 'const_cast', 'reinterpret_cast', 'dynamic_cast', 'final'];
 
 /* ---- lexer ---- */
 const ESC = { n: 10, t: 9, r: 13, '0': 0, a: 7, b: 8, f: 12, v: 11, e: 27, '\\': 92, "'": 39, '"': 34, '?': 63 };
@@ -41,7 +47,7 @@ function unescape(body, line) {
  * Tokens of one piece of source: { t: 'id'|'num'|'str'|'chr'|'p'|'dir', v, line, pos, end, bol } (bol: first on its line).
  * `dirs`: a # that starts a line begins a directive (not in a macro's body, where #x makes a string).
  */
-function lex(src, line0 = 1, pos0 = 0, dirs = true) {
+function lex(src, line0 = 1, pos0 = 0, dirs = true, cpp = false) {
   const toks = [];
   let i = 0, line = line0, bol = true;
   while (i < src.length) {
@@ -80,6 +86,7 @@ function lex(src, line0 = 1, pos0 = 0, dirs = true) {
       else tok({ t: 'str', v: codes });
       continue;
     }
+    if (cpp && c === ':' && src[i + 1] === ':') { i += 2; tok({ t: 'p', v: '::' }); continue; }
     const p = PUNCT.find(q => src.startsWith(q, i));
     if (p) { i += p.length; tok({ t: 'p', v: p }); continue; }
     if ('{}[]();,.<>+-*/%&|^!~?:=#'.includes(c)) { i++; tok({ t: 'p', v: c }); continue; }
@@ -91,6 +98,13 @@ function lex(src, line0 = 1, pos0 = 0, dirs = true) {
 /* ---- preprocessor ---- */
 const STD_HEADERS = new Set(['stdio.h', 'stdlib.h', 'string.h', 'stdbool.h', 'math.h', 'limits.h', 'ctype.h', 'assert.h', 'stddef.h',
   'stdint.h', 'inttypes.h', 'time.h', 'float.h', 'stdarg.h', 'errno.h', 'iso646.h', 'strings.h', 'unistd.h']);
+/** Parts of the C++ library that are not here, and what to use instead */
+const NOT_HERE = { array: 'a plain array or a vector', list: 'a vector or a deque', forward_list: 'a vector', tuple: 'a pair, or a struct',
+  bitset: 'a vector<bool>', optional: 'a pointer, or a bool next to the value', variant: 'a struct', string_view: 'a string (or const string&)',
+  unordered_multimap: 'a map<K, vector<V>>', unordered_multiset: 'a map<T, int> of counts', valarray: 'a vector', span: 'a vector' };
+const CPP_HEADERS = new Set(['iostream', 'vector', 'string', 'map', 'set', 'unordered_map', 'unordered_set', 'queue', 'stack', 'deque',
+  'algorithm', 'numeric', 'utility', 'functional', 'climits', 'cstdio', 'cstdlib', 'cstring', 'cmath', 'cassert', 'cctype', 'cstdint',
+  'iomanip', 'limits', 'bits/stdc++.h', 'cfloat', 'ctime', 'iterator', 'stdexcept', 'exception', 'tuple', 'array', 'list', 'sstream']);
 const PREDEFINED = {
   NULL: '((void*)0)', true: '1', false: '0', bool: '_Bool', EOF: '(-1)', EXIT_SUCCESS: '0', EXIT_FAILURE: '1',
   INT_MAX: '2147483647', INT_MIN: '(-2147483647-1)', UINT_MAX: '4294967295U', LONG_MAX: '9223372036854775807L',
@@ -104,12 +118,12 @@ const PREDEFINED = {
   DBL_EPSILON: '2.2204460492503131e-16', FLT_EPSILON: '1.19209290e-7f',
 };
 
-function preprocess(src) {
+function preprocess(src, cpp) {
   const macros = new Map();
-  for (const [k, v] of Object.entries(PREDEFINED)) macros.set(k, { body: lex(v), params: null });
+  for (const [k, v] of Object.entries(PREDEFINED)) if (!cpp || !['true', 'false', 'bool'].includes(k)) macros.set(k, { body: lex(v), params: null });
   const out = [], conds = [];                      // conds: { on, done } for each open #if
   const live = () => conds.every(c => c.on);
-  const toks = lex(src);
+  const toks = lex(src, 1, 0, true, cpp);
   /** #if's expression: defined(X), numbers, macros, ! && || == != < > <= >= + - * / % and parentheses */
   const ifValue = (body, line) => {
     const ts = lex(body, line);
@@ -207,31 +221,56 @@ function preprocess(src) {
     flush();
     if (d === 'include') {
       const h = /^<([^>]+)>$/.exec(rest);
-      if (!h) fail(t.line, '#include ' + rest + ': only the standard headers (<stdio.h>, <stdlib.h>, <string.h>…) are available here');
-      if (!STD_HEADERS.has(h[1])) fail(t.line, '#include <' + h[1] + '> is not available here');
+      if (!h) fail(t.line, '#include ' + rest + ': only the standard headers (' + (cpp ? '<iostream>, <vector>, <map>…' : '<stdio.h>, <stdlib.h>, <string.h>…') + ') are available here');
+      if (!STD_HEADERS.has(h[1]) && !(cpp && CPP_HEADERS.has(h[1]))) fail(t.line, '#include <' + h[1] + '> is not available here');
     } else if (d === 'define') {
       const dm = /^([A-Za-z_]\w*)(\(([^)]*)\))?\s*([\s\S]*)$/.exec(rest);
       if (!dm) fail(t.line, '#define needs a name');
       const params = dm[2] ? dm[3].split(',').map(s => s.trim()).filter(Boolean) : null;
       const variadic = !!params && params.at(-1) === '...';
       if (variadic) params.pop();
-      macros.set(dm[1], { params, variadic, body: lex(dm[4], t.line, 0, false) });
+      macros.set(dm[1], { params, variadic, body: lex(dm[4], t.line, 0, false, cpp) });
     } else if (d === 'undef') macros.delete(rest);
     else if (d === 'error') fail(t.line, '#error ' + rest);
     else if (d !== 'pragma' && d !== 'line' && d !== '') fail(t.line, 'unknown directive #' + d);
   }
   if (conds.length) fail(toks.length ? toks.at(-1).line : 1, '#if without #endif');
   flush();
+  return cpp ? qualify(out) : out;
+}
+
+/**
+ * C++ names: std::x is x (as after using namespace std), and A::b (a member defined outside its class, a static, an enum
+ * class's constant) becomes one name token.
+ */
+function qualify(ts) {
+  const out = [];
+  for (let i = 0; i < ts.length; i++) {
+    const t = ts[i];
+    if (t.t === 'p' && t.v === '::' && ts[i + 1] && ts[i + 1].t === 'id' && (!out.length || out.at(-1).t !== 'id' || out.at(-1).v === 'std')) {
+      if (out.length && out.at(-1).v === 'std' && out.at(-1).t === 'id') out.pop();
+      continue;                                    // std::x and ::x
+    }
+    if (t.t === 'p' && t.v === '::' && out.length && out.at(-1).t === 'id' && ts[i + 1]) {
+      const prev = out.pop(), n = ts[i + 1], tilde = n.t === 'p' && n.v === '~' && ts[i + 2] && ts[i + 2].t === 'id';
+      const name = tilde ? '~' + ts[i + 2].v : n.v;
+      out.push({ ...prev, v: prev.v + '::' + name, end: (tilde ? ts[i + 2] : n).end });
+      i += tilde ? 2 : 1;
+      continue;
+    }
+    out.push(t);
+  }
   return out;
 }
 
 /* ---- parser ---- */
 /**
- * @returns {{ items: any[], structs: Map, src: string }} items: { k: 'func', name, type, params, body, line } and
- *   { k: 'decl', list: [{ name, type, init, storage, line }] }
+ * @returns {{ items: any[], structs: Map, cpp: boolean }} items: { k: 'func', name, type, params, body, line, owner?, kind? }
+ *   (owner: the class of a method; kind: 'ctor' | 'dtor' | 'method') and { k: 'decl', list: [{ name, type, init, storage, line }] }
  */
-export function parseC(src) {
-  const toks = preprocess(src);
+export function parseC(src, { cpp = false } = {}) {
+  const toks = preprocess(src, cpp);
+  const KEYWORDS = new Set(cpp ? [...C_KEYWORDS, ...CPP_KEYWORDS] : C_KEYWORDS);
   let i = 0;
   const lastLine = toks.length ? toks.at(-1).line : 1;
   const peek = (o = 0) => toks[i + o];
@@ -248,14 +287,23 @@ export function parseC(src) {
   };
   const ident = what => { const t = peek(); if (!t || t.t !== 'id' || KEYWORDS.has(t.v)) fail(t ? t.line : lastLine, 'expected ' + (what || 'a name') + ' before ' + show(t)); i++; return t.v; };
   const textOf = (a, b) => src.slice(a.pos, b.end);
+  /** The closing > of a template's arguments, also out of >> (vector<vector<int>>) */
+  const closeAngle = () => {
+    if (eat('>')) return;
+    const t = peek();
+    if (t && t.t === 'p' && (t.v === '>>' || t.v === '>=' || t.v === '>>=')) { toks[i] = { ...t, v: t.v.slice(1) }; return; }
+    fail(t ? t.line : lastLine, "expected '>' to close the template's arguments before " + show(t));
+  };
 
   const typedefs = new Map(Object.entries(STD_TYPEDEFS));
   const structs = new Map([['FILE', FILE_T]]), enums = new Map(), enumConsts = new Map();
   const scopes = [new Set()];                      // names declared as variables, which hide a typedef of the same name
+  const items = [];
   const isTypedef = n => typedefs.has(n) && !scopes.some(s => s.has(n));
   const TYPE_WORDS = new Set(['void', 'char', 'short', 'int', 'long', 'float', 'double', 'signed', 'unsigned', '_Bool', 'struct', 'union',
-    'enum', 'const', 'volatile', 'restrict', 'static', 'extern', 'typedef', 'register', 'auto', 'inline']);
-  const isTypeStart = (o = 0) => { const t = peek(o); return !!t && t.t === 'id' && (TYPE_WORDS.has(t.v) || isTypedef(t.v)); };
+    'enum', 'const', 'volatile', 'restrict', 'static', 'extern', 'typedef', 'register', 'auto', 'inline', ...(cpp ? ['bool', 'class', 'constexpr', 'mutable', 'typename'] : [])]);
+  const isStl = n => cpp && Object.prototype.hasOwnProperty.call(STL, n) && !scopes.some(s => s.has(n));
+  const isTypeStart = (o = 0) => { const t = peek(o); return !!t && t.t === 'id' && (TYPE_WORDS.has(t.v) || isTypedef(t.v) || isStl(t.v)); };
 
   /** Integer constant expressions (array sizes, case labels, enum values, bit widths) */
   const constValue = (e, what) => {
@@ -264,22 +312,38 @@ export function parseC(src) {
     return v;
   };
 
+  /** vector<int>, map<string, vector<int>>, string, pair<int, int>, greater<int>, function<int(int)> */
+  function stlSpec(name) {
+    const [min, max] = STL[name];
+    const args = [];
+    if (is('<')) {
+      i++;
+      if (!is('>')) do args.push(typeName()); while (eat(','));   // function<int(int, int)>: its argument is a function type
+      closeAngle();
+    } else if (min > 0) fail(line(), name + ' needs its type in < >: ' + name + (name.includes('map') ? '<string, int>' : '<int>'));
+    if (args.length < min || args.length > max) fail(line(), `${name} takes ${min === max ? min : min + ' to ' + max} type${max === 1 ? '' : 's'} in < >`);
+    return stlType(name, name === 'priority_queue' ? args.slice(0, 1).concat(args[2] ? [args[2]] : []) : args);
+  }
+
   function declSpecs() {
     let storage = null, base = null, sign = null, size = null, longs = 0, sawInt = false;
-    const words = [];
     for (;;) {
       const t = peek();
       if (!t || t.t !== 'id') break;
       const v = t.v;
-      if (v === 'const' || v === 'volatile' || v === 'restrict' || v === 'inline' || v === 'register' || v === 'auto') { i++; continue; }
+      if (v === 'const' || v === 'volatile' || v === 'restrict' || v === 'inline' || v === 'register' || (v === 'auto' && !cpp)) { i++; continue; }
+      if (cpp && (v === 'constexpr' || v === 'mutable' || v === 'typename' || v === 'explicit' || v === 'virtual')) { i++; continue; }
       if (v === 'static' || v === 'extern' || v === 'typedef') { i++; storage = v; continue; }
       if (v === 'signed' || v === 'unsigned') { i++; sign = v; continue; }
       if (v === 'short') { i++; size = 'short'; continue; }
       if (v === 'long') { i++; longs++; continue; }
       if (v === 'int') { i++; sawInt = true; continue; }
-      if (v === 'char' || v === 'void' || v === 'float' || v === 'double' || v === '_Bool') { if (base) fail(t.line, 'two types: ' + base + ' and ' + v); i++; base = v; words.push(v); continue; }
-      if (v === 'struct' || v === 'union') { if (base) fail(t.line, 'two types in one declaration'); i++; base = structSpec(v === 'union'); continue; }
+      if (v === 'char' || v === 'void' || v === 'float' || v === 'double' || v === '_Bool' || (cpp && v === 'bool')) { if (base) fail(t.line, 'two types: ' + base + ' and ' + v); i++; base = v === 'bool' ? '_Bool' : v; continue; }
+      if (cpp && v === 'auto') { if (base) fail(t.line, 'two types in one declaration'); i++; base = AUTO; continue; }
+      if (v === 'struct' || v === 'union' || (cpp && v === 'class')) { if (base) fail(t.line, 'two types in one declaration'); i++; base = structSpec(v === 'union', v === 'class'); continue; }
       if (v === 'enum') { if (base) fail(t.line, 'two types in one declaration'); i++; base = enumSpec(); continue; }
+      if (!base && !sign && !size && !longs && !sawInt && isStl(v)) { i++; base = stlSpec(v); continue; }
+      if (cpp && !base && Object.prototype.hasOwnProperty.call(NOT_HERE, v) && (is('<', 1) || v === 'string_view')) fail(t.line, `std::${v} is not supported here (use ${NOT_HERE[v]})`);
       if (!base && !sign && !size && !longs && !sawInt && isTypedef(v)) { i++; base = typedefs.get(v); continue; }
       break;
     }
@@ -298,30 +362,26 @@ export function parseC(src) {
     return { type: t, storage };
   }
 
-  function structSpec(union) {
+  function structSpec(union, isClass) {
     const l = line();
     let tag = null;
-    if (peek() && peek().t === 'id' && !is('{')) tag = ident('a struct name');
-    const key = (union ? 'union ' : 'struct ') + (tag || '#' + i);
+    if (peek() && peek().t === 'id' && !is('{') && !is(':')) tag = ident('a struct name');
+    const key = cpp ? (union ? 'union ' : 'struct ') + (tag || '#' + i) : (union ? 'union ' : 'struct ') + (tag || '#' + i);
     let s = tag && structs.get(key);
-    if (!s) { s = { k: 'struct', tag, union, fields: [], size: 0, align: 1, done: false }; if (tag) structs.set(key, s); }
+    if (!s) {
+      s = { k: 'struct', tag, union, fields: [], size: 0, align: 1, done: false };
+      if (cpp) Object.assign(s, { cls: true, methods: new Map(), ctors: [], dtor: null, statics: new Map(), inits: new Map() });
+      if (tag) { structs.set(key, s); if (cpp) typedefs.set(tag, s); }
+    }
+    if (cpp && is(':') && !is('::')) fail(l, 'inheritance (' + (isClass ? 'class' : 'struct') + ' ' + tag + ' : …) is not supported yet');
     if (eat('{')) {
       if (s.done) fail(l, (union ? 'union ' : 'struct ') + tag + ' is defined twice');
       const fields = [];
-      while (!eat('}')) {
+      if (cpp) classBody(s, fields, isClass);
+      else while (!eat('}')) {
         const sp = declSpecs();
         if (!sp) fail(line(), 'expected a field type before ' + show(peek()));
-        do {
-          const d = declarator(false);
-          let ft = d.apply(sp.type);
-          if (eat(':')) fail(d.line, 'bit fields are not supported');
-          if (ft.k === 'arr' && ft.n != null && typeof ft.n !== 'number') ft = arr(ft.of, constValue(ft.n, 'a field\'s array size'));
-          if (ft.k === 'fn') fail(d.line, 'a struct cannot hold a function (a function pointer can: (*' + d.name + ')(…))');
-          if (ft.k === 'struct' && !ft.done) fail(d.line, 'the field ' + d.name + ' has an incomplete type (use a pointer: ' + typeLabel(ft) + ' *' + d.name + ')');
-          if (!d.name) { if (ft.k === 'struct') { fields.push(...ft.fields.map(f => ({ ...f, anon: ft }))); continue; } fail(d.line, 'a field needs a name'); }
-          if (fields.some(f => f.name === d.name)) fail(d.line, 'two fields named ' + d.name);
-          fields.push({ name: d.name, type: ft, off: 0 });
-        } while (eat(','));
+        do field(sp, null, fields); while (eat(','));
         expect(';', 'after the field');
       }
       s.fields = fields;
@@ -329,20 +389,136 @@ export function parseC(src) {
     }
     return s;
   }
+  function field(sp, s, fields) {
+    const d = declarator(false);
+    let ft = d.apply(sp.type);
+    if (eat(':')) fail(d.line, 'bit fields are not supported');
+    if (ft.k === 'arr' && ft.n != null && typeof ft.n !== 'number') ft = arr(ft.of, constValue(ft.n, 'a field\'s array size'));
+    if (ft.k === 'fn') fail(d.line, 'a struct cannot hold a function (a function pointer can: (*' + d.name + ')(…))');
+    if (ft.k === 'struct' && !ft.done && ft !== s) fail(d.line, 'the field ' + d.name + ' has an incomplete type (use a pointer: ' + typeLabel(ft) + ' *' + d.name + ')');
+    if (ft === s && s) fail(d.line, 'a ' + (s.tag || 'struct') + ' cannot contain a ' + (s.tag || 'struct') + ' (a pointer to one, ' + s.tag + ' *' + d.name + ', is fine)');
+    if (ft.k === 'auto') fail(d.line, 'a field cannot be auto');
+    if (!d.name) { if (ft.k === 'struct') { fields.push(...ft.fields.map(f => ({ ...f, anon: ft }))); return; } fail(d.line, 'a field needs a name'); }
+    if (fields.some(f => f.name === d.name)) fail(d.line, 'two fields named ' + d.name);
+    if (s && sp.storage === 'static') {            // a static member: one variable for the whole class
+      s.statics.set(d.name, { name: s.tag + '::' + d.name, type: ft, init: eat('=') ? initializer() : null, line: d.line });
+      return;
+    }
+    fields.push({ name: d.name, type: ft, off: 0 });
+    if (s && (is('=') || is('{'))) s.inits.set(d.name, eat('=') ? initializer() : initializer());   // int count = 0; vector<int> v{1, 2};
+  }
+  /** The members of a C++ class: fields, methods, constructors, a destructor, static members, access labels */
+  function classBody(s, fields, isClass) {
+    void isClass;
+    while (!eat('}')) {
+      const l = line();
+      if ((is('public') || is('private') || is('protected')) && is(':', 1)) { i += 2; continue; }
+      if (eat(';')) continue;
+      if (is('template')) fail(l, 'templates (other than the standard library\'s: vector, map…) are not supported');
+      if (is('using') || is('typedef')) { aliasDecl(); continue; }
+      if (eat('friend')) { topLevel(); continue; }   // a friend function: an ordinary function
+      while (is('explicit') || is('virtual') || is('inline') || is('constexpr')) i++;
+      if ((is(s.tag) && is('(', 1)) || (is('~') && is(s.tag, 1) && is('(', 2))) { const dtor = eat('~'); i++; ctorOrDtor(s, dtor, l); continue; }
+      const sp = declSpecs();
+      if (!sp) fail(l, 'expected a member (a field or a method) of ' + s.tag + ' before ' + show(peek()));
+      const save = i, d = declarator(false), type = d.apply(sp.type);
+      if (type.k === 'fn') { method(s, d, type, sp, l); continue; }
+      i = save;
+      do field(sp, s, fields); while (eat(','));
+      expect(';', 'after the field');
+    }
+  }
+  /** const, override, noexcept after a method's parameters; = 0 is an abstract method (not supported) */
+  function methodSuffix() {
+    let isConst = false;
+    for (;;) {
+      if (eat('const')) { isConst = true; continue; }
+      if (eat('override') || eat('final')) continue;
+      if (eat('noexcept')) { if (is('(')) { i++; expression(); expect(')'); } continue; }
+      if (is('->')) { i++; typeName(); continue; }   // a trailing return type
+      return isConst;
+    }
+  }
+  function method(s, d, type, sp, l) {
+    methodSuffix();
+    const def = { k: 'func', name: d.name, type, params: params(d, type), line: d.line, owner: s, kind: 'method', isStatic: sp.storage === 'static', body: null };
+    if (eat('=')) {
+      if (eat('0')) fail(l, 'abstract (= 0) methods need inheritance, which is not supported yet');
+      if (eat('default') || eat('delete')) { expect(';'); return; }
+    }
+    if (eat(';')) { addMethod(s, def); return; }   // defined later: int Stack::size() const { … }
+    def.body = withParams(def.params, () => block());
+    addMethod(s, def);
+  }
+  const addMethod = (s, def) => {
+    if (def.kind === 'ctor') { s.ctors.push(def); return; }
+    if (def.kind === 'dtor') { s.dtor = def; return; }
+    const list = s.methods.get(def.name) || [];
+    const prev = list.find(x => !x.body && sameParams(x, def));
+    if (prev) Object.assign(prev, { ...def, line: prev.line }); else list.push(def);
+    s.methods.set(def.name, list);
+  };
+  const sameParams = (a, b) => a.params.length === b.params.length;
+  /** X(int a, int b) : a(a), b{b} { … } and ~X() { … }, inside the class or as X::X(…) outside it (its name already read) */
+  function ctorOrDtor(s, dtor, l) {
+    expect('(');
+    const ps = paramList();
+    const type = fnType(T.void, ps.list.map(p => p.type), ps.variadic);
+    methodSuffix();
+    const def = { k: 'func', name: (dtor ? '~' : '') + s.tag, type, params: ps.list.map((p, k) => ({ name: p.name || 'p' + k, type: p.type, def: p.def })), line: l, owner: s, kind: dtor ? 'dtor' : 'ctor', inits: [], body: null };
+    if (eat('=')) { if (!eat('default') && !eat('delete')) fail(l, 'expected default or delete after ='); expect(';'); def.body = { k: 'block', items: [], line: l }; addCtor(s, def); return; }
+    if (eat(':')) {                                // the member initializer list
+      do {
+        const fl = line(), fname = ident('a member to initialize');
+        let args;
+        if (eat('(')) { args = []; if (!eat(')')) { do args.push(assignment()); while (eat(',')); expect(')'); } }
+        else if (is('{')) args = [initializer()];
+        else fail(fl, `expected ( or { after ${fname} in the initializer list`);
+        def.inits.push({ name: fname, args, line: fl });
+      } while (eat(','));
+    }
+    if (eat(';')) { addCtor(s, def); return; }
+    def.body = withParams(def.params, () => block());
+    addCtor(s, def);
+  }
+  const addCtor = (s, def) => {
+    if (def.kind === 'dtor') { s.dtor = def; return; }
+    const prev = s.ctors.find(x => !x.body && sameParams(x, def));
+    if (prev) Object.assign(prev, { ...def, line: prev.line }); else s.ctors.push(def);
+  };
+  const withParams = (ps, fn) => { scopes.push(new Set(ps.map(p => p.name))); try { return fn(); } finally { scopes.pop(); } };
+  const params = (d, type) => (d.params || []).map((p, k) => ({ name: p.name || 'p' + k, type: type.params[k], def: p.def }));
   const typeLabel = s => (s.union ? 'union ' : 'struct ') + (s.tag || '');
+  /** using X = type; typedef type X; using namespace std; */
+  function aliasDecl() {
+    const l = line();
+    if (eat('using')) {
+      if (eat('namespace')) { const n = ident('a namespace'); if (n !== 'std') fail(l, 'only the namespace std is known'); expect(';'); return; }
+      const name = ident('a name'); expect('=', 'in using … = …');
+      typedefs.set(name, typeName()); expect(';'); return;
+    }
+    i++;
+    const sp = declSpecs();
+    if (!sp) fail(l, 'expected a type after typedef');
+    do { const d = declarator(false); typedefs.set(d.name, d.apply(sp.type)); } while (eat(','));
+    expect(';');
+  }
 
   function enumSpec() {
+    const scoped = cpp && (eat('class') || eat('struct'));   // enum class Color { Red }: its constants are Color::Red
     let tag = null;
-    if (peek() && peek().t === 'id' && !is('{')) tag = ident('an enum name');
+    if (peek() && peek().t === 'id' && !is('{') && !is(':')) tag = ident('an enum name');
+    if (cpp && eat(':')) typeName();               // enum Color : int
     const t = { ...T.int, en: tag || '(anonymous)', consts: new Map() };
     if (tag && enums.has(tag) && !is('{')) return enums.get(tag);
-    if (tag) enums.set(tag, t);
+    if (tag) { enums.set(tag, t); if (cpp) typedefs.set(tag, t); }
     if (eat('{')) {
       let v = 0;
       while (!eat('}')) {
         const name = ident('an enum constant');
         if (eat('=')) v = constValue(assignment(), 'an enum value');
-        enumConsts.set(name, v); t.consts.set(v, t.consts.get(v) || name);
+        enumConsts.set(scoped ? tag + '::' + name : name, v); if (!scoped && cpp && tag) enumConsts.set(tag + '::' + name, v);
+        t.consts.set(v, t.consts.get(v) || (scoped ? tag + '::' + name : name));
         v++;
         if (!eat(',')) { expect('}', 'after the enum constants'); break; }
       }
@@ -350,16 +526,32 @@ export function parseC(src) {
     return t;
   }
 
+  const OPERATORS = ['()', '[]', '<=', '>=', '==', '!=', '<<', '>>', '+=', '-=', '*=', '/=', '++', '--', '&&', '||', '<', '>', '+', '-', '*', '/', '%', '!', '=', '&', '|', '^', '~'];
+  /** operator< operator() operator[] … after the word operator */
+  function operatorName(prefix) {
+    const t = peek();
+    if (is('(') && is(')', 1)) { i += 2; return prefix + '()'; }
+    if (is('[') && is(']', 1)) { i += 2; return prefix + '[]'; }
+    if (t && t.t === 'p' && OPERATORS.includes(t.v)) { i++; return prefix + t.v; }
+    fail(line(), 'expected an operator after operator');
+  }
+
   /**
    * A declarator: the name and how it changes the base type. `int *a[3]`: a, array of 3 pointers to int.
    * Returns { name, line, apply(base) → type, params (of the function it declares, for a definition) }.
+   * In C++, `name(` followed by something that is not a type is a constructor's arguments, not parameters: it stops there.
    */
   function declarator(abstract) {
-    let stars = 0;
-    while (eat('*')) { stars++; while (is('const') || is('volatile') || is('restrict')) i++; }
+    const mods = [];
+    for (;;) {
+      if (eat('*')) { mods.push('*'); while (is('const') || is('volatile') || is('restrict')) i++; continue; }
+      if (cpp && (eat('&') || eat('&&'))) { mods.push('&'); continue; }
+      break;
+    }
     let name = null, inner = null, l = line(), params = null;
-    if (peek() && peek().t === 'id' && !KEYWORDS.has(peek().v) && !isTypeStart()) name = ident();
-    else if (is('(') && (is('*', 1) || is('(', 1) || is('[', 1) || (peek(1) && peek(1).t === 'id' && !isTypeStart(1) && !abstract))) {
+    if (cpp && peek() && peek().t === 'id' && (peek().v === 'operator' || peek().v.endsWith('::operator'))) { name = operatorName(next().v); }
+    else if (peek() && peek().t === 'id' && !KEYWORDS.has(peek().v) && !isTypeStart()) name = ident();
+    else if (is('(') && (is('*', 1) || is('(', 1) || is('[', 1) || (cpp && is('&', 1)) || (peek(1) && peek(1).t === 'id' && !isTypeStart(1) && !abstract && !cpp))) {
       i++; inner = declarator(abstract); expect(')'); name = inner.name; l = inner.line;
     }
     if (!name && !abstract && !is(')') && !is(',')) {
@@ -374,7 +566,7 @@ export function parseC(src) {
         expect(']', 'after the array size');
         const c = constFold(e);
         suffixes.push({ arr: true, n: c != null ? c : e });
-      } else if (is('(')) {
+      } else if (is('(') && !(cpp && !abstract && name && !suffixes.length && !is(')', 1) && !isTypeStart(1) && !is('...', 1))) {
         i++;
         const ps = paramList();
         suffixes.push({ fn: true, ...ps });
@@ -384,11 +576,12 @@ export function parseC(src) {
     if (inner && inner.params && !params) params = null;
     const apply = base => {
       let t = base;
-      for (let s = 0; s < stars; s++) t = ptr(t);
+      for (const m of mods) t = m === '*' ? ptr(t) : ref(t);
       for (let k = suffixes.length - 1; k >= 0; k--) {
         const sfx = suffixes[k];
         if (sfx.arr) {
           if (t.k === 'fn') fail(l, 'an array of functions is not allowed (use function pointers)');
+          if (t.k === 'ref') fail(l, 'an array of references is not allowed');
           if (typeof sfx.n === 'number' && sfx.n < 0) fail(l, 'an array size cannot be negative');
           t = arr(t, sfx.n);
         } else {
@@ -403,7 +596,7 @@ export function parseC(src) {
 
   function paramList() {
     const list = [];
-    if (eat(')')) return { list, variadic: false, proto: false };
+    if (eat(')')) return { list, variadic: false, proto: !!cpp };
     if (is('void') && is(')', 1)) { i += 2; return { list, variadic: false, proto: true }; }
     let variadic = false;
     do {
@@ -414,7 +607,9 @@ export function parseC(src) {
       let pt = d.apply(sp.type);
       if (pt.k === 'arr') pt = ptr(pt.of);         // int a[] and int a[10] are int *a
       else if (pt.k === 'fn') pt = ptr(pt);
-      list.push({ name: d.name, type: pt, line: d.line });
+      const p = { name: d.name, type: pt, line: d.line };
+      if (cpp && eat('=')) p.def = assignment();   // a default argument
+      list.push(p);
     } while (eat(','));
     expect(')', 'after the parameters');
     return { list, variadic, proto: true };
@@ -422,7 +617,7 @@ export function parseC(src) {
 
   function typeName() {
     const sp = declSpecs();
-    if (!sp) fail(line(), 'expected a type');
+    if (!sp) fail(line(), 'expected a type before ' + show(peek()));
     return declarator(true).apply(sp.type);
   }
 
@@ -435,7 +630,7 @@ export function parseC(src) {
       const desig = [];
       for (;;) {
         if (eat('.')) desig.push({ field: ident('a field name') });
-        else if (is('[')) { i++; desig.push({ index: constValue(conditional(), 'an index in an initializer') }); expect(']'); }
+        else if (is('[') && !cpp) { i++; desig.push({ index: constValue(conditional(), 'an index in an initializer') }); expect(']'); }
         else break;
       }
       if (desig.length) expect('=', 'after the designator');
@@ -454,9 +649,10 @@ export function parseC(src) {
   }
   const ASSIGN = new Set(['=', '+=', '-=', '*=', '/=', '%=', '<<=', '>>=', '&=', '^=', '|=']);
   function assignment() {
+    if (cpp && is('throw')) { const l = line(); i++; return node('throw', l, { e: is(';') || is(')') ? null : assignment() }); }
     const start = peek(), l = line(), lhs = conditional();
     const t = peek();
-    if (t && t.t === 'p' && ASSIGN.has(t.v)) { i++; return node('assign', l, { op: t.v, l: lhs, r: assignment(), text: textOf(start, toks[i - 1]) }); }
+    if (t && t.t === 'p' && ASSIGN.has(t.v)) { i++; return node('assign', l, { op: t.v, l: lhs, r: cpp && is('{') ? initializer() : assignment(), text: textOf(start, toks[i - 1]) }); }
     return lhs;
   }
   function conditional() {
@@ -479,7 +675,7 @@ export function parseC(src) {
     }
   }
   function cast() {
-    if (is('(') && isTypeStart(1)) {
+    if (is('(') && isTypeStart(1) && !(cpp && (is('(', 2) || is('{', 2)))) {   // (int)x, not (string("a") < s)
       const l = line(); i++;
       const t = typeName(); expect(')', 'after the type');
       if (is('{')) return postfix(node('clit', l, { t, init: initializer() }));
@@ -501,7 +697,31 @@ export function parseC(src) {
       if (is('(') && isTypeStart(1)) { i++; const ty = typeName(); expect(')'); return node('sizeofT', l, { t: ty }); }
       return node('sizeofE', l, { e: unary() });
     }
+    if (cpp && t.t === 'id' && t.v === 'delete') {
+      i++;
+      const isArr = is('[') && is(']', 1);
+      if (isArr) i += 2;
+      return node('delete', l, { e: cast(), arr: isArr });
+    }
+    if (cpp && t.t === 'id' && t.v === 'new') return postfix(newExpr());
     return postfix(primary());
+  }
+  /** new T, new T(args), new T{…}, new T[n] */
+  function newExpr() {
+    const l = line(); i++;
+    const sp = declSpecs();
+    if (!sp) fail(l, 'expected a type after new');
+    let t = sp.type;
+    while (eat('*')) t = ptr(t);
+    if (eat('[')) { const n = expression(); expect(']'); return node('new', l, { t, n }); }
+    if (eat('(')) { const args = []; if (!eat(')')) { do args.push(assignment()); while (eat(',')); expect(')'); } return node('new', l, { t, args }); }
+    if (is('{')) return node('new', l, { t, init: initializer() });
+    return node('new', l, { t, args: null });
+  }
+  function args() {
+    const out = [];
+    if (!eat(')')) { do out.push(cpp && is('{') ? initializer() : assignment()); while (eat(',')); expect(')', 'after the arguments'); }
+    return out;
   }
   function postfix(e) {
     for (;;) {
@@ -509,26 +729,88 @@ export function parseC(src) {
       if (eat('[')) { const ix = expression(); expect(']', 'after the index'); e = node('index', l, { a: e, i: ix }); }
       else if (is('(')) {
         const start = toks[i]; i++;
-        const args = [];
-        if (!eat(')')) { do args.push(assignment()); while (eat(',')); expect(')', 'after the arguments'); }
-        e = node('call', e.line, { f: e, args, text: textOf(start, toks[i - 1]) });
+        const a = args();
+        e = node('call', e.line, { f: e, args: a, text: textOf(start, toks[i - 1]) });
       }
-      else if (eat('.')) e = node('member', l, { e, name: ident('a field name'), arrow: false });
-      else if (eat('->')) e = node('member', l, { e, name: ident('a field name'), arrow: true });
+      else if (eat('.')) e = node('member', l, { e, name: memberName(), arrow: false });
+      else if (eat('->')) e = node('member', l, { e, name: memberName(), arrow: true });
       else if (is('++') || is('--')) e = node('post', l, { op: next().v, e });
       else return e;
     }
   }
+  const memberName = () => (cpp && is('operator') ? operatorName(next().v) : cpp && eat('~') ? '~' + ident('a destructor name') : ident('a field name'));
+  /** [&](int a, int b) { return a < b; } */
+  function lambda() {
+    const l = line(); i++;                         // [
+    const caps = [];
+    while (!eat(']')) {
+      if (eat('&')) caps.push(peek() && peek().t === 'id' && !is(',', 0) && !is(']', 0) ? { name: ident(), ref: true } : { all: true, ref: true });
+      else if (eat('=')) caps.push({ all: true, ref: false });
+      else if (eat('this')) caps.push({ name: 'this', ref: true });
+      else caps.push({ name: ident('a captured name'), ref: false });
+      if (!eat(',')) { expect(']', 'after the captures'); break; }
+    }
+    let ps = { list: [], variadic: false };
+    if (eat('(')) ps = paramList();
+    while (eat('mutable') || eat('constexpr')) { /* nothing to do */ }
+    let ret = AUTO;
+    if (eat('->')) ret = typeName();
+    const plist = ps.list.map((p, k) => ({ name: p.name || 'p' + k, type: p.type, def: p.def }));
+    const body = withParams(plist, () => block());
+    return node('lambda', l, { caps, params: plist, ret, body });
+  }
+  /** numeric_limits<int>::max() and the others: a constant */
+  function limits(l) {
+    i++;                                           // <
+    const ty = typeName(); closeAngle();
+    const what = ident('max, min or lowest');
+    expect('('); expect(')');
+    if (ty.k === 'int') {
+      const bits = BigInt(ty.size * 8), max = ty.bool ? 1n : ty.signed ? (1n << (bits - 1n)) - 1n : (1n << bits) - 1n, min = ty.signed && !ty.bool ? -(1n << (bits - 1n)) : 0n;
+      const v = { max, min, lowest: min }[what];
+      if (v === undefined) fail(l, `numeric_limits<${ty.name}>::${what}() is not known here (max, min and lowest are)`);
+      return node('num', l, { v: ty.size === 8 ? v : Number(v), t: ty, name: `numeric_limits<${ty.name}>::${what}()` });
+    }
+    if (ty.k === 'flt') {
+      const f = ty.size === 4, max = f ? 3.4028234663852886e38 : Number.MAX_VALUE;
+      const v = { max, min: f ? 1.1754943508222875e-38 : 2.2250738585072014e-308, lowest: -max, infinity: Infinity, epsilon: f ? 1.1920928955078125e-7 : Number.EPSILON }[what];
+      if (v === undefined) fail(l, `numeric_limits<${ty.name}>::${what}() is not known here (max, min, lowest, infinity and epsilon are)`);
+      return node('num', l, { v, t: ty, name: `numeric_limits<${ty.name}>::${what}()` });
+    }
+    fail(l, 'numeric_limits works for number types here');
+  }
   function primary() {
     const t = next(), l = t.line;
     if (t.t === 'num') return number(t);
-    if (t.t === 'chr') return node('num', l, { v: t.v > 127 ? t.v - 256 : t.v, t: T.int, chr: true });
+    if (t.t === 'chr') return node('num', l, { v: t.v > 127 ? t.v - 256 : t.v, t: cpp ? T.char : T.int, chr: true });
     if (t.t === 'str') {
       let codes = t.v;
       while (peek() && peek().t === 'str') codes = codes.concat(next().v);
       return node('str', l, { codes });
     }
     if (t.t === 'p' && t.v === '(') { const e = expression(); expect(')'); return e; }
+    if (cpp) {
+      if (t.t === 'p' && t.v === '[') { i--; return lambda(); }
+      if (t.t === 'p' && t.v === '{') { i--; return initializer(); }
+      if (t.t === 'id') {
+        if (t.v === 'true' || t.v === 'false') return node('num', l, { v: t.v === 'true' ? 1 : 0, t: T.bool, name: t.v });
+        if (t.v === 'numeric_limits' && is('<')) return limits(l);
+        if (Object.prototype.hasOwnProperty.call(NOT_HERE, t.v) && is('<')) fail(l, `std::${t.v} is not supported here (use ${NOT_HERE[t.v]})`);
+        if (t.v === 'nullptr') return node('nullptr', l, {});
+        if (t.v === 'this') return node('this', l, {});
+        if (/^(static|const|reinterpret|dynamic)_cast$/.test(t.v)) {
+          expect('<'); const ty = typeName(); closeAngle(); expect('('); const e = expression(); expect(')');
+          return node('cast', l, { t: ty, e });
+        }
+        if (isTypeStart(-1) && t.v !== 'struct' && t.v !== 'class' && !scopes.some(s => s.has(t.v))) {   // int(x), Point(1, 2), vector<int>(n), string(3, 'a')
+          i--;
+          const ty = declSpecs().type;             // just the type: what follows is its arguments
+          if (eat('(')) return node('construct', l, { t: ty, args: args() });
+          if (is('{')) return node('construct', l, { t: ty, init: initializer() });
+          fail(l, 'expected ( or { after the type ' + t.v + ' (to make a value of it)');
+        }
+      }
+    }
     if (t.t === 'id' && !KEYWORDS.has(t.v)) {
       if (enumConsts.has(t.v) && !scopes.some(s => s.has(t.v))) return node('num', l, { v: enumConsts.get(t.v), t: T.int, name: t.v });
       return node('id', l, { name: t.v });
@@ -600,12 +882,23 @@ export function parseC(src) {
     const l = line(), list = [];
     if (eat(';')) return { k: 'decl', list, line: l };        // struct Point { … }; enum { … };
     do {
+      if (cpp && (is('[') || ((is('&') || is('&&')) && is('[', 1)))) {   // auto [a, b] = pair;
+        const isRef = eat('&') || eat('&&'), bl = line();
+        expect('[');
+        const names = [];
+        do names.push(ident('a name')); while (eat(','));
+        expect(']');
+        names.forEach(n => scopes.at(-1).add(n));
+        if (!eat('=') && !is('{') && !is('(')) fail(bl, 'a structured binding needs a value: auto [' + names.join(', ') + '] = …;');
+        list.push({ bind: names, ref: isRef, type: sp.type, line: bl, init: is('(') ? (i++, (() => { const e = expression(); expect(')'); return e; })()) : initializer() });
+        continue;
+      }
       const d = declarator(false);
       const type = d.apply(sp.type);
       if (!d.name) fail(d.line, 'expected a name in the declaration');
       if (sp.storage === 'typedef') {
         typedefs.set(d.name, type);
-        if (type.k === 'struct' && !type.alias) type.alias = d.name;
+        if (type.k === 'struct' && !type.alias && !type.cls) type.alias = d.name;
         scopes.at(-1).delete(d.name);
         continue;
       }
@@ -614,7 +907,8 @@ export function parseC(src) {
       if (eat('=')) {
         if (type.k === 'fn') fail(d.line, 'a function cannot be given a value with =');
         item.init = initializer();
-      }
+      } else if (cpp && type.k !== 'fn' && is('(')) { i++; item.ctor = args(); }      // vector<int> v(n, 0);
+      else if (cpp && type.k !== 'fn' && is('{')) item.init = initializer();         // vector<int> v{1, 2, 3};
       list.push(item);
     } while (eat(','));
     expect(';', 'after the declaration');
@@ -625,10 +919,33 @@ export function parseC(src) {
     const l = line();
     expect('{');
     scopes.push(new Set());
-    const items = [];
-    while (!eat('}')) items.push(statement());
+    const its = [];
+    while (!eat('}')) its.push(statement());
     scopes.pop();
-    return { k: 'block', items, line: l };
+    return { k: 'block', items: its, line: l };
+  }
+
+  /** for (auto& x : v) / for (const auto& [k, v] : m) after the declaration's type */
+  function rangeFor(l) {
+    const save = i, sp = declSpecs();
+    if (!sp) { i = save; return null; }
+    const isRef = is('&') || is('&&');
+    if (is('[') || (isRef && is('[', 1))) {
+      if (isRef) i++;
+      i++;
+      const names = [];
+      do names.push(ident('a name')); while (eat(','));
+      expect(']');
+      if (!eat(':')) fail(l, 'expected : in for (auto [' + names.join(', ') + '] : …)');
+      names.forEach(n => scopes.at(-1).add(n));
+      return { bind: names, ref: isRef, type: sp.type };
+    }
+    const d = declarator(false);
+    if (!is(':')) { i = save; return null; }
+    i++;
+    scopes.at(-1).add(d.name);
+    const type = d.apply(sp.type);
+    return { name: d.name, type, ref: type.k === 'ref' };
   }
 
   function statement() {
@@ -652,6 +969,15 @@ export function parseC(src) {
         case 'for': {
           i++; expect('(', 'after for');
           scopes.push(new Set());
+          if (cpp && isTypeStart()) {
+            const r = rangeFor(l);
+            if (r) {
+              const e = expression(); expect(')', 'after the for loop header');
+              const body = statement();
+              scopes.pop();
+              return { k: 'rangefor', decl: r, e, body, line: l };
+            }
+          }
           let init = null;
           if (isTypeStart()) init = declaration();
           else if (!eat(';')) { init = { k: 'expr', e: expression(), line: l }; expect(';', 'in the for loop'); }
@@ -661,7 +987,7 @@ export function parseC(src) {
           scopes.pop();
           return { k: 'for', init, c, step, body, line: l };
         }
-        case 'return': { i++; const e = is(';') ? null : expression(); expect(';', 'after return'); return { k: 'return', e, line: l }; }
+        case 'return': { i++; const e = is(';') ? null : cpp && is('{') ? initializer() : expression(); expect(';', 'after return'); return { k: 'return', e, line: l }; }
         case 'break': i++; expect(';', 'after break'); return { k: 'break', line: l };
         case 'continue': i++; expect(';', 'after continue'); return { k: 'continue', line: l };
         case 'switch': { i++; expect('(', 'after switch'); const e = expression(); expect(')'); return { k: 'switch', e, body: statement(), line: l }; }
@@ -674,7 +1000,26 @@ export function parseC(src) {
         case 'default': i++; expect(':', 'after default'); return { k: 'default', line: l };
         case 'goto': fail(l, 'goto is not supported');
       }
-      if (isTypeStart()) return declaration();
+      if (cpp) {
+        if (t.v === 'using' || (t.v === 'typedef')) { aliasDecl(); return { k: 'empty', line: l, quiet: true }; }
+        if (t.v === 'template') fail(l, 'templates (other than the standard library\'s: vector, map…) are not supported');
+        if (t.v === 'try') {
+          i++;
+          const body = block(), catches = [];
+          while (is('catch')) {
+            const cl = line(); i++; expect('(');
+            let type = null, name = null;
+            if (!eat('...')) { const sp = declSpecs(); if (!sp) fail(cl, 'expected a type in catch (…)'); const d = declarator(true); type = d.apply(sp.type); name = d.name; }
+            expect(')');
+            scopes.push(new Set(name ? [name] : []));
+            catches.push({ type, name, body: block(), line: cl });
+            scopes.pop();
+          }
+          if (!catches.length) fail(l, 'try needs at least one catch (…) { … }');
+          return { k: 'try', body, catches, line: l };
+        }
+      }
+      if (isTypeStart() && !(cpp && isStl(t.v) && is('(', 1) && t.v !== 'string')) return declaration();
       if (peek(1) && peek(1).v === ':' && peek(1).t === 'p' && !KEYWORDS.has(t.v)) fail(l, 'labels (and goto) are not supported');
     }
     const start = peek(), e = expression();
@@ -683,31 +1028,61 @@ export function parseC(src) {
   }
 
   /* ---- the whole program ---- */
-  const items = [];
-  while (i < toks.length) {
-    if (eat(';')) continue;
+  /** One declaration or definition at the top of the program (or a friend function inside a class) */
+  function topLevel() {
+    if (eat(';')) return;
     const l = line();
+    if (cpp) {
+      if (is('using') || is('typedef')) { aliasDecl(); return; }
+      if (is('template')) fail(l, 'templates (other than the standard library\'s: vector, map…) are not supported');
+      if (is('namespace')) fail(l, 'namespaces of your own are not supported');
+      const t = peek();
+      // X::X(…) and X::~X(): a constructor or destructor defined outside its class
+      const m = t && t.t === 'id' && /^(\w+)::(~?)(\w+)$/.exec(t.v);
+      if (m && m[1] === m[3] && typedefs.get(m[1]) && typedefs.get(m[1]).cls && is('(', 1)) { i++; ctorOrDtor(typedefs.get(m[1]), !!m[2], l); return; }
+    }
     const sp = declSpecs();
     if (!sp) {
       const t = peek();
       if (t.t === 'id' && is('(', 1)) fail(l, 'expected a return type before ' + t.v + '(…) (int ' + t.v + '(…)? void ' + t.v + '(…)?)');
-      fail(l, 'expected a declaration (a type) before ' + show(t) + (t.t === 'id' ? ': statements go inside a function such as int main(void) { … }' : ''));
+      fail(l, 'expected a declaration (a type) before ' + show(t) + (t.t === 'id' ? ': statements go inside a function such as int main(' + (cpp ? '' : 'void') + ') { … }' : ''));
     }
-    if (is(';')) { i++; continue; }
+    if (is(';')) { i++; return; }
     const save = i;
     const d = declarator(false);
     const type = d.apply(sp.type);
-    if (type.k === 'fn' && is('{') && sp.storage !== 'typedef') {
+    if (type.k === 'fn' && sp.storage !== 'typedef' && (is('{') || (cpp && (is('const') || is('override') || is('noexcept') || is('->'))))) {
+      const isConst = cpp ? methodSuffix() : false;
+      void isConst;
       if (!d.params && type.params.length) fail(d.line, 'a function definition needs parameter names');
-      const params = (d.params || []).map((p, k) => { if (!p.name) fail(p.line, 'parameter ' + (k + 1) + ' of ' + d.name + ' needs a name'); return { name: p.name, type: type.params[k] }; });
-      scopes.push(new Set(params.map(p => p.name)));
-      const body = block();
-      scopes.pop();
-      items.push({ k: 'func', name: d.name, type, params, body, line: d.line, static: sp.storage === 'static' });
-      continue;
+      const ps = (d.params || []).map((p, k) => { if (!p.name && !cpp) fail(p.line, 'parameter ' + (k + 1) + ' of ' + d.name + ' needs a name'); return { name: p.name || '(unnamed ' + (k + 1) + ')', type: type.params[k], def: p.def }; });
+      const mm = cpp && /^(\w+)::(.+)$/.exec(d.name);
+      if (mm) {                                    // int Stack::size() const { … }: a method defined outside its class
+        const s = typedefs.get(mm[1]);
+        if (!s || !s.cls) fail(d.line, mm[1] + ' is not a class, so ' + d.name + ' cannot be defined');
+        const decl = (s.methods.get(mm[2]) || []).find(x => x.params.length === ps.length);
+        const def = { k: 'func', name: mm[2], type, params: ps, line: d.line, owner: s, kind: 'method', isStatic: decl ? decl.isStatic : false, body: null };
+        def.body = withParams(ps, () => block());
+        addMethod(s, def);
+        return;
+      }
+      const body = withParams(ps, () => block());
+      items.push({ k: 'func', name: d.name, type, params: ps, body, line: d.line, static: sp.storage === 'static' });
+      return;
+    }
+    if (cpp && /^\w+::\w+$/.test(d.name || '') && type.k !== 'fn') {   // int Counter::count = 0;
+      const [cls, name] = d.name.split('::'), s = typedefs.get(cls);
+      if (s && s.cls && s.statics.has(name)) {
+        const st = s.statics.get(name);
+        if (eat('=')) st.init = initializer(); else if (is('{')) st.init = initializer();
+        expect(';');
+        return;
+      }
     }
     i = save;
     items.push(declaration(sp));
   }
-  return { items, structs };
+
+  while (i < toks.length) topLevel();
+  return { items, structs, cpp };
 }

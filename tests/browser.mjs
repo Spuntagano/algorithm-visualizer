@@ -44,6 +44,12 @@ await page.context().route(/^https:\/\/cdn\.jsdelivr\.net\/npm\/@ruby\//, r => {
   if (!file || !fs.existsSync(file)) return r.abort();
   return r.fulfill({ status: 200, body: fs.readFileSync(file), headers: { 'content-type': PY_TYPES[path.extname(file)] || 'application/octet-stream', 'access-control-allow-origin': '*' } });
 });
+// PHP: the page downloads php-wasm from the CDN; serve the same files from node_modules/php-wasm instead
+await page.context().route(/^https:\/\/cdn\.jsdelivr\.net\/npm\/php-wasm@[^/]+\//, r => {
+  const file = path.join(ROOT, 'node_modules', 'php-wasm', new URL(r.request().url()).pathname.replace(/^\/npm\/php-wasm@[^/]+\//, ''));
+  if (!fs.existsSync(file)) return r.abort();
+  return r.fulfill({ status: 200, body: fs.readFileSync(file), headers: { 'content-type': PY_TYPES[path.extname(file)] || 'application/octet-stream', 'access-control-allow-origin': '*' } });
+});
 const snap = async name => { if (shots) await page.screenshot({ path: path.join(shots, name + '.png') }); };
 const stepLabel = () => page.locator('#stepLabel').innerText();
 /** Pick an example and wait until ITS run is shown (the previous example's state panel is still there meanwhile). */
@@ -461,6 +467,42 @@ await page.click('#bLast');
 assert.match(await page.locator('#banner').innerText(), /ZeroDivisionError: divided by 0/);
 await page.selectOption('#lang', 'javascript');
 
+// 6n. PHP: traced by php-wasm (here served from node_modules/php-wasm); the program is rewritten with a step before each statement
+await pick('Breadth-first search');
+await page.evaluate(() => {                         // remember whether the "Loading PHP" banner was shown
+  window.__sawLoading = false;
+  new MutationObserver(() => { if (/Loading PHP/.test(document.querySelector('#banner')?.textContent || '')) window.__sawLoading = true; })
+    .observe(document.body, { subtree: true, childList: true, characterData: true });
+});
+const nPhp = await runs();
+await page.selectOption('#lang', 'php');
+await page.waitForFunction(k => +document.querySelector('.state-panel').dataset.run > k && !document.querySelector('.state-panel.stale'), nPhp, { timeout: 60000 });
+assert.ok(await page.evaluate(() => window.__sawLoading), 'the first PHP run says PHP is loading');
+assert.equal(await page.locator('.cm-line').first().innerText(), '<?php', 'the PHP version of the example');
+assert.match(await page.locator('.site-header p').innerText(), /^Run PHP .* arrays and objects change/);
+assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^PHP code$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^19$/ }).click();   // $order[] = $cur;
+await page.click('#bBpNext'); await page.click('#bBpNext');
+assert.match(await stepLabel(), /· line 19$/, 'breakpoints work in PHP');
+assert.match(await page.locator('#stack .frame.top').innerText(), /^bfs\(\$graph=\[.*\$start="A"\)$/, 'the call stack shows the function and its parameters');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^19$/ }).click();
+await page.locator('button[data-vt="$graph|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="$graph|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/);
+assert.ok(await page.locator('.var:has(button[data-vt="$graph|boxes"]) text', { hasText: '∈ $visited' }).count() > 0, '[$name => true] tags the visited nodes');
+await snap('10-php');
+await page.click('#graphHelpBtn');
+assert.match(await page.locator('#graphHelp').innerText(), /Every array and object[\s\S]*\['val' => 1, 'next' => \['val' => 2, 'next' => null\]\]/, 'the help speaks PHP');
+await page.keyboard.press('Escape');
+await replaceCode('<?php\n$x = = 1;');
+await bannerMatches(/Syntax error: line 2: syntax error, unexpected token "="/);
+await typeCode('<?php\nwhile (true) { $i = 1; }');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /Trace stopped after 3000 steps/, 'a runaway PHP loop is stopped');
+await typeCode('<?php\n$x = 1;\n$y = intdiv($x, 0);');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /DivisionByZeroError: Division by zero on line 3/);
+await page.selectOption('#lang', 'javascript');
+
 // 6m. C: run by its own interpreter in the worker, offline; pointers are arrows, malloc'd memory has an #id
 await pick('Reverse a linked list');
 const nC = await runs();
@@ -496,6 +538,35 @@ assert.match(await page.locator('#banner').innerText(), /Error on line 4: a\[3\]
 await typeCode('int main(void) {\n    while (1);\n}');
 await page.click('#bLast');
 assert.match(await page.locator('#banner').innerText(), /Trace stopped after 3000 steps/, 'a runaway C loop is stopped');
+await page.selectOption('#lang', 'javascript');
+
+// 6o. C++: the C interpreter with classes and the standard library; a vector is an array, its iterators are tags
+await pick('Reverse a linked list');
+const nCpp = await runs();
+await page.selectOption('#lang', 'cpp');
+await settled(nCpp);
+assert.equal(await page.locator('.cm-line').first().innerText(), '#include <iostream>', 'the C++ version of the example');
+assert.match(await page.locator('.site-header p').innerText(), /^Run C\+\+ .* vectors, maps, objects and pointers change/);
+assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^C\+\+ code$/);
+await page.click('#bLast');
+await page.locator('button[data-vt="prev|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="prev|boxes"]) .gcap').innerText(), /^Linked list · 3 nodes/, 'objects made with new, linked by pointers');
+await pick('Breadth-first search');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^25$/ }).click();   // order.push_back(cur);
+await page.click('#bBpNext'); await page.click('#bBpNext');
+assert.match(await stepLabel(), /· line 25$/, 'breakpoints work in C++');
+assert.match(await page.locator('#stack .frame.top').innerText(), /^bfs\(start='A'\)$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^25$/ }).click();
+await page.locator('button[data-vt="graph|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="graph|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/, 'a map<char, vector<char>> is a graph');
+assert.ok(await page.locator('.var:has(button[data-vt="graph|boxes"]) text', { hasText: '∈ visited' }).count() > 0, 'a set<char> tags the visited nodes');
+await snap('11-cpp');
+await page.click('#graphHelpBtn');
+assert.match(await page.locator('#graphHelp').innerText(), /Every array, vector, map, set, string, struct and pointer/, 'the help speaks C++');
+await page.keyboard.press('Escape');
+await typeCode('#include <vector>\nint main() {\n    std::vector<int> v = {1, 2, 3};\n    int& r = v[0];\n    v.push_back(4);\n    r = 9;\n}');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /Error on line 6: r is in memory that v gave up when it grew on line 5/, 'a stale reference is caught');
 await page.selectOption('#lang', 'javascript');
 
 // 7. theme: dark mode renders without errors

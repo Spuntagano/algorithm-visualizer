@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import zlib from 'node:zlib';
 import * as esbuild from 'esbuild';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -22,18 +23,34 @@ const common = dev => ({
   minify: !dev, sourcemap: false, logLevel: 'silent',
 });
 
-export async function bundleJs({ dev = false } = {}) {
-  // the tracing worker is bundled first and embedded as text; the page starts it from a Blob
+/**
+ * The engines only some languages need (Sucrase for TypeScript, Fengari for Lua, the C and C++ interpreter), each bundled on its
+ * own, gzipped and base64'd: the worker is handed and unpacks only the one a run needs (engine/worker.js). This keeps
+ * the page one file that works offline, a third the size it would be with them as plain code.
+ */
+export const ENGINES = { typescript: 'src/engine/typescript.js', lua: 'src/engine/lua/tracer.js', c: 'src/engine/c/interp.js', cpp: 'src/engine/c/cpp.js' };
+export async function bundleEngines({ dev = false } = {}) {
   // Fengari (Lua) is written for Node too: its Node-only modules are never used in a worker, so they are stubbed out
   const nodeOnly = { name: 'node-only', setup(b) {
     b.onResolve({ filter: /^(fs|os|path|child_process|crypto|readline-sync|tmp)$/ }, () => ({ path: 'empty', namespace: 'node-only' }));
     b.onLoad({ filter: /.*/, namespace: 'node-only' }, () => ({ contents: 'module.exports = {};', loader: 'js' }));
   } };
-  const w = await esbuild.build({ ...common(dev), entryPoints: [path.join(ROOT, 'src/engine/worker.js')], loader: { '.py': 'text', '.rb': 'text' },
-    plugins: [nodeOnly], define: { 'process.env.FENGARICONF': 'undefined' } });
+  const out = {};
+  for (const [lang, entry] of Object.entries(ENGINES)) {
+    const r = await esbuild.build({ ...common(dev), entryPoints: [path.join(ROOT, entry)], globalName: '__engine', plugins: [nodeOnly],
+      define: { 'process.env.FENGARICONF': 'undefined' } });
+    out[lang] = zlib.gzipSync(r.outputFiles[0].text, { level: 9 }).toString('base64');
+  }
+  return out;
+}
+
+export async function bundleJs({ dev = false } = {}) {
+  // the tracing worker is bundled first and embedded as text; the page starts it from a Blob
+  const w = await esbuild.build({ ...common(dev), entryPoints: [path.join(ROOT, 'src/engine/worker.js')], loader: { '.py': 'text', '.rb': 'text', '.php': 'text' } });
   const r = await esbuild.build({
     ...common(dev), entryPoints: [path.join(ROOT, 'src/main.jsx')], jsx: 'automatic',
-    define: { 'process.env.NODE_ENV': dev ? '"development"' : '"production"', __WORKER_SRC__: JSON.stringify(w.outputFiles[0].text) },
+    define: { 'process.env.NODE_ENV': dev ? '"development"' : '"production"', __WORKER_SRC__: JSON.stringify(w.outputFiles[0].text),
+      __ENGINES__: JSON.stringify(await bundleEngines({ dev })) },
   });
   // "</script" inside a string would end the inline <script>; "<\/script" means the same thing to JS
   return r.outputFiles[0].text.replace(/<\/(script)/gi, '<\\/$1');

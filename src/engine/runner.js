@@ -13,6 +13,8 @@ const PY_START_LIMIT = 120000;    // ms to wait for Python to download and start
 
 // read once: the build pastes the whole worker source in at every place __WORKER_SRC__ is written
 const WORKER_SRC = typeof __WORKER_SRC__ === 'undefined' ? null : __WORKER_SRC__;
+/** The packed engines (build.mjs bundleEngines): the worker is sent the one its language needs. */
+const ENGINE_SRC = typeof __ENGINES__ === 'undefined' ? {} : __ENGINES__;
 let blobUrl = null;
 /* A tiny module worker that runs the code it is sent first: the tracer itself is too big for a data: URL (browsers cap
    URLs at about 2 MB, which the unminified worker exceeds), so it travels as a message instead. */
@@ -51,7 +53,7 @@ let nextId = 1;
  * cannot start (e.g. Python cannot be downloaded).
  * @param {string} code
  * @param {AbortSignal} [signal]
- * @param {{ lang?: 'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'c', onStatus?: (s: 'loading') => void }} [opts]
+ * @param {{ lang?: 'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'php' | 'c' | 'cpp', onStatus?: (s: 'loading') => void }} [opts]
  */
 export function runTraceAsync(code, signal, { lang = 'javascript', onStatus } = {}) {
   if (signal && signal.aborted) return Promise.reject(aborted());
@@ -62,7 +64,7 @@ export function runTraceAsync(code, signal, { lang = 'javascript', onStatus } = 
   return HOSTED.has(lang) ? runHosted(lang, code, signal, onStatus) : runJavaScript(code, signal, lang);
 }
 
-/* JavaScript (and TypeScript, which the worker strips to JavaScript, Lua and C): a fresh worker per run, terminated when the run ends, times out or is replaced. */
+/* JavaScript (and TypeScript, which the worker strips to JavaScript, Lua, C and C++): a fresh worker per run, terminated when the run ends, times out or is replaced. */
 function runJavaScript(code, signal, lang = 'javascript') {
   const worker = spawn(), id = nextId++;
   if (!worker) return Promise.reject(Object.assign(new Error('This browser could not start the tracing worker.'), { plain: true }));
@@ -79,17 +81,17 @@ function runJavaScript(code, signal, lang = 'javascript') {
       else if (m.trace) done(() => resolve(m.trace));
       else if (m.failure != null) done(() => reject(new Error(m.failure)));
     };
-    worker.postMessage({ lang, code, id });
+    worker.postMessage({ lang, code, id, engine: ENGINE_SRC[lang] });
   });
 }
 
 /*
- * Python and Ruby: one worker per language keeps its runtime loaded between runs, and runs one at a time in order. A replaced run is left to
+ * Python, Ruby and PHP: one worker per language keeps its runtime loaded between runs, and runs one at a time in order. A replaced run is left to
  * finish (stopping it would mean loading Python again) and its result is ignored, but it keeps its time limit: a run
  * that exceeds TIME_LIMIT gets the worker terminated, and the runs queued behind it are sent to a fresh one.
  */
 /** Languages whose runtime is downloaded on first use and kept loaded in a long-lived module worker. */
-const HOSTED = new Set(['python', 'ruby']);
+const HOSTED = new Set(['python', 'ruby', 'php']);
 const hosted = {};                                   // lang → { worker, runs: Map(id → run) }
 function hostedWorker(lang, onStatus) {
   if (hosted[lang]) return hosted[lang];
@@ -112,7 +114,7 @@ function kill(w) {
 }
 
 function runHosted(lang, code, signal, onStatus) {
-  const name = lang === 'ruby' ? 'Ruby' : 'Python';
+  const name = { python: 'Python', ruby: 'Ruby', php: 'PHP' }[lang];
   return new Promise((resolve, reject) => {
     const run = { id: 0, timer: 0, onStatus, ignored: false };
     const settle = fn => { if (!run.ignored) { run.ignored = true; if (signal) signal.removeEventListener('abort', onAbort); fn(); } };

@@ -106,10 +106,13 @@ function fromKeyed(root, resolve) {
 }
 
 /* [[1,2],[0],[0]], [[[1, 4]], [[2, 0, 3]]] or an adjacency matrix [[0,1],[1,0]] named like a graph, or [[0,1],[1,2]] named like an edge list */
-function fromIndexed(root0, name, resolve) {
+function fromIndexed(root0, name0, resolve) {
   if (root0.t !== 'arr' || !root0.items.length || root0.more) return null;
+  const name = name0.replace(/^\$/, '');                 // PHP's $adj is named adj
   // a list or pair that also appears elsewhere is a reference here (Python even shares equal constant tuples): follow it
-  const deref = x => ((x.t === 'ref' || x.t === 'trunc') && resolve(x)) || x;
+  // a C++ pair (first, second) counts as a two-item tuple: vector<pair<int, int>> edges, vector<vector<pair<int, int>>> adj
+  const asTuple = x => (x.t === 'obj' && x.entries.length === 2 && x.entries[0][0] === 'first' && x.entries[1][0] === 'second' ? { t: 'arr', id: x.id, items: x.entries.map(e => e[1]), more: 0 } : x);
+  const deref = x => asTuple(((x.t === 'ref' || x.t === 'trunc') && resolve(x)) || x);
   const root = { ...root0, items: root0.items.map(x => {
     const r = deref(x);
     return r.t === 'arr' ? { ...r, items: r.items.map(deref) } : r;

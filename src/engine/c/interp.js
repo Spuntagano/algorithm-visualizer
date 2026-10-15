@@ -12,8 +12,9 @@
  * primitive that names its target (&a[2]) and tags that cell.
  */
 import { parseC } from './parse.js';
-import { format } from './printf.js';
-import { T, arr, common, isAggregate, isArith, isCharT, isScalar, isWide, promote, ptr, sameType, structName, typeName } from './types.js';
+import { format, fixed, general } from './printf.js';
+import { EXCEPTIONS, makeStl } from './stl.js';
+import { AUTO, EXCEPTION_BASE, LAMBDA, T, arr, common, fnType, isAggregate, isArith, isCharT, isScalar, isWide, promote, ptr, sameType, stlType, structName, typeName } from './types.js';
 
 const MAX_STEPS = 3000;   // stop runaway loops
 const MAX_CALLS = 300;    // stop runaway recursion
@@ -23,6 +24,8 @@ const MAX_HEAP = 64 << 20;
 
 class StopRun extends Error {}
 class ExitRun extends Error {}
+/** A C++ exception in flight: value is { t, b, o } (where the thrown object is) */
+class CThrow extends Error { constructor(value, tname) { super(tname); this.value = value; this.tname = tname; } }
 /** An error in the running program: reported as "Error on line N: …" */
 class CError extends Error {}
 const UNINIT = Symbol('uninitialized');
@@ -36,7 +39,9 @@ class Ptr { constructor(b, o) { this.b = b; this.o = o; } }
 class FnRef { constructor(name, def, builtin) { this.name = name; this.def = def; this.builtin = builtin; } }
 
 const BREAK = { brk: true }, CONT = { cont: true };
-const cellKind = t => (t.k === 'ptr' ? 'ptr' : t.k === 'flt' ? 'flt' : 'int');
+const cellKind = t => (t.k === 'ptr' ? 'ptr' : t.k === 'flt' ? 'flt' : t.k === 'stl' || t.k === 'lambda' || t.k === 'iter' ? 'obj' : 'int');
+/** A value that lives in memory as a whole (copied by copying its memory): a struct or class, or a library object */
+const isObj = t => t.k === 'struct' || t.k === 'stl';
 
 /** Wraps an integer to the range of an integer type: 300 as unsigned char is 44. */
 export function wrapInt(x, t) {
@@ -66,8 +71,11 @@ export function fmtFloat(v, t) {
   return Number.isInteger(v) && Math.abs(v) < 1e16 ? v.toFixed(1) : String(v);
 }
 
-export function runCTrace(src) {
-  const prog = parseC(src);
+/** Runs a C program (or, with { cpp: true }, a C++ one): { steps, logs, error }; throws an Error on a syntax error */
+export function runCTrace(src, { cpp = false } = {}) {
+  const prog = parseC(src, { cpp });
+  const lang = cpp ? 'C++' : 'C';
+  const BOOL = cpp ? T.bool : T.int;               // what ==, <, !, && give: bool in C++, int in C
   const steps = [], logs = [], stack = [], frames = [];
   const globals = new Map(), funcs = new Map(), protos = new Map();
   let line = 0, stopped = null, outBuf = '', errBuf = '';
@@ -101,7 +109,9 @@ export function runCTrace(src) {
     return `${b.name} is ${b.size} bytes`;
   };
   function check(b, o, t, d, writing) {
-    if (b.freed) fail(`${d} is in memory that was freed on line ${b.freedLine} (use after free)`);
+    if (b.freed && b.realloc) fail(`${d} is in memory that ${b.realloc.name} gave up when it grew on line ${b.freedLine} (${b.realloc.why}): pointers, references and iterators into a vector or string are no longer valid after it reallocates`);
+    if (b.freed && b.gone) fail(`${d} is gone: ${b.gone} (line ${b.freedLine})`);
+    if (b.freed) fail(`${d} is in memory that was ${b.newed ? 'deleted' : 'freed'} on line ${b.freedLine} (use after ${b.newed ? 'delete' : 'free'})`);
     if (b.dead) fail(`${d} is in ${b.name}, a local variable of ${b.fn}() that no longer exists (that call has returned)`);
     if (o < 0 || o + t.size > b.size) fail(`${d} is out of bounds: ${holds(b, t)}`);
     if (writing && b.ro) fail(`${d} is inside a string literal, which cannot be changed (char s[] = "…" makes a copy that can)`);
@@ -126,6 +136,7 @@ export function runCTrace(src) {
   function load(b, o, t, d) {
     const c = b.cells.get(o);
     const kind = cellKind(t);
+    if (kind === 'obj') return c && c.kind === 'obj' ? c.v : UNINIT;
     if (c && c.size === t.size && c.kind === kind) return kind === 'int' && c.t !== t ? wrapInt(c.v, t) : c.v;
     if (c && c.kind === 'ptr') fail(`${d} holds a pointer, which cannot be read as ${typeName(t)}`);
     if (kind === 'ptr') {
@@ -164,7 +175,8 @@ export function runCTrace(src) {
     if (v === UNINIT) fail(`${lv.d} is used before it is given a value` + (lv.b.kind === 'heap' ? ' (malloc does not clear memory: calloc does)' : ''));
     return v;
   };
-  function copyMem(db, dof, sb, so, size, d) {
+  /** Copies size bytes of memory. Library objects in it are copied too (a vector's elements), unless they are moved. */
+  function copyMem(db, dof, sb, so, size, d, move = false) {
     if (size <= 0) return;
     check(sb, so, { size }, d, false); check(db, dof, { size }, d, true);
     const moved = [];
@@ -172,18 +184,35 @@ export function runCTrace(src) {
       const c = sb.cells.get(k);
       if (!c || k + c.size <= so) continue;
       if (k < so || k + c.size > so + size) { const bytes = toBytes(c); if (bytes) bytes.forEach((x, j) => { const at = k + j; if (at >= so && at < so + size) moved.push([at - so, { kind: 'byte', size: 1, v: x }]); }); }
-      else moved.push([k - so, c]);
+      else moved.push([k - so, c.kind === 'obj' && !move && c.v.clone ? { ...c, v: c.v.clone() } : c]);
     }
+    if (!move) destroyRange(db, dof, size);
     clear(db, dof, size);
     for (const [k, c] of moved) db.cells.set(dof + k, c);
+  }
+  /** The library objects in [o, o + size) let go of their memory (when they are overwritten or go out of scope) */
+  function destroyRange(b, o, size) {
+    for (const [k, c] of b.cells) if (c.kind === 'obj' && k >= o && k < o + size && c.v && c.v.destroy) c.v.destroy();
   }
   const zeroOf = t => (t.k === 'ptr' ? null : t.k === 'flt' ? 0 : isWide(t) ? 0n : 0);
   function zeroFill(b, o, t) {
     if (t.k === 'arr') { for (let k = 0; k < t.n; k++) zeroFill(b, o + k * t.of.size, t.of); return; }
     if (t.k === 'struct') { if (t.union) { if (t.fields[0]) zeroFill(b, o, t.fields[0].type); } else t.fields.forEach(f => zeroFill(b, o + f.off, f.type)); return; }
+    if (t.k === 'stl') { putObj(b, o, t, stl.create(t)); return; }
+    if (t.k === 'lambda' || t.k === 'iter') return;
     clear(b, o, t.size);
     b.cells.set(o, { kind: cellKind(t), size: t.size, v: zeroOf(t), t });
   }
+  /** Puts a library object (a fresh state) at a place, replacing what was there */
+  function putObj(b, o, t, v) {
+    check(b, o, t, 'it', true);
+    destroyRange(b, o, t.size);
+    clear(b, o, t.size);
+    b.cells.set(o, { kind: 'obj', size: t.size, v, t });
+    if (v && v.string && !v.data) v.reserve(0);
+    return v;
+  }
+  const stateAt = (b, o) => { const c = b && b.cells.get(o); return c && c.kind === 'obj' ? c.v : null; };
 
   /* ---- values: { t, v } ---- */
   const val = (t, v) => ({ t, v });
@@ -209,15 +238,17 @@ export function runCTrace(src) {
       if (f.k === 'fn') return x.v;
       fail(`${d || 'this value'} is ${art(f)}, not a pointer`);
     }
-    if (t.k === 'struct') {
+    if (isObj(t)) {
       if (f !== t) fail(`${d || 'this value'} is ${art(f)}, not ${art(t)}`);
       return x.v;
     }
+    if (t.k === 'lambda' || t.k === 'iter') { if (f !== t) fail(`${d || 'this value'} is ${art(f)}, not ${art(t)}`); return x.v; }
     fail('cannot convert to ' + typeName(t));
   }
   const art = t => { const n = typeName(t); return (/^[aeiou]/.test(n) ? 'an ' : 'a ') + n; };
   const truthy = x => {
     if (x.t.k === 'ptr' || x.t.k === 'fn') return x.v !== null;
+    if (x.t.k === 'stl' && x.t.name === 'function') return !!stl.stateOf(x).callable;
     if (x.t.k === 'struct' || x.t.k === 'void') fail('a ' + (x.t.k === 'void' ? 'void value' : 'struct') + ' cannot be used as a condition');
     return typeof x.v === 'bigint' ? x.v !== 0n : x.v !== 0;
   };
@@ -238,7 +269,7 @@ export function runCTrace(src) {
     const ct = common(a.t, b.t);
     const x = convert(a, ct), y = convert(b, ct);
     const cmp = { '<': x < y, '>': x > y, '<=': x <= y, '>=': x >= y, '==': x == y, '!=': x != y }; // eslint-disable-line eqeqeq
-    if (op in cmp) return val(T.int, cmp[op] ? 1 : 0);
+    if (op in cmp) return val(BOOL, cmp[op] ? 1 : 0);
     if (ct.k === 'flt') {
       let r;
       switch (op) {
@@ -288,18 +319,32 @@ export function runCTrace(src) {
       let r;
       if (op === '==' || op === '!=') { const same = x === y || (x instanceof Ptr && y instanceof Ptr && x.b === y.b && x.o === y.o); r = op === '==' ? same : !same; }
       else { const p = addrOf(x), q = addrOf(y); r = op === '<' ? p < q : op === '>' ? p > q : op === '<=' ? p <= q : p >= q; }
-      return val(T.int, r ? 1 : 0);
+      return val(BOOL, r ? 1 : 0);
     }
     fail(`${d}: ${op} cannot be used on a pointer`);
   }
 
   /* ---- names ---- */
   const frame = () => frames[frames.length - 1];
+  /**
+   * A variable by name: { b, o, t, ref? }. Locals, then (in a lambda) what it captured, then (in a method) the object's
+   * fields and the class's statics, then globals.
+   */
   function lookup(name) {
     const f = frame();
-    if (f) for (let s = f.scopes.length - 1; s >= 0; s--) { const r = f.scopes[s].vars.get(name); if (r) return r; }
+    if (f) {
+      for (let s = f.scopes.length - 1; s >= 0; s--) { const r = f.scopes[s].vars.get(name); if (r) return r; }
+      for (const sc of f.outer || []) { const r = sc.vars.get(name); if (r) return r; }
+      const self = f.self;
+      if (self) {
+        const fd = self.cls.fields.find(x => x.name === name);
+        if (fd) return { b: self.p.b, o: self.p.o + fd.off, t: fd.type, field: true };
+        if (self.cls.statics.has(name)) return globals.get(self.cls.tag + '::' + name);
+      }
+    }
     return globals.get(name) || null;
   }
+  const at0 = r => r.o || 0;
 
   /* ---- expressions ---- */
   /** C-like text of an expression, for messages: arr[i], p->next, *q */
@@ -369,19 +414,25 @@ export function runCTrace(src) {
     switch (e.k) {
       case 'id': {
         const r = lookup(e.name);
-        if (r) return { t: r.t, b: r.b, o: 0, d: e.name };
+        if (r) return { t: r.t, b: r.b, o: at0(r), d: e.name };
         if (funcs.has(e.name) || protos.has(e.name) || LIB[e.name]) fail(`${e.name} is a function, not a variable`);
         fail(`${e.name} is not declared`);
       }
       // falls through
       case 'deref': {
         const p = rval(e.e);
+        if (p.t.k === 'iter') return stl.derefIter(p, text(e));
         if (p.t.k !== 'ptr') fail(`${text(e)}: only a pointer can be dereferenced with *, and ${text(e.e)} is ${art(p.t)}`);
-        if (p.v === null) fail(`${text(e)}: ${text(e.e)} is NULL (a crash in C: segmentation fault)`);
+        if (p.v === null) fail(`${text(e)}: ${text(e.e)} is NULL (a crash in ${lang}: segmentation fault)`);
         if (p.v === UNINIT) fail(`${text(e.e)} is used before it is given a value`);
         return { t: p.t.to, b: p.v.b, o: p.v.o, d: text(e) };
       }
       case 'index': {
+        if (cpp) {
+          const c = rval(e.a);
+          if (c.t.k === 'stl') return stl.index(c, e.i, text(e));
+          if (c.t.k === 'struct' && c.t.cls) { const r = callMethod(locOf(c), c.t, 'operator[]', [argOf(e.i)], e); if (!r.lv) fail(`${text(e)}: operator[] must return a reference to be used as a place`); return r.lv; }
+        }
         let a = rval(e.a), i = rval(e.i);
         if (a.t.k !== 'ptr' && i.t.k === 'ptr') [a, i] = [i, a];
         if (a.t.k !== 'ptr') fail(`${text(e)}: ${text(e.a)} is ${art(a.t)}, which cannot be indexed`);
@@ -395,12 +446,13 @@ export function runCTrace(src) {
         let base;
         if (e.arrow) {
           const p = rval(e.e);
+          if (p.t.k === 'iter') { const el = stl.derefIter(p, text(e)); const f = field(el.t, e.name, e); return { t: f.type, b: el.b, o: el.o + f.off, d: text(e) }; }
           if (p.t.k !== 'ptr') fail(`${text(e)}: ${text(e.e)} is ${art(p.t)}, not a pointer` + (p.t.k === 'struct' ? ` (use ${text(e.e)}.${e.name})` : ''));
           if (p.v === null) fail(`${text(e)}: ${text(e.e)} is NULL (a crash in C: segmentation fault)`);
           base = { t: p.t.to, b: p.v.b, o: p.v.o };
         } else {
-          const x = e.e.k === 'call' ? rval(e.e) : null;
-          base = x ? { t: x.t, b: x.v.b, o: x.v.o } : lval(e.e);
+          const x = e.e.k === 'call' || e.e.k === 'construct' || e.e.k === 'this' ? rval(e.e) : null;
+          base = x ? (x.lv || { t: x.t, b: x.v.b, o: x.v.o }) : lval(e.e);
         }
         const f = field(base.t, e.name, e);
         return { t: f.type, b: base.b, o: base.o + f.off, d: text(e) };
@@ -413,7 +465,7 @@ export function runCTrace(src) {
         initialize(b, 0, t, e.init, '(' + typeName(t) + ')');
         return { t, b, o: 0, d: b.name };
       }
-      case 'call': { const x = rval(e); if (x.t.k === 'struct') return { t: x.t, b: x.v.b, o: x.v.o, d: text(e) }; }
+      case 'call': { const x = rval(e); if (x.lv) return x.lv; if (isObj(x.t)) return { t: x.t, b: x.v.b, o: x.v.o, d: text(e) }; }
       // falls through
       default: fail(`${text(e)} is not a variable or a place in memory, so it cannot be assigned to or have its address taken`);
     }
@@ -421,7 +473,8 @@ export function runCTrace(src) {
   /** The value at a place: an array becomes a pointer to its first element, a struct stays where it is. */
   function loadLv(lv) {
     if (lv.t.k === 'arr') return val(ptr(lv.t.of), new Ptr(lv.b, lv.o));
-    if (lv.t.k === 'struct') { if (!lv.b) fail(`${lv.d} goes through a NULL pointer`); check(lv.b, lv.o, lv.t, lv.d, false); return val(lv.t, new Ptr(lv.b, lv.o)); }
+    if (isObj(lv.t)) { if (!lv.b) fail(`${lv.d} goes through a NULL pointer`); check(lv.b, lv.o, lv.t, lv.d, false); return val(lv.t, new Ptr(lv.b, lv.o)); }
+    if (lv.t.k === 'lambda' || lv.t.k === 'iter') return val(lv.t, read(lv));
     if (lv.t.k === 'fn') return val(ptr(lv.t), lv.fn);
     return val(lv.t, read(lv.long ? { ...lv, d: lv.long } : lv));
   }
@@ -437,6 +490,7 @@ export function runCTrace(src) {
   }
   function assignTo(lv, x, d) {
     if (lv.t.k === 'arr') fail(`${d}: an array cannot be assigned to (copy it element by element, or with memcpy)`);
+    if (cpp && (lv.t.k === 'stl' || lv.t.k === 'lambda' || lv.t.k === 'iter' || (lv.t.k === 'struct' && x.t !== lv.t))) { setObj(lv, x, d, false); return loadLv(lv); }
     if (lv.t.k === 'struct') {
       if (x.t !== lv.t) fail(`${d}: ${art(x.t)} cannot be stored in ${art(lv.t)}`);
       if (!lv.b) fail(`${lv.d} goes through a NULL pointer`);
@@ -457,7 +511,7 @@ export function runCTrace(src) {
       case 'str': return val(ptr(T.char), new Ptr(literal(e), 0));
       case 'id': {
         const r = lookup(e.name);
-        if (r) return loadLv({ t: r.t, b: r.b, o: 0, d: e.name });
+        if (r) return loadLv({ t: r.t, b: r.b, o: at0(r), d: e.name });
         const f = funcs.get(e.name) || protos.get(e.name);
         if (f) return val(ptr(f.type), new FnRef(e.name, funcs.get(e.name), null));
         if (LIB[e.name]) return val(ptr(T.void), new FnRef(e.name, null, LIB[e.name]));
@@ -467,6 +521,7 @@ export function runCTrace(src) {
       case 'index': case 'member': return loadLv(lval(e));
       case 'deref': {
         const p = rval(e.e);
+        if (p.t.k === 'iter') return loadLv(stl.derefIter(p, text(e)));
         if (p.t.k === 'ptr' && p.t.to.k === 'fn') return p;       // (*f)(x) calls the function f points to
         if (p.t.k !== 'ptr') fail(`${text(e)}: only a pointer can be dereferenced with *, and ${text(e.e)} is ${art(p.t)}`);
         if (p.v === null) fail(`${text(e)}: ${text(e.e)} is NULL (a crash in C: segmentation fault)`);
@@ -481,19 +536,27 @@ export function runCTrace(src) {
       }
       case 'assign': {
         const lv = lval(e.l);
-        if (e.op === '=') return assignTo(lv, rval(e.r), e.text || text(e.l) + ' = …');
+        if (e.op === '=') return assignTo(lv, e.r.k === 'init' ? loadLv(temp(lv.t, e.r, text(e.l))) : rval(e.r), e.text || text(e.l) + ' = …');
         const cur = loadLv(lv), r = rval(e.r);
+        if (cpp && isObj(lv.t)) {                  // s += "x", or an operator+= of a class
+          if (e.op === '+=' && lv.t.k === 'stl' && lv.t.name === 'string') { stl.appendText(stl.stateOf(cur), stl.textOf(r), text(e)); return cur; }
+          const own = callOp(e.op, cur, r, e);
+          if (own) return own;
+          return assignTo(lv, cppBin(e.op.slice(0, -1), cur, r, e) || arith(e.op.slice(0, -1), cur, r, text(e)), text(e));
+        }
         return assignTo(lv, arith(e.op.slice(0, -1), cur, r, e.text || text(e.l)), e.text || text(e.l));
       }
       case 'pre': case 'post': {
         const lv = lval(e.e), cur = loadLv(lv);
+        if (cur.t.k === 'iter') { const nv = stl.stepIter(cur, e.op === '++' ? 1 : -1, text(e)); store(lv.b, lv.o, lv.t, nv.v, lv.d); return e.k === 'pre' ? nv : cur; }
+        if (cpp && cur.t.k === 'struct') { const r = callOp(e.op, cur, null, e); if (r) return r; }
         if (!isScalar(cur.t)) fail(`${text(e)}: ${e.op} needs a number or a pointer`);
         const nv = assignTo(lv, arith(e.op === '++' ? '+' : '-', cur, ONE, text(e)), text(e));
         return e.k === 'pre' ? nv : cur;
       }
       case 'un': {
         const x = rval(e.e);
-        if (e.op === '!') return val(T.int, truthy(x) ? 0 : 1);
+        if (e.op === '!') return val(BOOL, truthy(x) ? 0 : 1);
         if (!isArith(x.t)) fail(`${text(e)}: ${e.op} needs a number, not ${art(x.t)}`);
         const t = promote(x.t), v = convert(x, t);
         if (e.op === '+') return val(t, v);
@@ -501,11 +564,18 @@ export function runCTrace(src) {
         if (t.k !== 'int') fail(`${text(e)}: ~ needs an integer`);
         return val(t, wrapInt(~v, t));
       }
-      case 'bin': return arith(e.op, rval(e.l), rval(e.r), text(e));
-      case 'and': return val(T.int, truthy(rval(e.l)) && truthy(rval(e.r)) ? 1 : 0);
-      case 'or': return val(T.int, truthy(rval(e.l)) || truthy(rval(e.r)) ? 1 : 0);
+      case 'bin': {
+        const a = rval(e.l);
+        if (cpp && a.t.k === 'stl' && (a.t.name === 'ostream' || a.t.name === 'istream') && (e.op === '<<' || e.op === '>>')) return streamOp(a, e.op, e.r, e);
+        const b = rval(e.r);
+        if (cpp) { const r = cppBin(e.op, a, b, e); if (r) return r; }
+        return arith(e.op, a, b, text(e));
+      }
+      case 'and': return val(BOOL, truthy(rval(e.l)) && truthy(rval(e.r)) ? 1 : 0);
+      case 'or': return val(BOOL, truthy(rval(e.l)) || truthy(rval(e.r)) ? 1 : 0);
       case 'cond': {
         const pick = truthy(rval(e.c)) ? e.a : e.b, x = rval(pick);
+        if (cpp) { let t2; try { t2 = decay(typeOf(pick === e.a ? e.b : e.a)); } catch { return x; } if (isArith(x.t) && isArith(t2)) { const t = common(x.t, t2); return val(t, convert(x, t)); } return x; }
         const at = decay(typeOf(e.a)), bt = decay(typeOf(e.b));
         if (isArith(at) && isArith(bt)) { const t = common(at, bt); return val(t, convert(x, t)); }
         return x;
@@ -514,6 +584,7 @@ export function runCTrace(src) {
       case 'cast': {
         const x = rval(e.e);
         if (e.t.k === 'void') return val(T.void, undefined);
+        if (cpp && (isObj(e.t) || e.t.k === 'ref')) { const t = e.t.k === 'ref' ? e.t.to : e.t; if (x.t === t) return x; return loadLv(tempFromValue(t, x, text(e))); }
         if (e.t.k === 'struct' || e.t.k === 'arr') fail(`${text(e)}: a value cannot be cast to ${art(e.t)}`);
         if (e.t.k === 'ptr' && x.t.k === 'int' && x.v != 0) fail(`${text(e)}: turning the number ${x.v} into a pointer is not supported`); // eslint-disable-line eqeqeq
         return val(e.t, convert(x, e.t, text(e.e)));
@@ -526,7 +597,14 @@ export function runCTrace(src) {
       }
       case 'call': return call(e);
       case 'clit': return loadLv(lval(e));
-      case 'init': fail('{ … } can only give a variable its first value, in its declaration');
+      case 'init': fail(cpp ? `{ … } is used where its type is not known (write the type: Point{1, 2}, vector<int>{1, 2})` : '{ … } can only give a variable its first value, in its declaration');
+      case 'nullptr': return val(ptr(T.void), null);
+      case 'this': { const f = frame(); if (!f || !f.self) fail('this is only there inside a method of a class'); return val(ptr(f.self.cls), f.self.p); }
+      case 'lambda': return makeClosure(e);
+      case 'construct': return makeValue(e);
+      case 'new': return newObject(e);
+      case 'delete': return deleteObject(e);
+      case 'throw': return throwValue(e);
       // falls through
       default: fail('cannot run ' + e.k);
     }
@@ -534,6 +612,7 @@ export function runCTrace(src) {
 
   /* ---- calls ---- */
   function call(e) {
+    if (cpp) { const r = cppCall(e); if (r !== undefined) return r; }
     if (e.f.k === 'id' && !lookup(e.f.name) && !funcs.has(e.f.name) && !protos.has(e.f.name)) {
       const lib = LIB[e.f.name];
       if (!lib) fail(`${e.f.name}() is not defined` + (SUGGEST[e.f.name] ? ' ' + SUGGEST[e.f.name] : ''));
@@ -557,23 +636,36 @@ export function runCTrace(src) {
   }
   const promoteArg = t => (t.k === 'flt' ? T.double : t.k === 'int' ? promote(t) : t);
 
-  function invoke(def, args) {
+  /**
+   * Runs a function. args[k]: { x, t, d } (a value), { node, t } (an expression to initialize the parameter from) or
+   * { lv } (the place a reference parameter refers to). self: { p, cls } for a method; outer: a lambda's captures.
+   */
+  function invoke(def, args, self = null, outer = null) {
     if (stack.length >= MAX_CALLS) throw new StopRun(stopped = 'Trace stopped: more than ' + MAX_CALLS + ' nested calls.');
-    const fr = { def, name: def.name, scopes: [{ vars: new Map(), blocks: [] }] };
+    const fr = { def, name: def.name, scopes: [{ vars: new Map(), blocks: [] }], self, outer };
+    const fname = def.kind === 'lambda' ? 'lambda' : def.owner ? def.owner.tag + '::' + def.name : def.name;
+    if (self) { fr.selfBlock = alloc('stack', 8, ptr(self.cls), 'this'); fr.selfBlock.cells.set(0, { kind: 'ptr', size: 8, v: self.p, t: ptr(self.cls) }); }
     const params = def.params.map((p, k) => {
-      const b = alloc('stack', p.type.size, p.type, p.name);
-      b.fn = def.name;
-      fr.scopes[0].blocks.push(b);
-      fr.scopes[0].vars.set(p.name, { b, t: p.type });
       const a = args[k];
-      if (p.type.k === 'struct') assignTo({ t: p.type, b, o: 0, d: p.name }, a.x, a.d);
-      else store(b, 0, p.type, convertArg(a.x, p.type, a.d, p.name), p.name);
-      return p.name + '=' + brief(b, p.type);
+      if (p.type.k === 'ref') {                    // a reference: another name for the caller's variable
+        fr.scopes[0].vars.set(p.name, { b: a.lv.b, o: a.lv.o, t: a.lv.t, ref: true });
+        return p.name + '=' + brief(a.lv.b, a.lv.t, a.lv.o);
+      }
+      const t = p.type.k === 'auto' ? decayT(a.x ? a.x.t : AUTO) : p.type;
+      const b = alloc('stack', t.size, t, p.name);
+      b.fn = fname;
+      fr.scopes[0].blocks.push(b);
+      fr.scopes[0].vars.set(p.name, { b, t });
+      if (a.node) initialize(b, 0, t, a.node, p.name);
+      else if (isObj(t) || t.k === 'lambda' || t.k === 'iter') place({ t, b, o: 0, d: p.name }, a.x, a.d || p.name);
+      else store(b, 0, t, convertArg(a.x, t, a.d, p.name), p.name);
+      return p.name + '=' + brief(b, t);
     });
-    stack.push({ name: def.name, args: params.join(', ').slice(0, 70) });
+    stack.push({ name: fname, args: params.join(', ').slice(0, 70) });
     frames.push(fr);
     let r;
     try {
+      if (def.kind === 'ctor') initFields(def, self);
       r = withScope(() => {                        // the body's own scope, so main's variables can be kept for the last step
         let res;
         for (const it of def.body.items) { res = exec(it); if (res) break; }
@@ -582,10 +674,11 @@ export function runCTrace(src) {
       });
     } finally {
       frames.pop(); stack.pop();
-      fr.scopes.forEach(s => s.blocks.forEach(b => { b.dead = true; }));
+      fr.scopes.forEach(s => endScope(s));
     }
     const ret = def.type.ret;
-    if (ret.k === 'void') return val(T.void, undefined);
+    if (ret.k === 'void' || def.kind === 'ctor' || def.kind === 'dtor') return val(T.void, undefined);
+    if (ret.k === 'auto') return r && r.ret ? r.ret : val(T.void, undefined);
     if (!r || !r.ret) {
       if (def.name === 'main') return val(T.int, 0);
       fail(`${def.name}() ended without returning a value (it returns ${typeName(ret)})`);
@@ -596,6 +689,465 @@ export function runCTrace(src) {
     if (t.k === 'ptr' && x.t.k !== 'ptr' && !(x.t.k === 'int' && x.v == 0) && x.t.k !== 'fn') fail(`${d} (${name}) must be a pointer, but it is given ${art(x.t)}`); // eslint-disable-line eqeqeq
     if (t.k !== 'ptr' && x.t.k === 'ptr' && !t.bool) fail(`${d} (${name}) is ${art(t)}, but it is given a pointer`);
     return convert(x, t, d);
+  }
+
+  /* ---- C++: objects, references, methods, lambdas ---- */
+  const decayT = t => (t.k === 'arr' ? ptr(t.of) : t.k === 'ref' ? t.to : t);
+  const locOf = x => x.lv || { t: x.t, b: x.v.b, o: x.v.o, d: 'it' };
+  const lvVal = lv => ({ t: lv.t, lv, get v() { return loadLv(lv).v; } });
+  /** An argument, evaluated once: its place, when it has one (a reference parameter needs it), and its value */
+  function argOf(node) {
+    if (node.k === 'init') return { node, init: true };
+    if ((node.k === 'id' && lookup(node.name)) || node.k === 'index' || node.k === 'member' || node.k === 'deref') {
+      const lv = lval(node);
+      return { node, lv, t: lv.t, get x() { return this._x || (this._x = loadLv(lv)); } };
+    }
+    const x = rval(node);
+    return { node, x, t: x.t, lv: x.lv || (isObj(x.t) ? locOf(x) : null) };
+  }
+  const argOfValue = x => ({ x, t: x.t, lv: x.lv || (isObj(x.t) ? locOf(x) : null) });
+  const argOfLv = lv => ({ lv, t: lv.t, get x() { return loadLv(lv); } });
+  /** How well an argument fits a parameter: 3 exactly, 1 or 2 with a conversion, -1 not at all */
+  function fit(pt, a) {
+    const base = pt.k === 'ref' ? pt.to : pt;
+    if (base.k === 'auto') return 2;
+    if (a.init) return isObj(base) || base.k === 'arr' ? 1 : isArith(base) ? 0 : -1;
+    const at = decayT(a.t);
+    if (base === at || sameType(base, at)) return 3;
+    if (isArith(base) && isArith(at)) return base.k === at.k ? 2 : 1;
+    if (base.k === 'ptr' && at.k === 'ptr') return base.to.k === 'void' || at.to.k === 'void' ? 1 : 0;
+    if (base.k === 'ptr' && at.k === 'int') return 0;
+    if (base.k === 'stl' && base.name === 'string' && (at.k === 'ptr' || (at.k === 'stl' && at.name === 'string'))) return 1;
+    if (base.k === 'stl' && base.name === 'function' && (at.k === 'lambda' || (at.k === 'ptr' && at.to.k === 'fn'))) return 1;
+    if (base.k === 'struct' && base.cls && base.ctors.some(c => c.params.length === 1)) return 0;
+    return -1;
+  }
+  const argList = args => args.map(a => (a.init ? '{ … }' : typeName(a.t))).join(', ');
+  /** The version of an overloaded function (or constructor, or method) that fits the arguments best */
+  function pick(defs, args, what) {
+    let best = null, bestScore = -1;
+    for (const def of defs) {
+      const ps = def.params, required = ps.filter(p => !p.def).length;
+      if (args.length < required || (args.length > ps.length && !def.type.variadic)) continue;
+      let score = 0, ok = true;
+      args.forEach((a, k) => { if (k >= ps.length) return; const f = fit(ps[k].type, a); if (f < 0) ok = false; else score += f; });
+      if (ok && score > bestScore) { best = def; bestScore = score; }
+    }
+    if (!best) {
+      const ns = [...new Set(defs.map(dd => dd.params.length))];
+      fail(`${what} is given ${args.length ? '(' + argList(args) + ')' : 'no arguments'}, but ` +
+        (defs.length === 1 ? `it takes (${defs[0].params.map(p => typeName(p.type)).join(', ')})` : `no version of it takes those (they take ${ns.join(' or ')} arguments)`));
+    }
+    return best;
+  }
+  /** Arguments as invoke() wants them, with default arguments filled in and temporaries made for const T& */
+  function bindArgs(def, args, d) {
+    return def.params.map((p, k) => {
+      const a = args[k];
+      if (!a) return p.type.k === 'ref' ? { lv: temp(p.type.to, p.def, d) } : { node: p.def, t: p.type };
+      if (p.type.k === 'ref') {
+        const base = p.type.to;
+        if (a.lv && (base === a.lv.t || sameType(base, a.lv.t) || base.k === 'auto')) return { lv: a.lv };
+        return { lv: a.init ? temp(base, a.node, d) : tempFromValue(base, a.x, d) };
+      }
+      return a.init ? { node: a.node, t: p.type } : { x: a.x, t: p.type, d: `argument ${k + 1} of ${def.name}()` };
+    });
+  }
+  function callMethod(obj, cls, name, args, e) {
+    const defs = cls.methods.get(name);
+    if (!defs) fail(`${text(e.f || e)}: ${cls.tag} has no method ${name}()`);
+    const def = pick(defs, args, `${cls.tag}::${name}()`);
+    if (!def.body) fail(`${cls.tag}::${name}() is declared but never defined`);
+    if (!def.isStatic && !obj) fail(`${cls.tag}::${name}() needs an object: call it as obj.${name}(…)`);
+    return invoke(def, bindArgs(def, args, text(e)), def.isStatic ? null : { p: new Ptr(obj.b, obj.o), cls });
+  }
+  /** Calls anything callable: a lambda, a function<…>, a function (pointer), an object with operator() */
+  function callValue(x, args, e) {
+    if (x.t.k === 'lambda') {
+      const c = x.v;
+      if (args.length !== c.def.params.length && !c.def.params.some(p => p.def)) fail(`${text(e)}: the lambda takes ${c.def.params.length} arguments, but is given ${args.length}`);
+      return invoke(c.def, bindArgs(c.def, args, text(e)), c.self, c.outer);
+    }
+    if (x.t.k === 'stl' && x.t.name === 'function') {
+      const st = stl.stateOf(x);
+      if (!st.callable) throwStd('bad_function_call', 'bad_function_call: the function<…> is empty');
+      return callValue(st.callable, args, e);
+    }
+    if (x.t.k === 'struct' && x.t.cls) return callMethod(locOf(x), x.t, 'operator()', args, e);
+    if (x.v instanceof FnRef) {
+      if (x.v.builtin) return x.v.builtin.fn(args.map(a => ({ ...a.x, text: a.node ? text(a.node) : '' })), e);
+      const defs = overloads.get(x.v.name) || [x.v.def];
+      const def = defs.length > 1 ? pick(defs, args, x.v.name + '()') : (x.v.def || funcs.get(x.v.name));
+      if (!def || !def.body) fail(`${x.v.name}() is declared but never defined`);
+      return invoke(def, bindArgs(def, args, text(e)));
+    }
+    if (x.v === null) fail(`${text(e.f || e)} is null, so it cannot be called`);
+    fail(`${text(e.f || e)} is ${art(x.t)}, not a function`);
+  }
+  /** The C++ part of a call: methods, overloads, lambdas, the library. undefined: an ordinary C call. */
+  function cppCall(e) {
+    const f = e.f;
+    if (f.k === 'member') {
+      let obj;
+      if (f.arrow) {
+        const p = rval(f.e);
+        if (p.t.k === 'iter') obj = stl.derefIter(p, text(f));
+        else {
+          if (p.t.k !== 'ptr') fail(`${text(f)}: ${text(f.e)} is ${art(p.t)}, not a pointer (use ${text(f.e)}.${f.name}(…))`);
+          if (p.v === null) fail(`${text(f)}: ${text(f.e)} is null (a crash in C++: segmentation fault)`);
+          obj = { t: p.t.to, b: p.v.b, o: p.v.o, d: text(f.e) };
+        }
+      } else {
+        const x = f.e.k === 'id' || f.e.k === 'index' || f.e.k === 'member' || f.e.k === 'deref' ? null : rval(f.e);
+        obj = x ? (x.lv || (isObj(x.t) ? locOf(x) : null)) : lval(f.e);
+        if (!obj) fail(`${text(f)}: ${text(f.e)} is ${art(x.t)}, which has no methods`);
+      }
+      if (obj.t.k === 'stl') return stl.call(lvValObj(obj), f.name, e.args, e);
+      if (obj.t.k === 'struct' && obj.t.cls) {
+        if (obj.t.pair) fail(`${text(f)}: a pair has no methods (use .first and .second)`);
+        return callMethod(obj, obj.t, f.name, e.args.map(argOf), e);
+      }
+      fail(`${text(f)}: ${text(f.e)} is ${art(obj.t)}, which has no methods` + (obj.t.k === 'ptr' ? ` (use ${text(f.e)}->${f.name}(…))` : ''));
+    }
+    if (f.k !== 'id') return callValue(rval(f), e.args.map(argOf), e);
+    const name = f.name, r = lookup(name);
+    if (r) return callValue(loadLv({ t: r.t, b: r.b, o: at0(r), d: name }), e.args.map(argOf), e);
+    const self = frame() && frame().self;
+    if (self && self.cls.methods.has(name)) return callMethod({ t: self.cls, b: self.p.b, o: self.p.o }, self.cls, name, e.args.map(argOf), e);
+    const m = /^(\w+)::(\w+)$/.exec(name);
+    if (m && classes.has(m[1]) && classes.get(m[1]).methods.has(m[2])) return callMethod(null, classes.get(m[1]), m[2], e.args.map(argOf), e);
+    if (overloads.has(name)) {
+      const args = e.args.map(argOf), def = pick(overloads.get(name), args, name + '()');
+      if (!def.body) fail(`${name}() is declared but never defined`);
+      return invoke(def, bindArgs(def, args, text(e)));
+    }
+    if (CPPLIB[name]) return CPPLIB[name](e);
+    return undefined;
+  }
+  const lvValObj = lv => val(lv.t, new Ptr(lv.b, lv.o));
+
+  /* constructing and destroying */
+  /** A place of type t made with these arguments (expressions): T(a, b), vector<int>(n), T() is zero / empty */
+  function construct(b, o, t, nodes, d) {
+    if (t.k === 'stl') { const st = putObj(b, o, t, stl.create(t)); stl.construct(st, nodes, false, d); return; }
+    if (t.k === 'struct' && t.cls && !t.pair) {
+      if (t.ctors.length) { callCtor(t, b, o, nodes.map(argOf), d); return; }
+      if (!nodes.length) { valueInit(b, o, t); return; }
+      if (nodes.length === 1) { const x = rval(nodes[0]); if (x.t === t) { copyMem(b, o, x.v.b, x.v.o, t.size, d); return; } }
+      fail(`${d}: ${t.tag} has no constructor that takes ${nodes.length} argument${nodes.length === 1 ? '' : 's'}`);
+    }
+    if (t.k === 'struct') {
+      zeroFill(b, o, t);
+      if (nodes.length === 1 && t.pair !== true) { initialize(b, o, t, nodes[0], d); return; }
+      if (t.pair && nodes.length === 1) { initialize(b, o, t, nodes[0], d); return; }
+      nodes.forEach((n, k) => { const fd = t.fields[k]; if (!fd) fail(`${d}: too many values for ${typeName(t)}`); initialize(b, o + fd.off, fd.type, n, d); });
+      return;
+    }
+    if (t.k === 'arr') { for (let k = 0; k < t.n; k++) construct(b, o + k * t.of.size, t.of, [], d); return; }
+    if (!nodes.length) { zeroFill(b, o, t); return; }
+    if (nodes.length > 1) fail(`${d}: ${typeName(t)} is made from one value, not ${nodes.length}`);
+    initialize(b, o, t, nodes[0], d);
+  }
+  function callCtor(t, b, o, args, d) {
+    if (args.length === 1 && !args[0].init && args[0].t === t && !t.ctors.some(c => c.params.length === 1 && fit(c.params[0].type, args[0]) === 3)) {
+      const src = args[0].lv || locOf(args[0].x);     // the copy constructor the compiler writes
+      copyMem(b, o, src.b, src.o, t.size, d);
+      return;
+    }
+    const def = pick(t.ctors, args, `${t.tag}(…)`);
+    if (!def.body) fail(`the constructor ${t.tag}(${def.params.map(p => typeName(p.type)).join(', ')}) is declared but never defined`);
+    zeroFillScalars(b, o, t);
+    invoke(def, bindArgs(def, args, d), { p: new Ptr(b, o), cls: t });
+  }
+  /** Before a class's fields are given values, its library-typed fields exist (empty) and the rest are not set yet */
+  function zeroFillScalars(b, o, t) {
+    for (const fd of t.fields) if (fd.type.k === 'stl') putObj(b, o + fd.off, fd.type, stl.create(fd.type));
+  }
+  /** In a constructor: each field from the initializer list, or its default member initializer, or default-made */
+  function initFields(def, self) {
+    const cls = self.cls, { b, o } = self.p;
+    for (const it of def.inits || []) if (!cls.fields.some(fd => fd.name === it.name)) fail(`${cls.tag}(…): ${cls.tag} has no field named ${it.name}`);
+    for (const fd of cls.fields) {
+      const it = (def.inits || []).find(x => x.name === fd.name);
+      line = it ? it.line : line;
+      if (it) { if (it.args.length === 1 && it.args[0].k === 'init') initialize(b, o + fd.off, fd.type, it.args[0], fd.name); else construct(b, o + fd.off, fd.type, it.args, fd.name); }
+      else if (cls.inits.has(fd.name)) initialize(b, o + fd.off, fd.type, cls.inits.get(fd.name), fd.name);
+      else defaultInit(b, o + fd.off, fd.type, fd.name);
+    }
+  }
+  /** What a declaration without a value makes: library objects empty, classes by their default constructor, numbers unset */
+  function defaultInit(b, o, t, d) {
+    if (t.k === 'stl') { putObj(b, o, t, stl.create(t)); return; }
+    if (t.k === 'arr') { if (t.of.k === 'stl' || t.of.k === 'struct') for (let k = 0; k < t.n; k++) defaultInit(b, o + k * t.of.size, t.of, d); return; }
+    if (t.k === 'struct' && t.cls) {
+      if (t.pair) { zeroFill(b, o, t); return; }
+      if (t.ctors.length) { callCtor(t, b, o, [], d); return; }
+      for (const fd of t.fields) { if (t.inits.has(fd.name)) initialize(b, o + fd.off, fd.type, t.inits.get(fd.name), fd.name); else defaultInit(b, o + fd.off, fd.type, d); }
+    }
+  }
+  /** T{} or T(): everything zero, then the default member initializers */
+  function valueInit(b, o, t) {
+    zeroFill(b, o, t);
+    if (t.k === 'struct' && t.cls) for (const fd of t.fields) if (t.inits.has(fd.name)) initialize(b, o + fd.off, fd.type, t.inits.get(fd.name), fd.name);
+  }
+  /** Gives a fresh place a copy of a value (initialization, not assignment) */
+  function place(lv, x, d) { setObj(lv, x, d, true); }
+  /** Puts a value into a library-typed, lambda or class place: copies, a string from text, a function<> from a callable */
+  function setObj(lv, x, d, fresh) {
+    const t = lv.t;
+    if (t.k === 'stl') {
+      if (x.t === t) { const c = stl.stateOf(x).clone(); putObj(lv.b, lv.o, t, c); return; }
+      if (t.name === 'string' && (x.t.k === 'ptr' || (x.t.k === 'int' && isCharT(x.t)))) { const st = putObj(lv.b, lv.o, t, stl.create(t)); stl.appendText(st, stl.textOf(x), d); return; }
+      if (t.name === 'function') { const st = fresh || !stateAt(lv.b, lv.o) ? putObj(lv.b, lv.o, t, stl.create(t)) : stateAt(lv.b, lv.o); stl.assignFn(st, x, d); return; }
+      fail(`${d}: ${art(x.t)} cannot be stored in ${art(t)}`);
+    }
+    if (t.k === 'lambda' || t.k === 'iter') {
+      if (x.t !== t && !(t.k === 'iter' && x.t.k === 'iter')) fail(`${d}: ${art(x.t)} cannot be stored in ${art(t)}`);
+      check(lv.b, lv.o, t, d, true); clear(lv.b, lv.o, t.size); lv.b.cells.set(lv.o, { kind: 'obj', size: t.size, v: x.v, t: x.t });
+      return;
+    }
+    if (isObj(t)) {
+      if (x.t === t) { copyMem(lv.b, lv.o, x.v.b, x.v.o, t.size, d); return; }
+      if (t.cls && t.ctors.length) { callCtor(t, lv.b, lv.o, [argOfValue(x)], d); return; }   // a converting constructor
+      fail(`${d}: ${art(x.t)} cannot be stored in ${art(t)}`);
+    }
+    if (fresh) store(lv.b, lv.o, t, convertArg(x, t, d, lv.d || 'it'), d);
+    else assignTo(lv, x, d);
+  }
+  /** A temporary of type t, from an expression or a { … } list */
+  function temp(t, node, d) {
+    const b = alloc('temp', t.size, t, 'a temporary ' + typeName(t));
+    if (isObj(t)) zeroFill(b, 0, t);
+    initialize(b, 0, t, node, d);
+    return { t, b, o: 0, d };
+  }
+  function tempOf(t, d) { const b = alloc('temp', t.size, t, 'a temporary ' + typeName(t)); zeroFill(b, 0, t); return { t, b, o: 0, d }; }
+  function tempFromValue(t, x, d) {
+    const b = alloc('temp', t.size, t, 'a temporary ' + typeName(t));
+    const lv = { t, b, o: 0, d };
+    if (isObj(t) || t.k === 'lambda' || t.k === 'iter') { if (isObj(t)) zeroFill(b, 0, t); place(lv, x, d); }
+    else store(b, 0, t, convertArg(x, t, d, d), d);
+    return lv;
+  }
+  /** Before a place goes away: its class's destructor runs, its library objects let go of their memory */
+  function destroyAt(b, o, t, user = true) {
+    if (!t) return;
+    if (t.k === 'arr') { if (t.of.k === 'stl' || t.of.k === 'struct') for (let k = t.n - 1; k >= 0; k--) destroyAt(b, o + k * t.of.size, t.of, user); return; }
+    if (t.k === 'struct' && t.cls) {
+      if (user && t.dtor && t.dtor.body && !unwinding) invoke(t.dtor, [], { p: new Ptr(b, o), cls: t });
+      for (const fd of [...t.fields].reverse()) destroyAt(b, o + fd.off, fd.type, user);
+      return;
+    }
+    if (t.k === 'stl') { const st = stateAt(b, o); if (st && st.destroy) st.destroy(); }
+  }
+  let unwinding = 0;
+  /** A scope ends: its variables are destroyed, last first, and no longer exist */
+  function endScope(s, ok = true) {
+    for (const b of [...s.blocks].reverse()) { if (cpp && !b.dead) { try { if (ok) destroyAt(b, 0, b.type); else destroyAt(b, 0, b.type, false); } catch (err) { if (ok) throw err; } } b.dead = true; }
+  }
+
+  /* lambdas */
+  function makeClosure(e) {
+    const f = frame(), copies = { vars: new Map(), blocks: [] };
+    const all = e.caps.find(c => c.all);
+    const capture = (name, byRef) => {
+      const r = lookup(name);
+      if (!r || globals.get(name) === r) return;   // globals are seen anyway
+      if (byRef) { copies.vars.set(name, r); return; }
+      const b = alloc('heap', r.t.size, r.t, name);
+      b.fn = 'lambda';
+      if (isObj(r.t)) zeroFill(b, 0, r.t);
+      if (isObj(r.t) || r.t.k === 'lambda') place({ t: r.t, b, o: 0, d: name }, loadLv({ t: r.t, b: r.b, o: at0(r), d: name }), name);
+      else { const c = r.b.cells.get(at0(r)); if (c) b.cells.set(0, { ...c }); }
+      copies.vars.set(name, { b, t: r.t });
+    };
+    for (const c of e.caps) if (c.name && c.name !== 'this') capture(c.name, c.ref);
+    if (all && !all.ref) for (const n of freeNames(e.body, new Set(e.params.map(p => p.name)))) if (!copies.vars.has(n)) capture(n, false);
+    const outer = [copies];
+    if (all && all.ref && f) outer.push(...[...f.scopes].reverse(), ...(f.outer || []));
+    const self = f && (all || e.caps.some(c => c.name === 'this')) ? f.self : null;
+    const def = { k: 'func', name: 'lambda', kind: 'lambda', params: e.params, body: e.body, line: e.line, type: fnType(e.ret, e.params.map(p => p.type), false) };
+    return val(LAMBDA, { def, outer, self, name: 'lambda' });
+  }
+  /** The names a lambda's body uses that it does not declare (what [=] copies) */
+  function freeNames(node, own, out = new Set()) {
+    if (!node || typeof node !== 'object') return out;
+    if (Array.isArray(node)) { node.forEach(n => freeNames(n, own, out)); return out; }
+    if (node.k === 'id' && !own.has(node.name)) out.add(node.name);
+    if (node.k === 'decl') node.list.forEach(dd => own.add(dd.name));
+    for (const [key, v] of Object.entries(node)) if (key !== 'block' && v && typeof v === 'object' && key !== 't' && key !== 'type') freeNames(v, own, out);
+    return out;
+  }
+
+  /* making values: T(…), T{…}, new, delete, throw */
+  function makeValue(e) {
+    const t = e.t;
+    if (isScalar(t) && !isObj(t)) {
+      const items = e.init ? e.init.items.map(it => it.val) : e.args;
+      if (!items.length) return val(t, zeroOf(t));
+      if (items.length > 1) fail(`${typeName(t)}(…) takes one value`);
+      return val(t, convert(rval(items[0]), t, text(items[0])));
+    }
+    const b = alloc('temp', t.size, t, 'a temporary ' + typeName(t));
+    if (e.init) { if (isObj(t)) zeroFill(b, 0, t); initialize(b, 0, t, e.init, typeName(t)); }
+    else construct(b, 0, t, e.args, typeName(t));
+    return loadLv({ t, b, o: 0, d: typeName(t) + '(…)' });
+  }
+  function newObject(e) {
+    const t = e.t;
+    if (e.n) {
+      const x = rval(e.n);
+      if (x.t.k !== 'int') fail(`new ${typeName(t)}[…]: the count must be an integer`);
+      const n = Number(x.v);
+      if (n < 0) fail(`new ${typeName(t)}[${n}]: the count cannot be negative`);
+      const at = arr(t, n), b = alloc('heap', at.size, at, 'new ' + typeName(t) + '[' + n + ']');
+      Object.assign(b, { newed: 'array', line: e.line });
+      defaultInit(b, 0, at, b.name);
+      return val(ptr(t), new Ptr(b, 0));
+    }
+    const b = alloc('heap', t.size, t, 'new ' + typeName(t));
+    Object.assign(b, { newed: 'one', line: e.line });
+    if (isObj(t)) zeroFill(b, 0, t);
+    if (e.init) initialize(b, 0, t, e.init, b.name);
+    else if (e.args) construct(b, 0, t, e.args, b.name);
+    else defaultInit(b, 0, t, b.name);
+    return val(ptr(t), new Ptr(b, 0));
+  }
+  function deleteObject(e) {
+    const p = rval(e.e), d = 'delete' + (e.arr ? '[] ' : ' ') + text(e.e);
+    if (p.t.k !== 'ptr') fail(`${d}: ${text(e.e)} is ${art(p.t)}, not a pointer`);
+    if (p.v === null) return val(T.void, undefined);
+    const b = p.v.b;
+    if (b.freed) fail(`${d}: this memory was already deleted on line ${b.freedLine} (double delete)`);
+    if (!b.newed) fail(`${d}: ${text(e.e)} points to ${b.kind === 'heap' ? 'memory from malloc (use free)' : b.name + ', which was not made with new'}`);
+    if (p.v.o !== 0) fail(`${d}: ${text(e.e)} points inside what new made, not to its start`);
+    if ((b.newed === 'array') !== !!e.arr) fail(`${d}: memory from ${b.newed === 'array' ? 'new[] needs delete[]' : 'new needs delete, not delete[]'}`);
+    destroyAt(b, 0, b.type);
+    Object.assign(b, { freed: true, freedLine: e.line });
+    return val(T.void, undefined);
+  }
+  let current = null;                              // the exception a catch block is handling (throw; rethrows it)
+  function throwValue(e) {
+    if (!e.e) { if (!current) fail('throw; with no exception being handled'); throw current; }
+    const x = rval(e.e), t = decayT(x.t);
+    const b = alloc('temp', Math.max(t.size, 1), t, 'the exception');
+    const lv = { t, b, o: 0, d: 'the exception' };
+    if (isObj(t)) { zeroFill(b, 0, t); place(lv, x, 'throw'); } else store(b, 0, t, x.v, 'throw');
+    throw new CThrow(lv, typeName(t));
+  }
+  const throwStd = (kind, msg) => {
+    const t = stlType(kind), lv = tempOf(t, 'the exception');
+    stl.stateOf(val(t, new Ptr(lv.b, 0))).msg = msg;
+    throw new CThrow(lv, kind);
+  };
+  /** Does catch (type) catch what was thrown? */
+  function catches(type, err) {
+    if (!type) return true;
+    const want = decayT(type), got = err.value.t;
+    if (want === got || sameType(want, got)) return true;
+    if (want.k === 'stl' && got.k === 'stl') { for (let n = got.name; n; n = EXCEPTION_BASE[n]) if (n === want.name) return true; return false; }
+    return isArith(want) && isArith(got) && want.k === got.k && want.k === 'int' && want.size === got.size;
+  }
+  const whatOf = err => {
+    const st = err.value.t.k === 'stl' ? stateAt(err.value.b, err.value.o) : null;
+    if (st && 'msg' in st) return st.msg;
+    try { const x = loadLv(err.value); if (x.t.k === 'ptr' && x.v) return decode(cstr(x.v, 'the exception')); if (isArith(x.t)) return String(x.v); } catch { /* not readable */ }
+    return '';
+  };
+
+  /* operators of classes and library types */
+  /** A class's own operator (a method, or a function taking it): its result, or null when there is none */
+  function callOp(op, a, b, e) {
+    const name = 'operator' + op;
+    if (a.t.k === 'struct' && a.t.cls && a.t.methods.has(name)) return callMethod(locOf(a), a.t, name, b ? [argOfValue(b)] : [], e);
+    if (overloads.has(name)) {
+      const args = b ? [argOfValue(a), argOfValue(b)] : [argOfValue(a)];
+      const defs = overloads.get(name).filter(dd => dd.params.length === args.length && args.every((x, k) => fit(dd.params[k].type, x) >= 0));
+      if (defs.length) { const def = pick(defs, args, name); return invoke(def, bindArgs(def, args, text(e))); }
+    }
+    return null;
+  }
+  const CMP = ['==', '!=', '<', '>', '<=', '>='];
+  /** +, ==, <… when a side is a class, a library object or an iterator: the result, or null for ordinary numbers */
+  function cppBin(op, a, b, e) {
+    const objA = isObj(a.t) || a.t.k === 'iter', objB = isObj(b.t) || b.t.k === 'iter';
+    if (!objA && !objB) return null;
+    if ((a.t.k === 'struct' && !a.t.pair) || (b.t.k === 'struct' && !b.t.pair)) {
+      const r = callOp(op, a, b, e);
+      if (r) return r;
+      if (op === '!=' && a.t.k === 'struct') { const eq = callOp('==', a, b, e); if (eq) return val(T.bool, truthy(eq) ? 0 : 1); }
+      if (op === '>' || op === '<=' || op === '>=') { const lt = callOp('<', op === '>' ? b : a, op === '>' ? a : b, e); if (lt) return val(T.bool, (op === '<=' ? !truthy(callOp('<', b, a, e)) : op === '>=' ? !truthy(lt) : truthy(lt)) ? 1 : 0); }
+      fail(`${text(e)}: ${typeName((a.t.k === 'struct' ? a : b).t)} has no operator${op} (write bool operator${op}(…) for it)`);
+    }
+    if (a.t.k === 'iter' || b.t.k === 'iter') {
+      if (op !== '==' && op !== '!=') fail(`${text(e)}: iterators of a map or set can only be compared with == and !=`);
+      const same = a.t.k === 'iter' && b.t.k === 'iter' && stl.sameIter(a, b);
+      return val(T.bool, (op === '==') === same ? 1 : 0);
+    }
+    const str = x => x.t.k === 'stl' && x.t.name === 'string';
+    if (op === '+' && (str(a) || str(b))) return makeString(stl.textOf(a) + stl.textOf(b));
+    if (CMP.includes(op)) {
+      if (str(a) || str(b)) { const x = stl.textOf(a), y = stl.textOf(b); return val(T.bool, ({ '==': x === y, '!=': x !== y, '<': x < y, '>': x > y, '<=': x <= y, '>=': x >= y })[op] ? 1 : 0); }
+      if (a.t.k === 'struct' && a.t.pair) { if (a.t !== b.t) fail(`${text(e)}: two different pairs`); const lt = less(a.t, locOf(a), locOf(b)), gt = less(a.t, locOf(b), locOf(a)); return val(T.bool, ({ '==': !lt && !gt, '!=': lt || gt, '<': lt, '>': gt, '<=': !gt, '>=': !lt })[op] ? 1 : 0); }
+      if (a.t.k === 'stl') return val(T.bool, stl.compare(op, a, b, text(e)) ? 1 : 0);
+    }
+    fail(`${text(e)}: ${op} cannot be used on ${art(objA ? a.t : b.t)}`);
+  }
+  /** a < b for any type (sort, map and set order): numbers, strings, pairs, containers, a class's operator< */
+  function less(t, a, b) {
+    if (t.k === 'struct') {
+      if (t.pair) {
+        const [f, g] = t.fields;
+        if (less(f.type, { t: f.type, b: a.b, o: a.o + f.off }, { t: f.type, b: b.b, o: b.o + f.off })) return true;
+        if (less(f.type, { t: f.type, b: b.b, o: b.o + f.off }, { t: f.type, b: a.b, o: a.o + f.off })) return false;
+        return less(g.type, { t: g.type, b: a.b, o: a.o + g.off }, { t: g.type, b: b.b, o: b.o + g.off });
+      }
+      const r = callOp('<', loadLv(a), loadLv(b), { k: 'id', name: 'operator<' });
+      if (!r) fail(`${typeName(t)} has no operator< , so it cannot be sorted or put in a map or set (write bool operator<(const ${t.tag}& o) const)`);
+      return truthy(r);
+    }
+    if (t.k === 'stl') return stl.compare('<', loadLv(a), loadLv(b), 'comparing');
+    return truthy(arith('<', loadLv(a), loadLv(b), 'comparing'));
+  }
+  function equal(t, a, b) {
+    if (t.k === 'struct' && !t.pair) { const r = callOp('==', loadLv(a), loadLv(b), { k: 'id', name: 'operator==' }); if (r) return truthy(r); }
+    return !less(t, a, b) && !less(t, b, a);
+  }
+  /** A functor type's operator()(a, b), e.g. a priority_queue's comparison */
+  const callFunctor = (cls, a, b) => truthy(callMethod(tempOf(cls, 'the comparison'), cls, 'operator()', [argOfLv(a), argOfLv(b)], { k: 'id', name: cls.tag }));
+  function makeString(text) { const lv = tempOf(stlType('string'), 'a string'); stl.appendText(stateAt(lv.b, 0), text, 'a string'); return loadLv(lv); }
+  function makePair(a, b) {
+    const t = stlType('pair', [a.t, b.t]), lv = tempOf(t, 'a pair');
+    place({ t: a.t, b: lv.b, o: t.fields[0].off, d: 'first' }, a, 'first'); place({ t: b.t, b: lv.b, o: t.fields[1].off, d: 'second' }, b, 'second');
+    return loadLv(lv);
+  }
+  const literalOf = text => literal({ codes: [...new TextEncoder().encode(text)] });
+
+  /* cout << … */
+  function streamOp(s, op, node, e) {
+    const st = stateAt(s.v.b, s.v.o);
+    if (s.t.name === 'istream' || op === '>>') fail(`${text(e)}: cin: this page has no keyboard input (give the values in the code instead)`);
+    const x = rval(node);
+    if (x.t.k === 'stl' && x.t.name === 'manip') { stateAt(x.v.b, x.v.o).apply(st); return s; }
+    let out;
+    if (x.t.k === 'stl' && x.t.name === 'string') out = stl.textOf(x);
+    else if (x.t.k === 'stl' && EXCEPTIONS.has(x.t.name)) fail(`${text(e)}: print an exception's message with e.what()`);
+    else if (x.t.k === 'stl') fail(`${text(e)}: cout cannot print ${art(x.t)} (print its elements in a loop)`);
+    else if (x.t.k === 'struct') {
+      const r = callOp('<<', s, x, e);
+      if (!r) fail(`${text(e)}: cout cannot print ${art(x.t)} (print its fields, or write ostream& operator<<(ostream& os, const ${x.t.tag || 'T'}& v))`);
+      return s;
+    }
+    else if (x.t.k === 'ptr') out = x.v === null ? (isCharT(x.t.to) ? fail(`${text(e)}: printing a null char* (a crash in C++)`) : '0') : isCharT(x.t.to) ? decode(cstr(x.v, text(node))) : '0x' + addrOf(x.v).toString(16);
+    else if (x.t.k === 'flt') out = !Number.isFinite(x.v) ? (Number.isNaN(x.v) ? 'nan' : x.v > 0 ? 'inf' : '-inf') : st.fixed ? fixed(x.v, st.precision) : general(x.v, st.precision, false, false);
+    else if (x.t.bool) out = st.boolalpha ? (x.v ? 'true' : 'false') : String(x.v);
+    else if (isCharT(x.t) && x.t.name !== 'signed char' && x.t !== T.uchar) out = String.fromCharCode(Number(x.v) & 255);
+    else if (x.t.k === 'int') out = String(x.v);
+    else fail(`${text(e)}: cout cannot print ${art(x.t)}`);
+    if (st.width && out.length < st.width) out = st.fill.repeat(st.width - out.length) + out;
+    st.width = 0;
+    write(out, st.err);
+    return s;
   }
 
   /* ---- statements ---- */
@@ -610,7 +1162,9 @@ export function runCTrace(src) {
   const withScope = (fn) => {
     const f = frame(), s = { vars: new Map(), blocks: [] };
     f.scopes.push(s);
-    try { return fn(); } finally { f.scopes.pop(); s.blocks.forEach(b => { b.dead = true; }); }
+    let ok = false;
+    try { const r = fn(); ok = true; return r; }
+    finally { if (!ok) unwinding++; try { endScope(s, ok); } finally { f.scopes.pop(); if (!ok) unwinding--; } }
   };
   /** A statement on the same line as the if / loop it belongs to (if (x) break;) takes no step of its own. */
   const sub = (s, parent) => exec(s, s.line === parent.line && s.k !== 'block');
@@ -656,10 +1210,20 @@ export function runCTrace(src) {
         });
       case 'return': {
         at(s.line);
-        const ret = frame().def.type.ret;
-        if (!s.e) { if (ret.k !== 'void' && frame().def.name !== 'main') fail(`${frame().def.name}() must return ${art(ret)}`); return { ret: val(T.void, undefined) }; }
+        const def = frame().def, ret = def.type.ret;
+        if (!s.e) { if (ret.k !== 'void' && ret.k !== 'auto' && def.name !== 'main' && !def.kind) fail(`${def.name}() must return ${art(ret)}`); return { ret: val(T.void, undefined) }; }
+        if (ret.k === 'ref') {                     // a reference to it (return v[i]; return os << …;)
+          let lv;
+          if (s.e.k === 'init') lv = temp(ret.to, s.e, 'return');
+          else if (['id', 'index', 'member', 'deref'].includes(s.e.k)) lv = lval(s.e);
+          else { const x = rval(s.e); lv = x.lv || (isObj(x.t) ? locOf(x) : tempFromValue(ret.to, x, 'the returned value')); }
+          return { ret: lvVal(lv) };
+        }
+        if (s.e.k === 'init') { if (ret.k === 'auto') fail('return { … } needs the function\'s return type to be written'); const lv = temp(ret, s.e, 'the returned value'); return { ret: loadLv(lv) }; }
         const x = rval(s.e);
-        if (ret.k === 'void') { if (x.t.k !== 'void') fail(`${frame().def.name}() returns void, so it cannot return a value`); return { ret: x }; }
+        if (ret.k === 'auto') return { ret: isObj(x.t) ? loadLv(tempFromValue(x.t, x, 'the returned value')) : x.lv ? loadLv(x.lv) : x };
+        if (ret.k === 'void') { if (x.t.k !== 'void') fail(`${def.name}() returns void, so it cannot return a value`); return { ret: x }; }
+        if (isObj(ret) || ret.k === 'lambda' || ret.k === 'iter') return { ret: loadLv(tempFromValue(ret, x, 'the returned value')) };
         if (ret.k === 'struct') {
           const b = alloc('temp', ret.size, ret, 'returned value');
           assignTo({ t: ret, b, o: 0, d: 'the returned value' }, x, 'return');
@@ -688,8 +1252,76 @@ export function runCTrace(src) {
         });
       }
       case 'case': case 'default': return undefined;
+      case 'rangefor': return withScope(() => {
+        at(s.line);
+        for (const el of loopElements(s.e)) {
+          const r = withScope(() => { bindLoopVar(s.decl, el); return sub(s.body, s); });
+          if (r === BREAK) return undefined;
+          if (r && r !== CONT) return r;
+          at(s.line);
+        }
+        return undefined;
+      });
+      case 'try':
+        try { return exec(s.body); }
+        catch (err) {
+          if (!(err instanceof CThrow)) throw err;
+          const c = s.catches.find(cc => catches(cc.type, err));
+          if (!c) throw err;
+          return withScope(() => {
+            line = c.line;
+            if (c.name) {
+              if (c.type.k === 'ref') scope().vars.set(c.name, { b: err.value.b, o: err.value.o, t: err.value.t, ref: true });
+              else declareValue(c.name, decayT(c.type), loadLv(err.value));
+            }
+            const saved = current;
+            current = err;
+            try { return exec(c.body); } finally { current = saved; }
+          });
+        }
       default: fail('cannot run ' + s.k);
     }
+  }
+  /** The places a range-for visits: an array's elements, a container's */
+  function loopElements(node) {
+    if (node.k === 'init') return node.items.map(it => { const x = rval(it.val); return tempFromValue(decayT(x.t), x, 'the list'); });
+    const x = rval(node);
+    if (x.t.k === 'stl') return stl.elements(x, text(node));
+    if (x.t.k === 'ptr' && node.k === 'id') {
+      const lv = lval(node);
+      if (lv.t.k === 'arr') return [...Array(lv.t.n).keys()].map(k => ({ t: lv.t.of, b: lv.b, o: lv.o + k * lv.t.of.size, d: text(node) + '[' + k + ']' }));
+    }
+    fail(`for (… : ${text(node)}): ${text(node)} is ${art(x.t)}, which cannot be looped over`);
+  }
+  function bindLoopVar(decl, el) {
+    if (decl.bind) { bindNames(decl.bind, el, decl.ref); return; }
+    const t = decl.type.k === 'ref' ? decl.type.to : decl.type;
+    if (decl.ref) { scope().vars.set(decl.name, { b: el.b, o: el.o, t: el.t, ref: true }); return; }
+    declareValue(decl.name, t.k === 'auto' ? el.t : t, loadLv(el));
+  }
+  /** A new local variable with a copy of a value */
+  function declareValue(name, t, x) {
+    const b = alloc('stack', t.size, t, name);
+    b.fn = frame() ? frame().def.name : null;
+    scope().blocks.push(b);
+    if (isObj(t)) zeroFill(b, 0, t);
+    place({ t, b, o: 0, d: name }, x, name);
+    scope().vars.set(name, { b, t });
+  }
+  /** auto [a, b] = pair (or a struct, or an array): each name is a field (of a copy, or with &, of the thing itself) */
+  function bindNames(names, lv, isRef) {
+    let src = lv;
+    if (!isRef) {
+      const b = alloc('stack', lv.t.size, lv.t, '[' + names.join(', ') + ']');
+      scope().blocks.push(b);
+      if (isObj(lv.t)) zeroFill(b, 0, lv.t);
+      src = { t: lv.t, b, o: 0, d: b.name };
+      if (lv.t.k === 'arr') copyMem(b, 0, lv.b, lv.o, lv.t.size, b.name); else place(src, loadLv(lv), b.name);
+    }
+    const parts = src.t.k === 'struct' ? src.t.fields.map(f => ({ t: f.type, o: f.off })) : src.t.k === 'arr' ? [...Array(src.t.n).keys()].map(k => ({ t: src.t.of, o: k * src.t.of.size })) : null;
+    if (!parts) fail(`auto [${names.join(', ')}]: ${art(src.t)} cannot be taken apart (a pair, a struct or an array can)`);
+    if (parts.length !== names.length) fail(`auto [${names.join(', ')}]: ${typeName(src.t)} has ${parts.length} parts, not ${names.length}`);
+    names.forEach((n, k) => scope().vars.set(n, { b: src.b, o: src.o + parts[k].o, t: parts[k].t, ref: true }));
   }
 
   /** A declared type with its sizes known: int a[n] (n is run now), int a[] = {1, 2, 3} */
@@ -725,6 +1357,29 @@ export function runCTrace(src) {
   }
 
   function declare(d, isGlobal) {
+    if (cpp && d.bind) {                           // auto [a, b] = …;
+      const node = d.init;
+      const lv = node.k === 'id' || node.k === 'index' || node.k === 'member' || node.k === 'deref' ? lval(node) : (() => { const x = rval(node); return x.lv || tempFromValue(decayT(x.t), x, 'the value'); })();
+      bindNames(d.bind, lv, d.ref);
+      return;
+    }
+    if (cpp && d.type.k === 'ref') {                // int& r = x;
+      if (!d.init) fail(`${d.name} is a reference, so it needs something to refer to: ${typeName(d.type.to)}& ${d.name} = …;`);
+      const to = d.type.to;
+      let lv;
+      if (d.init.k === 'init') lv = temp(to, d.init, d.name);
+      else if (['id', 'index', 'member', 'deref'].includes(d.init.k)) lv = lval(d.init);
+      else { const x = rval(d.init); lv = x.lv || tempFromValue(to.k === 'auto' ? decayT(x.t) : to, x, d.name); }
+      scope().vars.set(d.name, { b: lv.b, o: lv.o, t: to.k === 'auto' ? lv.t : (isObj(to) ? lv.t : to), ref: true });
+      return;
+    }
+    if (cpp && d.type.k === 'auto') {               // auto x = …;: the type of the value
+      if (!d.init) fail(`${d.name} is auto, so it needs a value to take its type from: auto ${d.name} = …;`);
+      if (d.init.k === 'init') fail(`auto ${d.name} = { … }: write the type (vector<int> ${d.name} = { … })`);
+      const x = rval(d.init);
+      declareValue(d.name, decayT(x.t), x.lv ? loadLv(x.lv) : x);
+      return;
+    }
     if (d.type.k === 'fn') { if (!funcs.has(d.name)) protos.set(d.name, { name: d.name, type: d.type, params: d.type.params.map((t, k) => ({ name: 'p' + k, type: t })) }); return; }
     if (d.storage === 'extern') return;
     const st = d.storage === 'static' && !isGlobal;
@@ -737,12 +1392,33 @@ export function runCTrace(src) {
     if (!isGlobal && !st) scope().blocks.push(b);
     if (st) d.block = b;
     if (isGlobal || st) zeroFill(b, 0, t);
-    if (d.init) initialize(b, 0, t, d.init, d.name);
+    if (cpp) {
+      if (d.ctor) construct(b, 0, t, d.ctor, d.name);
+      else if (d.init) initialize(b, 0, t, d.init, d.name);
+      else defaultInit(b, 0, t, d.name);
+    } else if (d.init) initialize(b, 0, t, d.init, d.name);
     scope().vars.set(d.name, { b, t });
   }
 
   /** Gives memory its first value: an expression, a string for a char array, or { … } with designators. */
   function initialize(b, o, t, init, d) {
+    if (cpp && (t.k === 'stl' || t.k === 'lambda' || t.k === 'iter' || (t.k === 'struct' && t.cls && !t.pair && (t.ctors.length || init.k !== 'init')))) {
+      if (init.k === 'init') {
+        if (t.k === 'stl') { const st = putObj(b, o, t, stl.create(t)); stl.construct(st, init.items.map(it => it.val), true, d); return; }
+        if (t.k === 'struct') { callCtor(t, b, o, init.items.map(it => argOf(it.val)), d); return; }   // Point p = {1, 2}; with a constructor
+      }
+      const x = rval(init);
+      if (t.k === 'struct' && t.ctors.length && x.t !== t) { callCtor(t, b, o, [argOfValue(x)], d); return; }
+      place({ t, b, o, d }, x.lv ? loadLv(x.lv) : x, d);
+      return;
+    }
+    if (cpp && t.k === 'struct' && t.cls && init.k === 'init') {   // an aggregate: fields not listed get their default member initializer
+      zeroFill(b, o, t);
+      for (const fd of t.fields) if (t.inits.has(fd.name)) initialize(b, o + fd.off, fd.type, t.inits.get(fd.name), fd.name);
+      const pos = fill(b, o, t, init.items, 0, true, d);
+      if (pos < init.items.length) fail(`${d}: too many values in { … } (${typeName(t)})`);
+      return;
+    }
     if (init.k === 'init') {
       if (!isAggregate(t)) {
         if (!init.items.length) { zeroFill(b, o, t); return; }
@@ -757,7 +1433,8 @@ export function runCTrace(src) {
       if (init.k === 'str' && isCharT(t.of)) return copyString(b, o, t, init, d);
       fail(`${d}: an array needs { … } to be given its values`);
     }
-    const x = rval(init);
+    let x = rval(init);
+    if (x.lv) x = loadLv(x.lv);
     if (t.k === 'struct') { assignTo({ t, b, o, d }, x, d); return; }
     if (t.k === 'ptr' && x.t.k !== 'ptr' && !(x.t.k === 'int' && x.v == 0) && x.t.k !== 'fn') fail(`${d} is a pointer, but it is given ${art(x.t)}`); // eslint-disable-line eqeqeq
     if (t.k !== 'ptr' && x.t.k === 'ptr' && !t.bool) fail(`${d} is ${art(t)}, but it is given a pointer`);
@@ -812,7 +1489,7 @@ export function runCTrace(src) {
     if (v.k === 'init') { initialize(b, o, t, v, d); return pos + 1; }
     if (isAggregate(t)) {
       if (t.k === 'arr' && v.k === 'str' && isCharT(t.of)) { copyString(b, o, t, v, d); return pos + 1; }
-      if (t.k === 'struct' && typeOf(v) === t) { initialize(b, o, t, v, d); return pos + 1; }
+      if (t.k === 'struct' && (() => { try { return typeOf(v) === t; } catch { return false; } })()) { initialize(b, o, t, v, d); return pos + 1; }
       const plain = { ...items[pos], desig: [] };
       return fill(b, o, t, [plain, ...items.slice(pos + 1)], 0, false, d) + pos;
     }
@@ -878,6 +1555,9 @@ export function runCTrace(src) {
       return { t: 'obj', id, cls: structName(t), entries: t.fields.map(f => [f.name, ser(b, o + f.off, f.type, ctx, depth + 1)]), more: 0 };
     }
     const v = peek(b, o, t);
+    if (t.k === 'stl') return v === UNINIT || !v ? prim('undef', '?') : stl.ser(v, ctx, depth, ser);
+    if (t.k === 'lambda') return { t: 'fn', s: 'lambda' };
+    if (t.k === 'iter') return v === UNINIT ? prim('undef', '?') : prim('ptr', stl.iterText(val(t, v)));
     if (t.k !== 'ptr') return primOf(t, v);
     return serPtr(v, t, ctx, depth);
   }
@@ -888,6 +1568,12 @@ export function runCTrace(src) {
     const b = v.b, to = t.to;
     if (b.freed || b.dead) return prim('undef', 'dangling');
     if (b.kind === 'literal' && (isCharT(to) || to.k === 'void')) return prim('str', JSON.stringify(literalText(v)));   // it never changes: just the text
+    if (b.owner && b.owner.elem) {                  // into a vector or string: &v[2], tagging that cell
+      const st = b.owner, k = v.o / st.elem.size, id = idOf('S' + st.uid);
+      if (st.string) return prim('ptr', '&' + (st.label || 's') + '[' + k + ']');
+      if (to.k === 'struct' && k < st.size) return ser(b, v.o, to, ctx, depth);
+      return { t: 'p', k: 'ptr', s: '&' + (st.label || '#' + id) + '[' + k + ']', to: id, at: k };
+    }
     // the memory pointed to is shown in place of the pointer (at the pointer's own depth: a pointer is not a level of nesting)
     if (to.k === 'struct' && to.done) {
       if (v.o >= 0 && v.o + to.size <= b.size) {
@@ -904,9 +1590,15 @@ export function runCTrace(src) {
   }
   const literalText = p => { const bytes = []; for (let o = p.o; o < p.b.size - 1; o++) bytes.push(p.b.cells.get(o).v & 255); return new TextDecoder().decode(new Uint8Array(bytes)); };
   /** One-line value for the call stack: 5, 'a', nums, &nums[2], NULL, "text", {…} */
-  function brief(b, t) {
-    if (t.k === 'struct') return '{…}';
-    const v = peek(b, 0, t);
+  function brief(b, t, o = 0) {
+    if (t.k === 'struct') {
+      if (t.pair) return '(' + brief(b, t.fields[0].type, o + t.fields[0].off) + ', ' + brief(b, t.fields[1].type, o + t.fields[1].off) + ')';
+      return '{…}';
+    }
+    const v = peek(b, o, t);
+    if (t.k === 'stl') return v && v !== UNINIT ? stl.brief(v) : '?';
+    if (t.k === 'lambda') return 'lambda';
+    if (t.k === 'iter') return v === UNINIT ? '?' : stl.iterText(val(t, v));
     if (t.k !== 'ptr') return primOf(t, v).s;
     if (v === null || v === UNINIT) return v === null ? 'NULL' : '?';
     if (v instanceof FnRef) return v.name;
@@ -918,10 +1610,14 @@ export function runCTrace(src) {
   function captureVars(f) {
     const ctx = { seen: new Set(), refs: new Set() };
     const named = new Map();
-    if (f) for (const s of f.scopes) for (const [n, r] of s.vars) { named.delete(n); named.set(n, r); }
-    const vars = [];
-    for (const [n, r] of named) vars.push({ name: n, scope: 'local', node: ser(r.b, 0, r.t, ctx, 0) });
-    for (const [n, r] of globals) if (!named.has(n) && !r.hidden) vars.push({ name: n, scope: 'global', node: ser(r.b, 0, r.t, ctx, 0) });
+    if (f) {
+      for (const sc of [...(f.outer || [])].reverse()) for (const [n, r] of sc.vars) if (!r.hidden) named.set(n, r);   // a lambda's captures
+      if (f.self) named.set('this', { b: f.selfBlock, t: ptr(f.self.cls) });
+      for (const s of f.scopes) for (const [n, r] of s.vars) { named.delete(n); named.set(n, r); }
+    }
+    const shown = [...[...named].map(([n, r]) => [n, r, 'local']), ...[...globals].filter(([n, r]) => !named.has(n) && !r.hidden).map(([n, r]) => [n, r, 'global'])];
+    if (cpp) for (const [n, r] of [...shown].reverse()) if (r.b && !r.b.dead) stl.label(r.b, at0(r), r.t, n);   // name each container after its variable
+    const vars = shown.map(([n, r, scope]) => ({ name: n, scope, node: ser(r.b, at0(r), r.t, ctx, 0) }));
     return { vars, refs: [...ctx.refs].sort((a, b) => a - b) };
   }
 
@@ -1089,8 +1785,154 @@ export function runCTrace(src) {
   } };
   const LIB = lib;
 
+  /* ---- the C++ standard library: containers (stl.js), algorithms, strings, streams ---- */
+  const stl = makeStl({
+    T, fail, typeName, alloc, store, load, copyMem, destroyAt, line: () => line, rval, lval, cstr: (p, d) => decode(cstr(p, d)),
+    construct, place, initialize, temp, tempOf, loadLv, val, Ptr, FnRef, stateAt, isCharT, equal, less, callFunctor, makeString,
+    makePair, lvVal, throwStd, literalOf, idOf, brief, stlType, ptr, text,
+  });
+  const MANIP = { k: 'stl', name: 'manip', args: [], size: 1, key: 'manip' };
+  const manip = (apply, name) => { const b = alloc('temp', 1, MANIP, name); b.cells.set(0, { kind: 'obj', size: 1, v: { uid: 0, apply, clone() { return this; }, destroy() {} }, t: MANIP }); return val(MANIP, new Ptr(b, 0)); };
+  const CPPLIB = {};
+  /** first, last: two pointers into one array or vector (as begin(), end(), a, a + n give) */
+  function range(e, k, name) {
+    const a = rval(e.args[k]), b = rval(e.args[k + 1]);
+    if (a.t.k === 'iter' || b.t.k === 'iter') fail(`${name}(): it works on arrays, vectors and strings here, not on a ${(a.t.k === 'iter' ? a : b).t.of.name}`);
+    if (a.t.k !== 'ptr' || b.t.k !== 'ptr') fail(`${name}(): its first two arguments must be iterators (v.begin(), v.end()) or pointers (a, a + n)`);
+    if (a.v === null || b.v === null || a.v.b !== b.v.b) fail(`${name}(): the two iterators must be into the same array or vector`);
+    const elemT = a.t.to, es = elemT.size, n = (b.v.o - a.v.o) / es;
+    if (n < 0) fail(`${name}(): the range ends before it begins`);
+    const at = i => ({ t: elemT, b: a.v.b, o: a.v.o + i * es, d: name + '()' });
+    return { a, n, elemT, es, at, ptrAt: i => val(a.t, new Ptr(a.v.b, a.v.o + i * es)) };
+  }
+  /** The comparison of a sort, max_element…: the call's argument k, or < */
+  function lessArg(e, k, elemT) {
+    if (!e.args[k]) return (x, y) => less(elemT, x, y);
+    const c = rval(e.args[k]);
+    if (c.t.k === 'stl' && (c.t.name === 'greater' || c.t.name === 'less')) return c.t.name === 'greater' ? (x, y) => less(elemT, y, x) : (x, y) => less(elemT, x, y);
+    return (x, y) => truthy(callValue(c, [argOfLv(x), argOfLv(y)], e));
+  }
+  const predArg = (e, k) => { const c = rval(e.args[k]); return lv => truthy(callValue(c, [argOfLv(lv)], e)); };
+  function mergeSort(items, lt) {
+    if (items.length < 2) return items;
+    const mid = items.length >> 1, l = mergeSort(items.slice(0, mid), lt), r = mergeSort(items.slice(mid), lt), out = [];
+    let i = 0, j = 0;
+    while (i < l.length && j < r.length) out.push(lt(r[j], l[i]) ? r[j++] : l[i++]);
+    return out.concat(l.slice(i), r.slice(j));
+  }
+  /** Moves a range's elements out, puts them back in the order `order` gives (sort, reverse…) */
+  function reorder(r, order) {
+    const tmp = [];
+    for (let k = 0; k < r.n; k++) { const b = alloc('temp', r.es, r.elemT, 'sorting'); copyMem(b, 0, r.a.v.b, r.at(k).o, r.es, 'sort', true); tmp.push(b); }
+    const lvOf = b => ({ t: r.elemT, b, o: 0, d: 'an element' });
+    order(tmp, lvOf).forEach((b, k) => copyMem(r.a.v.b, r.at(k).o, b, 0, r.es, 'sort', true));
+  }
+  CPPLIB.sort = CPPLIB.stable_sort = e => { const r = range(e, 0, 'sort'), lt = lessArg(e, 2, r.elemT); reorder(r, (tmp, lvOf) => mergeSort(tmp, (x, y) => lt(lvOf(x), lvOf(y)))); return val(T.void, undefined); };
+  CPPLIB.reverse = e => { const r = range(e, 0, 'reverse'); reorder(r, tmp => tmp.reverse()); return val(T.void, undefined); };
+  CPPLIB.swap = e => {
+    if (e.args.length !== 2) fail('swap() takes two values');
+    const a = lval(e.args[0]), b = lval(e.args[1]);
+    if (!sameType(a.t, b.t) && a.t !== b.t) fail(`swap(): ${text(e.args[0])} and ${text(e.args[1])} are different types`);
+    const t = alloc('temp', a.t.size, a.t, 'swap');
+    copyMem(t, 0, a.b, a.o, a.t.size, 'swap', true); copyMem(a.b, a.o, b.b, b.o, a.t.size, 'swap', true); copyMem(b.b, b.o, t, 0, a.t.size, 'swap', true);
+    return val(T.void, undefined);
+  };
+  const minMax = isMax => e => {
+    let items, lt;
+    if (e.args[0] && e.args[0].k === 'init') { items = e.args[0].items.map(it => rval(it.val)); lt = (x, y) => truthy(arith('<', x, y, 'min')); }
+    else { if (e.args.length < 2) fail((isMax ? 'max' : 'min') + '() takes two values (or a { … } list)'); items = [rval(e.args[0]), rval(e.args[1])]; lt = e.args[2] ? (() => { const c = rval(e.args[2]); return (x, y) => truthy(callValue(c, [argOfValue(x), argOfValue(y)], e)); })() : (x, y) => (isObj(x.t) ? less(x.t, locOf(x), locOf(y)) : truthy(arith('<', x, y, 'comparing'))); }
+    if (items.length > 1 && !isObj(items[0].t) && items.some(x => isObj(x.t))) fail('min()/max(): the values are of different types');
+    let best = items[0];
+    for (const x of items.slice(1)) if (isMax ? lt(best, x) : lt(x, best)) best = x;
+    if (isArith(best.t) && items.every(x => isArith(x.t))) { const t = items.map(x => x.t).reduce((p, q) => common(p, q)); return val(t, convert(best, t)); }
+    return best;
+  };
+  CPPLIB.max = minMax(true); CPPLIB.min = minMax(false);
+  CPPLIB.abs = e => { const x = rval(e.args[0]); if (!isArith(x.t)) fail('abs() needs a number'); const t = promote(x.t); const v = convert(x, t); return val(t, t.k === 'flt' ? Math.abs(v) : wrapInt(v < 0 ? -v : v, t)); };
+  CPPLIB.accumulate = e => {
+    const r = range(e, 0, 'accumulate');
+    let acc = rval(e.args[2]);
+    const op = e.args[3] ? rval(e.args[3]) : null;
+    for (let k = 0; k < r.n; k++) { const x = loadLv(r.at(k)); acc = op ? callValue(op, [argOfValue(acc), argOfValue(x)], e) : (isObj(acc.t) ? cppBin('+', acc, x, e) : convertTo(acc.t, arith('+', acc, x, 'accumulate'))); }
+    return acc;
+  };
+  const convertTo = (t, x) => val(t, convert(x, t));
+  const eqTo = (r, x) => lv => (isObj(r.elemT) ? equal(r.elemT, lv, locOf(x)) : truthy(arith('==', loadLv(lv), x, 'comparing')));
+  CPPLIB.count = e => { const r = range(e, 0, 'count'), eq = eqTo(r, rval(e.args[2])); let n = 0; for (let k = 0; k < r.n; k++) if (eq(r.at(k))) n++; return val(T.long, BigInt(n)); };
+  CPPLIB.count_if = e => { const r = range(e, 0, 'count_if'), p = predArg(e, 2); let n = 0; for (let k = 0; k < r.n; k++) if (p(r.at(k))) n++; return val(T.long, BigInt(n)); };
+  CPPLIB.find = e => { const r = range(e, 0, 'find'), eq = eqTo(r, rval(e.args[2])); for (let k = 0; k < r.n; k++) if (eq(r.at(k))) return r.ptrAt(k); return r.ptrAt(r.n); };
+  CPPLIB.find_if = e => { const r = range(e, 0, 'find_if'), p = predArg(e, 2); for (let k = 0; k < r.n; k++) if (p(r.at(k))) return r.ptrAt(k); return r.ptrAt(r.n); };
+  const quant = (name, want) => e => { const r = range(e, 0, name), p = predArg(e, 2); for (let k = 0; k < r.n; k++) if (p(r.at(k)) !== want.stop) return val(T.bool, want.found); return val(T.bool, want.none); };
+  CPPLIB.all_of = quant('all_of', { stop: true, found: 0, none: 1 }); CPPLIB.any_of = quant('any_of', { stop: false, found: 1, none: 0 }); CPPLIB.none_of = quant('none_of', { stop: false, found: 0, none: 1 });
+  CPPLIB.fill = e => { const r = range(e, 0, 'fill'), x = rval(e.args[2]); for (let k = 0; k < r.n; k++) setObj(r.at(k), x, 'fill', false); return val(T.void, undefined); };
+  CPPLIB.iota = e => { const r = range(e, 0, 'iota'); let x = rval(e.args[2]); for (let k = 0; k < r.n; k++) { setObj(r.at(k), x, 'iota', false); x = arith('+', x, ONE, 'iota'); } return val(T.void, undefined); };
+  const extreme = isMax => e => {
+    const r = range(e, 0, isMax ? 'max_element' : 'min_element'), lt = lessArg(e, 2, r.elemT);
+    let best = 0;
+    for (let k = 1; k < r.n; k++) if (isMax ? lt(r.at(best), r.at(k)) : lt(r.at(k), r.at(best))) best = k;
+    return r.ptrAt(r.n ? best : 0);
+  };
+  CPPLIB.max_element = extreme(true); CPPLIB.min_element = extreme(false);
+  const bound = (name, upper) => e => {
+    const r = range(e, 0, name), key = tempFromValue(r.elemT, rval(e.args[2]), name), lt = lessArg(e, 3, r.elemT);
+    let lo = 0, hi = r.n;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (upper ? !lt(key, r.at(mid)) : lt(r.at(mid), key)) lo = mid + 1; else hi = mid; }
+    return name === 'binary_search' ? val(T.bool, lo < r.n && !lt(key, r.at(lo)) ? 1 : 0) : r.ptrAt(lo);
+  };
+  CPPLIB.lower_bound = bound('lower_bound', false); CPPLIB.upper_bound = bound('upper_bound', true); CPPLIB.binary_search = bound('binary_search', false);
+  CPPLIB.unique = e => {
+    const r = range(e, 0, 'unique');
+    let w = 0;
+    for (let k = 0; k < r.n; k++) if (!w || !equal(r.elemT, r.at(w - 1), r.at(k))) { if (w !== k) copyMem(r.a.v.b, r.at(w).o, r.a.v.b, r.at(k).o, r.es, 'unique'); w++; }
+    return r.ptrAt(w);
+  };
+  const permute = (name, next) => e => {
+    const r = range(e, 0, name), lt = (x, y) => (next ? less(r.elemT, x, y) : less(r.elemT, y, x));
+    let i = r.n - 2;
+    while (i >= 0 && !lt(r.at(i), r.at(i + 1))) i--;
+    if (i < 0) { reorder(r, tmp => tmp.reverse()); return val(T.bool, 0); }
+    let j = r.n - 1;
+    while (!lt(r.at(i), r.at(j))) j--;
+    reorder(r, tmp => { [tmp[i], tmp[j]] = [tmp[j], tmp[i]]; return tmp.slice(0, i + 1).concat(tmp.slice(i + 1).reverse()); });
+    return val(T.bool, 1);
+  };
+  CPPLIB.next_permutation = permute('next_permutation', true); CPPLIB.prev_permutation = permute('prev_permutation', false);
+  CPPLIB.distance = e => { const a = rval(e.args[0]), b = rval(e.args[1]); return arith('-', b, a, 'distance'); };
+  CPPLIB.to_string = e => { const x = rval(e.args[0]); if (!isArith(x.t)) fail(`to_string() needs a number, not ${art(x.t)}`); return makeString(x.t.k === 'flt' ? fixed(x.v, 6) : String(x.v)); };
+  const sto = (name, t, parse) => { CPPLIB[name] = e => {
+    const s = stl.textOf(rval(e.args[0])), v = parse(s.trim());
+    if (Number.isNaN(Number(v)) || /^$|^[^-+0-9.]/.test(s.trim())) throwStd('invalid_argument', `${name}: "${s}" is not a number`);
+    return val(t, t.k === 'flt' ? Number(v) : wrapInt(BigInt(v), t));
+  }; };
+  sto('stoi', T.int, s => parseInt(s, 10)); sto('stol', T.long, s => parseInt(s, 10)); sto('stoll', T.llong, s => parseInt(s, 10));
+  sto('stoul', T.ulong, s => parseInt(s, 10)); sto('stod', T.double, s => parseFloat(s)); sto('stof', T.float, s => parseFloat(s));
+  const gcd = (a, b) => { a = a < 0n ? -a : a; b = b < 0n ? -b : b; while (b) [a, b] = [b, a % b]; return a; };
+  CPPLIB.gcd = CPPLIB.__gcd = e => { const a = rval(e.args[0]), b = rval(e.args[1]), t = common(a.t, b.t); return val(t, wrapInt(gcd(BigInt(a.v), BigInt(b.v)), t)); };
+  CPPLIB.lcm = e => { const a = rval(e.args[0]), b = rval(e.args[1]), t = common(a.t, b.t), x = BigInt(a.v), y = BigInt(b.v); return val(t, wrapInt(x && y ? (x / gcd(x, y)) * y : 0n, t)); };
+  CPPLIB.make_pair = e => { if (e.args.length !== 2) fail('make_pair() takes two values'); const a = rval(e.args[0]), b = rval(e.args[1]); return makePair(a.lv ? loadLv(a.lv) : val(decayT(a.t), a.v), b.lv ? loadLv(b.lv) : val(decayT(b.t), b.v)); };
+  CPPLIB.setw = e => { const n = Number(rval(e.args[0]).v); return manip(st => { st.width = n; }, 'setw'); };
+  CPPLIB.setprecision = e => { const n = Number(rval(e.args[0]).v); return manip(st => { st.precision = n; }, 'setprecision'); };
+  CPPLIB.setfill = e => { const c = String.fromCharCode(Number(rval(e.args[0]).v)); return manip(st => { st.fill = c; }, 'setfill'); };
+  CPPLIB.getline = () => fail('getline(): this page has no keyboard input (give the values in the code instead)');
+
+  /** cout, cerr, endl, fixed…, string::npos: hidden globals */
+  function streams() {
+    const hide = (name, t, v) => { const b = alloc('global', t.size, t, name); b.cells.set(0, { kind: 'obj', size: t.size, v, t }); globals.set(name, { b, t, hidden: true }); };
+    const os = stlType('ostream');
+    hide('cout', os, stl.create(os)); const err = stl.create(os); err.err = true; hide('cerr', os, err); hide('clog', os, err);
+    hide('cin', stlType('istream'), { uid: 0, clone() { return this; }, destroy() {} });
+    const m = (name, apply) => hide(name, MANIP, { uid: 0, apply, clone() { return this; }, destroy() {} });
+    m('endl', st => write('\n', st.err)); m('flush', () => {}); m('ws', () => {});
+    m('fixed', st => { st.fixed = true; }); m('scientific', () => {}); m('defaultfloat', st => { st.fixed = false; });
+    m('boolalpha', st => { st.boolalpha = true; }); m('noboolalpha', st => { st.boolalpha = false; });
+    const npos = alloc('global', 8, T.ulong, 'string::npos');
+    npos.cells.set(0, { kind: 'int', size: 8, v: 18446744073709551615n, t: T.ulong });
+    globals.set('string::npos', { b: npos, t: T.ulong, hidden: true });
+  }
+
   /* ---- run: globals first, then main() ---- */
   let error = null;
+  const overloads = new Map(), classes = new Map();
   const fileT = ptr(prog.structs.get('FILE'));
   for (const n of ['stdout', 'stderr']) {          // fprintf(stderr, …) prints in the Output panel's error colour
     const b = alloc('global', 0, null, n);
@@ -1101,9 +1943,22 @@ export function runCTrace(src) {
   try {
     for (const it of prog.items) {
       if (it.k === 'func') {
-        if (funcs.has(it.name)) fail(`${it.name}() is defined twice (line ${funcs.get(it.name).line} and line ${it.line})`);
-        funcs.set(it.name, it);
+        const same = (overloads.get(it.name) || []).find(dd => dd.params.length === it.params.length && dd.params.every((p, k) => sameType(p.type, it.params[k].type)));
+        if (same || (funcs.has(it.name) && !cpp)) fail(`${it.name}() is defined twice (line ${(same || funcs.get(it.name)).line} and line ${it.line})`);
+        if (!funcs.has(it.name)) funcs.set(it.name, it);
+        overloads.set(it.name, [...(overloads.get(it.name) || []), it]);
         protos.delete(it.name);
+      }
+    }
+    if (cpp) {
+      streams();
+      for (const sv of prog.structs.values()) if (sv.cls && sv.tag) classes.set(sv.tag, sv);
+      for (const cls of classes.values()) for (const [n, st] of cls.statics) {   // static members: one variable each, Counter::count
+        const b = alloc('global', st.type.size, st.type, cls.tag + '::' + n);
+        zeroFill(b, 0, st.type);
+        line = st.line;
+        if (st.init) initialize(b, 0, st.type, st.init, cls.tag + '::' + n); else defaultInit(b, 0, st.type, n);
+        globals.set(cls.tag + '::' + n, { b, t: st.type });
       }
     }
     for (const it of prog.items) {
@@ -1117,7 +1972,7 @@ export function runCTrace(src) {
       }
     }
     const main = funcs.get('main');
-    if (!main) throw Object.assign(new Error('there is no main() function: a C program starts in int main(void) { … }'), { noMain: true });
+    if (!main) throw Object.assign(new Error(cpp ? 'there is no main() function: a C++ program starts in int main() { … }' : 'there is no main() function: a C program starts in int main(void) { … }'), { noMain: true });
     const mainArgs = main.params.length ? (() => {
       const argv = alloc('global', 16, arr(ptr(T.char), 2), 'argv');
       store(argv, 0, ptr(T.char), new Ptr(literal({ codes: [...new TextEncoder().encode('program')] }), 0), 'argv');
@@ -1129,6 +1984,7 @@ export function runCTrace(src) {
     if (e instanceof StopRun) error = { msg: e.message, soft: true };
     else if (e instanceof ExitRun) error = e.message === '0' ? null : { msg: `The program called exit(${e.message}).`, soft: true };
     else if (e instanceof CError) error = { msg: `Error on line ${line}: ${e.message}` };
+    else if (e instanceof CThrow) { const w = whatOf(e); error = { msg: `Error on line ${line}: the program threw ${EXCEPTIONS.has(e.tname) ? 'std::' : ''}${e.tname}${w ? ' (' + w + ')' : ''} and nothing caught it` }; }
     else if (e && e.noMain) throw new Error(e.message);
     else if (e instanceof RangeError) error = { msg: `Error on line ${line}: the program ran out of memory or stack (${e.message})` };
     else throw e;

@@ -2,7 +2,7 @@
  * The "?" next to the Variables heading: a short guide, for someone new to the app, to the three views and to every
  * shape of data the Graph view can draw. A native popover (top layer, so the panel's overflow cannot clip it; Escape
  * and an outside click close it), placed under its button. Written for the language picked in the header; every
- * example here is checked by tests (tests/components.test.jsx for JavaScript, tests/python.test.js, lua.test.js and ruby.test.js for the others).
+ * example here is checked by tests (tests/components.test.jsx for JavaScript, tests/python.test.js, lua.test.js, ruby.test.js, php.test.js, c.test.js and cpp.test.js for the others).
  */
 import { useEffect, useRef } from 'react';
 
@@ -137,6 +137,73 @@ export const HELP = {
     arrowObject: '{ to: "B", w: 4 }', pair: '[from, to]', tuples: ['[1, 0, 3]', '[0, 3, 1]', '[0, 1, 3]'],
     nodeData: '{ id: 1, weight: 3 }', arrowData: '{ to: "B", start: 0, end: 3 }', age: '{ age: 1 }', fruits: '{ fruits: ["apple"] }',
   },
+  php: {
+    values: 'Every array and object',
+    memory: 'each array or object is a box',
+    containers: 'an array (or a set written as [$name => true])',
+    shapes: [
+      ['A list of neighbours for each name', [
+        ["['A' => ['B', 'C'], 'B' => ['C'], 'C' => []]", "A points to B and C, B points to C. A set written as ['B' => true] works too."],
+        ["['A' => ['B' => 4, 'C' => 2], 'B' => ['C' => 1]]", "The same, with a number (weight) on each arrow. [['B', 4]] pairs work too."],
+        ["['A' => [['to' => 'B', 'start' => 0, 'end' => 3]], 'B' => []]", 'Each arrow written as an array; its other keys are written on the arrow.'],
+      ]],
+      ['Objects inside objects (arrays, or objects of your own classes)', [
+        ["['val' => 1, 'next' => ['val' => 2, 'next' => null]]", 'A linked list.'],
+        ["['val' => 1, 'left' => ['val' => 2], 'right' => ['val' => 3]]", 'A binary tree.'],
+        ["['name' => 'a', 'children' => [['name' => 'b'], ['name' => 'c']]]", 'A tree.'],
+        ["$a = new Node('A', [$b, $c])", 'Objects of a class (here with name and nbrs properties) that list other objects: any graph.',
+          "<?php\nclass Node { public function __construct(public string $name, public array $nbrs = []) {} }\n$b = new Node('B'); $c = new Node('C');\n$a = new Node('A', [$b, $c]);"],
+      ]],
+      ['Arrays that name each other', [
+        ["['a' => ['next' => ['b']], 'b' => ['next' => []]]", 'By key.'],
+        ["[['id' => 'test', 'deps' => ['build']], ['id' => 'build', 'deps' => []]]", 'By an id, key or name key.'],
+        ["[['v' => 'a', 'out' => [1]], ['v' => 'b', 'out' => []]]", 'By position in the array.'],
+      ]],
+      ['Lists of numbers (the variable\'s name decides)', [
+        ['$adj = [[1, 2], [2], []]', 'The neighbours of node 0, 1, 2… The name must contain adj, graph, neigh or tree, or be $g.'],
+        ['$adj = [[[0, 3, 1], [1, 5, 2]], [[4, 7, 2]], []]', 'The same with arrays of values: the node is the first position where every array holds a node number (here the last). One other number is a weight; more are written on the arrow.'],
+        ['$edges = [[0, 1], [1, 2]]', 'One [from, to] pair per arrow. The name must contain edge.'],
+      ]],
+    ],
+    arrowObject: "['to' => 'B', 'w' => 4]", pair: '[from, to]', tuples: ['[1, 0, 3]', '[0, 3, 1]', '[0, 1, 3]'],
+    nodeData: "['id' => 1, 'weight' => 3]", arrowData: "['to' => 'B', 'start' => 0, 'end' => 3]", age: "['age' => 1]", fruits: "['fruits' => ['apple']]",
+  },
+  cpp: {
+    values: 'Every array, vector, map, set, string, struct and pointer',
+    memory: 'each array, container or object is a box, and a pointer is an arrow to what it points at',
+    containers: 'a vector, set or map (or a vector<bool> of flags, one per node)',
+    names: { keyed: 'Neighbour lists (in a map)', nested: 'Objects that point at objects', named: 'Objects that name each other' },
+    shapes: [
+      ['A list of neighbours for each name (in a map)', [
+        ['map<string, vector<string>> g = {{"A", {"B", "C"}}, {"B", {"C"}}, {"C", {}}};', 'A points to B and C, B points to C. Sets, or char or int keys, work too.', null, 'g'],
+        ["map<char, map<char, int>> g = {{'A', {{'B', 4}, {'C', 2}}}, {'B', {{'C', 1}}}};", 'The same, with a number (weight) on each arrow. vector<pair<char, int>> pairs work too.', null, 'g'],
+        ['map<string, vector<Edge>> g;  // struct Edge { string to; int start, end; };', 'Each arrow written as a struct; its other fields are written on the arrow.',
+          'struct Edge { string to; int start, end; };\nint main() {\n    map<string, vector<Edge>> g = {{"A", {{"B", 0, 3}}}, {"B", {}}};\n}', 'g'],
+      ]],
+      ['Objects that point at each other (pointers, or new)', [
+        ['struct Node { int val; Node* next; };', 'A linked list: next points at the next node, and nullptr ends it.',
+          'struct Node { int val; Node* next; };\nint main() {\n    Node* list = new Node{1, new Node{2, nullptr}};\n}', 'list'],
+        ['struct Tree { int val; Tree *left, *right; };', 'A binary tree.',
+          'struct Tree { int val; Tree *left, *right; };\nint main() {\n    Tree* root = new Tree{1, new Tree{2, nullptr, nullptr}, new Tree{3, nullptr, nullptr}};\n}', 'root'],
+        ['struct Vertex { char name; vector<Vertex*> nbrs; };', 'Objects that hold pointers to other objects: any graph.',
+          "struct Vertex { char name; vector<Vertex*> nbrs; };\nint main() {\n    Vertex b{'B'}, c{'C'};\n    Vertex a{'A', {&b, &c}};\n}", 'a'],
+      ]],
+      ['Objects that name each other', [
+        ['vector<Job> jobs = {{"test", {"build"}}, {"build", {}}};  // struct Job { string id; vector<string> deps; };', 'By an id, key or name field.',
+          'struct Job { string id; vector<string> deps; };\nint main() {\n    vector<Job> jobs = {{"test", {"build"}}, {"build", {}}};\n}', 'jobs'],
+        ["vector<Item> items = {{'a', {1}}, {'b', {}}};  // struct Item { char v; vector<int> out; };", 'By position in the vector.',
+          "struct Item { char v; vector<int> out; };\nint main() {\n    vector<Item> items = {{'a', {1}}, {'b', {}}};\n}", 'items'],
+      ]],
+      ['Lists of numbers (the variable\'s name decides)', [
+        ['vector<vector<int>> adj = {{1, 2}, {2}, {}};', 'The neighbours of node 0, 1, 2… The name must contain adj, graph, neigh or tree, or be g.', null, 'adj'],
+        ['vector<vector<pair<int, int>>> adj = {{{1, 4}, {2, 7}}, {{2, 1}}, {}};', 'The same with (node, weight) pairs, or longer lists of values: the node is the first position where every one holds a node number. One other number is a weight; more are written on the arrow.', null, 'adj'],
+        ['vector<vector<int>> graph = {{0, 1, 1}, {0, 0, 1}, {0, 0, 0}};', 'An adjacency matrix: graph[a][b] is 1 (or a weight) when a points to b.', null, 'graph'],
+        ['vector<pair<int, int>> edges = {{0, 1}, {1, 2}};', 'One {from, to} pair per arrow. The name must contain edge.', null, 'edges'],
+      ]],
+    ],
+    arrowObject: 'Edge{"B", 4} (to, w)', pair: '{from, to}', tuples: ['{1, 0, 3}', '{0, 3, 1}', '{0, 1, 3}'],
+    nodeData: 'Task{.id = 1, .weight = 3}', arrowData: 'Edge{.to = "B", .start = 0, .end = 3}', age: 'struct { int age; }', fruits: 'vector<string>{"apple"}',
+  },
   c: {
     values: 'Every array, struct and pointer',
     memory: 'each array or struct is a box, and a pointer is an arrow to the memory it points at',
@@ -171,7 +238,7 @@ export const SHAPES = HELP.javascript.shapes;
 const GROUPS = ['keyed', 'nested', 'named', 'numbers'];
 const NAMES = { keyed: 'Neighbour lists', nested: 'Objects inside objects', named: 'Objects that name each other', numbers: 'Lists of numbers' };
 
-/** @param lang  'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'c': which language the guide's examples are written in (TypeScript uses JavaScript's) */
+/** @param lang  'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'php' | 'c' | 'cpp': which language the guide's examples are written in (TypeScript uses JavaScript's) */
 export function GraphHelp({ lang = 'javascript' }) {
   const h = HELP[lang] || HELP.javascript;
   const groups = h.groups || GROUPS, no = id => groups.indexOf(id) + 1, has = id => groups.includes(id);
