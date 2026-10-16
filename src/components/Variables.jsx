@@ -2,21 +2,25 @@
  * One card per variable. Each card has its own switch, and each name always means the same picture:
  *   Memory  how the values are stored (nesting, shared objects, cycles), for any array, object, Map or Set; the default
  *   Boxes   the values
+ *   Grid    rows and columns, offered for an array of arrays of plain values (graph/grid.js); shown first for one
  *   Graph   nodes and edges, offered only when the value is recognised as a graph (see GraphHelp.jsx)
  */
 import { useMemo } from 'react';
 import { buildMemoryView } from '../graph/memory.js';
 import { buildSemanticView } from '../graph/semantic-view.js';
 import { semanticGraph } from '../graph/semantic.js';
+import { changedCells, gridMarkers, gridOf } from '../graph/grid.js';
 import { isCont, markersFor } from '../model.js';
 import { Graph } from './Graph.jsx';
+import { GridView } from './GridView.jsx';
 import { StepContext, Value } from './Values.jsx';
 
 /** How an array, object, Map or Set is shown until its switch is used. */
 export const DEFAULT_VIEW = 'memory';
 
-function ViewSwitch({ name, mode, offerGraph, onChange }) {
+function ViewSwitch({ name, mode, offerGraph, offerGrid, onChange }) {
   const opts = [['memory', 'Memory', 'How the values are stored: nesting, shared objects and cycles'], ['boxes', 'Boxes', 'The values, as boxes']];
+  if (offerGrid) opts.push(['grid', 'Grid', 'Rows and columns, like a table']);
   if (offerGraph) opts.push(['graph', 'Graph', 'Nodes and edges found in the keys and values (the ? next to Variables lists the shapes)']);
   return (
     <div className="vseg" role="group" aria-label={'How to show ' + name}>
@@ -38,18 +42,26 @@ function pickView(step, prev, v, wanted, sem, showPtrs) {
   return null;
 }
 
-function VarCard({ v, step, prev, stepNo, wanted, onView, showPtrs }) {
+function VarCard({ v, step, prev, stepNo, chosen, onView, showPtrs }) {
   const diff = !!prev;
   const pv = prev && prev.vars.find(x => x.name === v.name);
   const canGraph = isCont(v.node) || v.node.t === 'ref' || v.node.t === 'trunc';
+  const grid = useMemo(() => (canGraph ? gridOf(step, v.name) : null), [canGraph, step, v.name]);
+  // a grid is shown as one until the switch says otherwise; a Grid choice waits out a step where it is not one
+  const wanted = chosen === 'grid' && !grid ? DEFAULT_VIEW : chosen || (grid ? 'grid' : DEFAULT_VIEW);
   const sem = useMemo(() => (canGraph ? semanticGraph(step, v.name) : null), [canGraph, step, v.name]);
   const view = useMemo(
-    () => (canGraph ? pickView(step, prev, v, wanted, sem, showPtrs) : null),
+    () => (canGraph && wanted !== 'grid' ? pickView(step, prev, v, wanted, sem, showPtrs) : null),
     [canGraph, step, prev, v, wanted, sem, showPtrs],
   );
   // a Graph choice survives a step where the value is not a graph (a list shrunk to one node): boxes, with a note
   const lostGraph = canGraph && wanted === 'graph' && !sem;
-  const mode = view || lostGraph ? wanted : 'boxes';
+  const mode = view || lostGraph || wanted === 'grid' ? wanted : 'boxes';
+  const gridParts = useMemo(() => {
+    if (mode !== 'grid') return null;
+    const pg = prev ? gridOf(prev, v.name) : null;
+    return { changed: changedCells(grid, pg && pg.id === grid.id ? pg : null), markers: showPtrs ? gridMarkers(grid, step.vars, v.name) : null };
+  }, [mode, grid, prev, step, v.name, showPtrs]);
   const changed = (diff && (!pv || JSON.stringify(pv.node) !== JSON.stringify(v.node))) || !!(view && view.changed);
   const markers = !view && showPtrs && v.node.t === 'arr' ? markersFor(v.node, step.vars, v.name) : null;
 
@@ -58,12 +70,13 @@ function VarCard({ v, step, prev, stepNo, wanted, onView, showPtrs }) {
       <div className="vname">
         {v.name}
         {v.scope !== 'local' && step.stack.length > 0 && <small>{v.scope}</small>}
-        {canGraph && <ViewSwitch name={v.name} mode={mode} offerGraph={!!sem || lostGraph} onChange={onView} />}
+        {canGraph && <ViewSwitch name={v.name} mode={mode} offerGraph={!!sem || lostGraph} offerGrid={!!grid} onChange={onView} />}
       </div>
       {/* keyed by step so the "just changed" animation plays again on every step */}
       <div className="vval" key={stepNo}>
         {lostGraph && <p className="vnote">Not a graph at this step, so the values are shown.</p>}
-        {view ? <Graph caption={view.caption} view={view} label={(mode === 'graph' ? 'Graph of ' : 'Memory layout of ') + v.name} />
+        {gridParts ? <GridView grid={grid} name={v.name} {...gridParts} />
+          : view ? <Graph caption={view.caption} view={view} label={(mode === 'graph' ? 'Graph of ' : 'Memory layout of ') + v.name} />
           : <Value node={v.node} prev={pv ? pv.node : undefined} markers={markers} />}
       </div>
     </div>
@@ -71,7 +84,7 @@ function VarCard({ v, step, prev, stepNo, wanted, onView, showPtrs }) {
 }
 
 /**
- * @param views    maps a variable name to 'boxes', 'graph' or 'memory' (absent means DEFAULT_VIEW)
+ * @param views    maps a variable name to 'boxes', 'grid', 'graph' or 'memory' (absent: Grid for a grid, else DEFAULT_VIEW)
  * @param onView   called as onView(name, mode) when a switch is clicked
  */
 export function Variables({ step, prev, stepNo, views, onView, showPtrs }) {
@@ -82,7 +95,7 @@ export function Variables({ step, prev, stepNo, views, onView, showPtrs }) {
         {!step.vars.length && <p className="empty">No variables declared yet.</p>}
         {step.vars.map(v => (
           <VarCard key={v.name} v={v} step={step} prev={prev} stepNo={stepNo}
-            wanted={views[v.name] || DEFAULT_VIEW} onView={onView} showPtrs={showPtrs} />
+            chosen={views[v.name]} onView={onView} showPtrs={showPtrs} />
         ))}
       </div>
     </StepContext.Provider>

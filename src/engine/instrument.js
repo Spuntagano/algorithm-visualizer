@@ -57,6 +57,7 @@ export function instrument(code) {
   const ins = []; let order = 0;
   const add = (pos, text, prio = 1) => ins.push({ pos, text, prio, order: order++ });
   let topScope = null;
+  let tracked = false;   // inside a function that has a frame: its returns report their value (__ret)
 
   const snapText = (line, scopes, fd) => {
     const m = new Map();
@@ -110,10 +111,12 @@ export function instrument(code) {
             const ents = [...params].map(p => '[' + JSON.stringify(p) + ',()=>' + p + ']').join(',');
             add(body.start + 1, '__enter(' + JSON.stringify(fname) + ',[' + ents + ']);try{');
           }
+          const outer = tracked; tracked = track;
           list(body.body, sc, nfd);
           body.body.forEach(s => walk(s, sc, nfd));
+          tracked = outer;
           if (track) add(body.end - 1, '}finally{__exit();}', 0);
-        } else walk(body, sc, nfd);
+        } else { const outer = tracked; tracked = false; walk(body, sc, nfd); tracked = outer; }
         return;
       }
       case 'BlockStatement': {
@@ -134,6 +137,10 @@ export function instrument(code) {
         wrap(n.body, sc, fd);
         return;
       }
+      case 'ReturnStatement':
+        if (n.argument && tracked) { add(n.argument.start, '__ret(', 2); add(n.argument.end, ')', 0); }
+        walk(n.argument, scopes, fd);
+        return;
       case 'WhileStatement': walk(n.test, scopes, fd); wrap(n.body, scopes, fd); return;
       case 'DoWhileStatement': wrap(n.body, scopes, fd); walk(n.test, scopes, fd); return;
       case 'IfStatement':

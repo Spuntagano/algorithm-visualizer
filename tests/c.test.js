@@ -27,7 +27,7 @@ test('a snapshot before every statement and loop test, with the call stack, loca
   assert.deepEqual(r.steps.map(s => s.line), [8, 4, 5, 9, 9, 9, 10, 11, -1],
     'the for line before each test (a body on the same line takes no step of its own), then the end');
   const inside = r.steps[2];
-  assert.deepEqual(inside.stack, [{ name: 'main', args: '' }, { name: 'add', args: 'x=5' }]);
+  assert.deepEqual(inside.stack, [{ name: 'main', args: '', id: 1 }, { name: 'add', args: 'x=5', id: 2 }]);
   assert.deepEqual(inside.vars.map(v => [v.name, v.scope, v.node.s]), [['x', 'local', '5'], ['y', 'local', '15'], ['base', 'global', '10']]);
   assert.ok(!r.steps[1].vars.some(v => v.name === 'y'), 'a variable appears once its declaration has run');
   assert.deepEqual(r.steps[5].vars.map(v => v.name), ['r', 'i', 'base'], 'the loop variable lives in the loop');

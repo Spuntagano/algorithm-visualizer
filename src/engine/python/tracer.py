@@ -130,10 +130,13 @@ def _shown(name, v):
 
 
 def trace(src):
-    """Runs src and returns {'steps', 'logs', 'error'}. Raises SyntaxError if it does not compile."""
+    """Runs src and returns {'steps', 'logs', 'error', 'rets'}: every stack frame has an 'id', and 'rets' maps it to a
+    preview of what the call returned. Raises SyntaxError if it does not compile."""
     code = compile(src, FILE, 'exec')
     ser = Serializer()
     steps, logs, stack = [], [], []
+    rets, calls = {}, [0]
+    raising = set()                                                      # ids of frames an exception is leaving
     g = {'__name__': '__main__', '__builtins__': builtins}
 
     def _print(*args, sep=' ', end='\n', file=None, flush=False):
@@ -163,15 +166,22 @@ def trace(src):
             return None                                                  # never step into the standard library
         if event == 'call' and frame.f_code.co_name != '<module>':
             args = ', '.join(f'{n}={brief(frame.f_locals.get(n))}' for n in frame.f_code.co_varnames[:frame.f_code.co_argcount])
-            stack.append({'name': frame.f_code.co_name, 'args': _clip(args, 70)})
+            calls[0] += 1
+            stack.append({'name': frame.f_code.co_name, 'args': _clip(args, 70), 'id': calls[0]})
             if len(stack) > MAX_CALLS:
                 raise StopRun(f'Trace stopped: more than {MAX_CALLS} nested calls.')
+        elif event == 'exception' and frame.f_code.co_name != '<module>' and stack:
+            raising.add(stack[-1]['id'])
         elif event == 'line':
+            if stack and frame.f_code.co_name != '<module>':
+                raising.discard(stack[-1]['id'])                         # the exception was caught in this frame
             if len(steps) >= MAX_STEPS:
                 raise StopRun(f'Trace stopped after {MAX_STEPS} steps (possible infinite loop).')
             snapshot(frame, frame.f_lineno)
         elif event == 'return' and frame.f_code.co_name != '<module>' and stack:   # also when an exception leaves it
-            stack.pop()
+            f = stack.pop()
+            if f['id'] not in raising:
+                rets[str(f['id'])] = brief(arg)
         return tracer
 
     error = None
@@ -186,7 +196,7 @@ def trace(src):
         sys.settrace(None)
     del stack[:]
     snapshot(None, -1)                                                  # the end: what is left at the top level
-    return {'steps': steps, 'logs': logs, 'error': error}
+    return {'steps': steps, 'logs': logs, 'error': error, 'rets': rets}
 
 
 def trace_json(src):

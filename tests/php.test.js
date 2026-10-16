@@ -9,6 +9,8 @@ import { EXAMPLES, PHP_EXAMPLES } from '../src/examples.js';
 import { HELP } from '../src/components/GraphHelp.jsx';
 import { markersFor } from '../src/model.js';
 import { semanticGraph } from '../src/graph/semantic.js';
+import { callTree } from '../src/graph/calltree.js';
+import { gridMarkers, gridOf } from '../src/graph/grid.js';
 import { buildSemanticView } from '../src/graph/semantic-view.js';
 
 const require = createRequire(import.meta.url);
@@ -170,4 +172,24 @@ test('every PHP example in the graph help really is drawn as a graph', async () 
     assert.ok(semanticGraph(r.steps.at(-1), name), 'not a graph: ' + code);
   }
   for (const code of [HELP.php.age, HELP.php.fruits]) assert.equal(semanticGraph(await last('<?php $x = ' + code + ';'), '$x'), null, code + ' is data');
+});
+
+test('call tree: PHP gives no call ids, so calls are told apart by their stacks; a 2D array is a grid', async () => {
+  const r = await trace('<?php\nfunction fib(int $n): int { if ($n < 2) return $n; return fib($n - 1) + fib($n - 2); }\n$g = [[1, 2], [3, 4]];\necho fib(3);');
+  const tree = callTree(r.steps, r.rets || {});
+  assert.deepEqual(tree.nodes.map(n => n.label + (n.ret != null ? '=' + n.ret : '')), ['fib(3)', 'fib(2)', 'fib(1)', 'fib(0)', 'fib(1)']);
+  assert.ok(tree.recursive);
+  const g = gridOf(r.steps.at(-1), '$g');
+  assert.ok(g, 'a grid');
+  assert.deepEqual(g.rows.map(row => row.map(c => c.s).join(' ')), ['1 2', '3 4']);
+});
+
+test('the Longest common subsequence example fills its table as a grid', async () => {
+  const r = await trace(PHP_EXAMPLES['Longest common subsequence']);
+  assert.equal(r.error, null);
+  assert.deepEqual(r.logs.map(l => l.s.trim()).filter(Boolean), ['3']);
+  const step = r.steps.findLast(s => s.vars.some(v => v.name === '$dp'));
+  assert.deepEqual(gridOf(step, '$dp').rows.map(row => row.map(c => c.s).join('')), ['000000', '000011', '011112', '011222', '011223']);
+  const mid = r.steps.find(s => gridOf(s, '$dp') && s.vars.some(v => v.name === '$j'));
+  assert.deepEqual(gridMarkers(gridOf(mid, '$dp'), mid.vars, '$dp').cell, [1, 1], 'i and j meet at the first cell worked out');
 });

@@ -37,6 +37,7 @@ const FOUNDATION = new Set(['sqrt', 'pow', 'floor', 'ceil', 'round', 'log', 'log
 export function runSwiftTrace(src) {
   const prog = parseSwift(src);
   const steps = [], logs = [], stack = [], frames = [];
+  const rets = {}; let calls = 0;   // every call's frame gets an id; rets: what the call returned, by that id
   let line = 0, stopped = null, outBuf = '';
   const fail = (msg, l) => { if (l) line = l; throw new SwError(msg); };
   const trap = msg => { throw new Trap(msg); };
@@ -1335,7 +1336,8 @@ export function runSwiftTrace(src) {
     const shown = ps.filter(p => p.name && scope.has(p.name)).map(p => p.name + '=' + brief(scope.get(p.name).v));
     if (isClosure && fn.dollar !== undefined) for (let k = 0; k <= fn.dollar; k++) if (scope.has('$' + k)) shown.push('$' + k + '=' + brief(scope.get('$' + k).v));
     const visible = !fn.accessor || fn.body;
-    if (visible) stack.push({ name: label, args: shown.join(', ').slice(0, 70) });
+    const id = visible ? ++calls : 0;
+    if (visible) stack.push({ name: label, args: shown.join(', ').slice(0, 70), id });
     frames.push(fr);
     const outerTry = inTry;
     inTry = 0;
@@ -1351,9 +1353,9 @@ export function runSwiftTrace(src) {
           fail(`missing return in ${fn.closure ? 'closure' : fn.T ? (fn.accessor ? 'getter' : fn.isStatic ? 'static method' : 'instance method') : fn.local ? 'local function' : 'global function'} expected to return '${typeText(fn.ret)}'`);
         }
       }
-      return finish(fn, v);
+      return noted(id, finish(fn, v));
     } catch (err) {
-      if (err instanceof Jump && err.k === 'return') return finish(fn, err.v, err);
+      if (err instanceof Jump && err.k === 'return') return noted(id, finish(fn, err.v, err));
       if (err instanceof Jump) fail(err.k === 'fallthrough' ? "'fallthrough' is only allowed inside a switch" : `'${err.k}' is only allowed inside a loop, if, do, or switch`);
       if (err instanceof Thrown && fn.T === undefined && !fn.throws && !fn.closure && fn.decl) { /* a non-throwing function cannot throw: the compiler checks that at the throw */ }
       throw err;
@@ -1366,6 +1368,8 @@ export function runSwiftTrace(src) {
       if (fn.inoutFirst) { const r = scope.get(fn.dollar !== undefined ? '$0' : ps[0] && ps[0].name); if (r) fn.inoutFirst.v = r.v; }
     }
   }
+  /** notes what call `id` returned, for the call tree */
+  function noted(id, v) { if (id && v !== VOID && v !== undefined) rets[id] = brief(v); return v; }
   function finish(fn, v, jump) {
     if (fn.isInit) return VOID;
     const ret = fn.ret;
@@ -2028,7 +2032,7 @@ export function runSwiftTrace(src) {
   /* ---- run: the declarations, then the top-level code in order ---- */
   let error = null;
   frames.push(topFrame);
-  stack.push({ name: 'main', args: '' });          // the top-level code (main.swift)
+  stack.push({ name: 'main', args: '', id: ++calls });   // the top-level code (main.swift)
   try {
     for (const d of prog.items) if (d.k === 'type' && d.kind === 'protocol') { line = d.line; protoOf(d); }
     for (const d of prog.items) if (d.k === 'typealias') aliases.set(d.name, d.type);
@@ -2065,7 +2069,7 @@ export function runSwiftTrace(src) {
     const c = captureVars(null);
     steps.push({ line: -1, stack: [], vars: c.vars, refs: c.refs, logs: logs.length });
   }
-  return { steps, logs, error };
+  return { steps, logs, error, rets };
 }
 
 export { Some, SChar, CH, SNum, SArr, SDict, SSet, STuple, SVal, SObj, SEnum, SFn, SRange, SStride, SIdx, SType, SImplicit, VOID };

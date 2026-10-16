@@ -23,10 +23,10 @@ test('steps, the call stack with the top-level code, methods and closures, local
   assert.equal(r.error, null);
   assert.deepEqual(r.logs.map(l => l.s), ['15', '1', '2']);
   assert.deepEqual(r.steps.map(s => s.line), [1, 11, 12, 6, 7, 13, 14, 15, 15, -1]);
-  assert.deepEqual(r.steps[3].stack, [{ name: 'main', args: '' }, { name: 'Acc.add', args: 'x=5' }]);
+  assert.deepEqual(r.steps[3].stack, [{ name: 'main', args: '', id: 1 }, { name: 'Acc.add', args: 'x=5', id: 2 }]);
   assert.deepEqual(r.steps[3].vars.map(v => [v.name, v.scope]), [['self', 'local'], ['x', 'local'], ['calls', 'global'], ['a', 'global']], 'self, the locals, then the globals');
   assert.equal(vars(r.steps[3]).self.node.cls, 'Acc');
-  assert.deepEqual(r.steps[7].stack.at(-1), { name: 'closure', args: 'x=1' }, 'a closure is a frame');
+  assert.deepEqual(r.steps[7].stack.at(-1), { name: 'closure', args: 'x=1', id: 3 }, 'a closure is a frame');
 });
 
 test('Swift values become snapshot nodes: numbers, characters, strings, optionals, collections, structs, classes, enums, tuples', () => {

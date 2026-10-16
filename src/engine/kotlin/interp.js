@@ -36,6 +36,7 @@ const UNSET = Symbol('unset');
 export function runKotlinTrace(src) {
   const prog = parseKotlin(src);
   const steps = [], logs = [], stack = [], frames = [];
+  const rets = {}; let calls = 0;   // every call's frame gets an id; rets: what the call returned, by that id
   let line = 0, stopped = null, outBuf = '', finalVars = null;
   const fail = (msg, l) => { if (l) line = l; throw new KtError(msg); };
   const write = (s, err) => {
@@ -760,7 +761,8 @@ export function runKotlinTrace(src) {
     const shown = ps.filter(p => p.name && scope.has(p.name)).map(p => p.name + '=' + brief(scope.get(p.name).v));
     if (self instanceof KObj && !fn.lambda && !fn.ctor && fn.recv) shown.unshift('this=' + brief(self));
     const visible = !fn.accessor || fn.body;
-    if (visible) stack.push({ name: label, args: (itVal !== undefined && itVal !== UNIT ? ['it=' + brief(itVal)] : shown).join(', ').slice(0, 70) });
+    const id = visible ? ++calls : 0;
+    if (visible) stack.push({ id, name: label, args: (itVal !== undefined && itVal !== UNIT ? ['it=' + brief(itVal)] : shown).join(', ').slice(0, 70) });
     frames.push(fr);
     try {
       let v;
@@ -769,14 +771,14 @@ export function runKotlinTrace(src) {
         if (fn.lambda) v = runLambdaBody(fn.body);
         else { runBody(fn.body); v = UNIT; if (fn.ret && fn.ret.n !== 'Unit' && !fn.ctor && !fn.accessor) fail(`missing return statement in '${fn.name}' (a function with a block body must return its value: return …).`); }
       } else v = UNIT;
-      return finish(fn, v, e);
+      return noted(id, finish(fn, v, e));
     } catch (err) {
       if (err instanceof Jump && err.k === 'return') {
         // return (in a fun), return@label (in a lambda): a plain return in a lambda leaves the fun around it
         if (fn.lambda && !err.label) { if (!fn.ownerFrame || !frames.includes(fn.ownerFrame)) fail("'return' is not allowed here."); throw err; }
         if (fn.lambda && err.label && err.label !== fn.label) throw err;
         if (!fn.lambda && err.label && err.label !== fn.name) throw err;
-        return finish(fn, err.v, e, true);
+        return noted(id, finish(fn, err.v, e, true));
       }
       if (err instanceof Jump && (err.k === 'break' || err.k === 'continue') && fn.lambda) fail(`'${err.k}' is not allowed here (only in a loop, not in a lambda).`);
       throw err;
@@ -786,6 +788,8 @@ export function runKotlinTrace(src) {
       if (visible) stack.pop();
     }
   }
+  /** notes what call `id` returned, for the call tree */
+  function noted(id, v) { if (id && v !== UNIT && v !== undefined) rets[id] = brief(v); return v; }
   function finish(fn, v, e, returned) {
     if (fn.lambda || fn.ctor) return v;
     if (fn.ret && fn.ret.n !== 'Unit') { if (v === UNIT && fn.body) fail(`return type mismatch: expected '${typeText(fn.ret)}', actual 'kotlin.Unit'.`); return conv(v, fn.ret, null, 'return'); }
@@ -1167,5 +1171,5 @@ export function runKotlinTrace(src) {
     const c = finalVars || captureVars(null);
     steps.push({ line: -1, stack: [], vars: c.vars, refs: c.refs, logs: logs.length });
   }
-  return { steps, logs, error };
+  return { steps, logs, error, rets };
 }

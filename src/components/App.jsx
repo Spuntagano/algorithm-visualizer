@@ -110,7 +110,7 @@ export function App() {
           line={showing && s.step ? s.step.line : 0} prevLine={showing && s.prev ? s.prev.line : 0} banner={banner} />
         <Splitter value={split} onChange={setSplit} gridRef={grid} />
         <div className="debug">
-          <StatePanel step={s.trace ? s.step : null} prev={s.prev} stepNo={s.idx} logs={s.trace ? s.trace.logs : []} stale={stale} runs={s.runs} lang={lang}
+          <StatePanel step={s.trace ? s.step : null} prev={s.prev} stepNo={s.idx} logs={s.trace ? s.trace.logs : []} trace={s.trace} stale={stale} runs={s.runs} lang={lang}
             vars={{ views, onView: setView, showPtrs }} />
         </div>
       </main>

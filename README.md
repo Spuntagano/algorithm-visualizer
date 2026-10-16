@@ -1,7 +1,7 @@
 # Algorithm Stepper (React edition)
 
 Step through JavaScript, TypeScript, Lua, Python, Ruby, PHP, Java, Kotlin, Swift, C#, Go, C or C++ one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
-Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`); the choice is kept per variable while you step and edit.
+Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values), **Grid** (rows and columns, for an array of arrays of plain values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`), and an array of arrays in Grid; the choice is kept per variable while you step and edit.
 
 ## TypeScript
 Pick **TypeScript** in the Language menu. The types are stripped by [Sucrase](https://github.com/alangpierce/sucrase)
@@ -183,6 +183,24 @@ grows by doubling, as in libstdc++, so `&v[i]` and `v.begin()` are ordinary poin
 cells), and a reference or iterator kept across a `push_back` that reallocates is caught and explained. Not supported:
 templates of your own, inheritance and virtual functions, namespaces other than `std`, and `cin` (there is no input).
 
+## Call tree
+The Calls section shows the call stack at the current step, or the **call tree**: every call made so far, under the call
+that made it, laid out once for the whole run so calls keep their places while you step (`src/graph/calltree.js`,
+`src/components/CallTree.jsx`). The calls still running are tinted, the current one most; a finished call shows what it
+returned (`fib(3) → 2`); a call with the same arguments as an earlier one is dashed, which is how repeated subproblems
+(and memo hits) show up. The tree comes first for a program that recurses, and is one click away for any other.
+
+Every engine gives each stack frame an `id`, and the trace a `rets` map from that id to a preview of the returned value.
+Lua and PHP rebuild their stack from the VM at each step and give no ids, so there a frame is the same call while its
+name and arguments stay the same, and no return values are shown.
+
+## Grid view
+An array of arrays of plain values (a matrix, a board, a dynamic-programming table) is shown as a table with its row
+and column numbers (`src/graph/grid.js`, `src/components/GridView.jsx`). Variables holding a valid index are tagged on
+the side they index: `i`, `r`, `row`, `y` on a row, `j`, `c`, `col`, `x` on a column, any other on both; where one
+tagged row meets one tagged column, that cell is outlined, and a cell that just changed is marked. Rows of different
+lengths leave empty cells. It works for every language's 2D arrays, from C's `int g[3][4]` to C#'s `int[3, 4]`.
+
 ## Breakpoints
 Click a line number (or press F9 on a line) to toggle a breakpoint. **Continue** (F8) jumps to the next step on a marked
 line, **previous** (Shift+F8) to the one before; Play pauses when it reaches one, and the timeline has a tick for every hit.
@@ -235,7 +253,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 - `src/graph/` – graph math (general graphs and the Memory view are laid out by dagre, trees and lists by a small tidy-tree layout) and **view-model builders**. They return drawable primitives (`{tag, p, text}`), so geometry is testable without a DOM.
 - `src/hooks/useStepper.js` – trace, step index, playback, re-runs.
 - `src/editor.js` – CodeMirror 6 setup: highlighting, keys, and the current/previous step lines (the step state is testable without a DOM).
-- `src/components/` – React UI. `CodePanel.jsx` hosts the CodeMirror editor, always editable: an edit re-runs the code (after a short pause in typing) and goes back to step 1; `Graph.jsx` turns primitives into SVG.
+- `src/components/` – React UI. `CallTree.jsx` is the Calls section (stack or tree), `GridView.jsx` the Grid view. `CodePanel.jsx` hosts the CodeMirror editor, always editable: an edit re-runs the code (after a short pause in typing) and goes back to step 1; `Graph.jsx` turns primitives into SVG.
 - `css/` – styles, inlined into the build.
 
 ## Commands

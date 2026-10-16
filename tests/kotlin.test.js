@@ -24,11 +24,11 @@ test('steps, the call stack with functions, methods and lambdas, locals, this an
   assert.equal(r.error, null);
   assert.deepEqual(r.logs, [{ type: 'log', s: '15' }]);
   assert.deepEqual(r.steps.map(s => s.line), [11, 12, 5, 6, 13, -1]);
-  assert.deepEqual(r.steps[2].stack, [{ name: 'main', args: '' }, { name: 'Acc.add', args: 'x=5' }]);
+  assert.deepEqual(r.steps[2].stack, [{ name: 'main', args: '', id: 1 }, { name: 'Acc.add', args: 'x=5', id: 2 }]);
   assert.deepEqual(r.steps[2].vars.map(v => [v.name, v.scope]), [['this', 'local'], ['x', 'local'], ['calls', 'global']], 'this, the locals, then the top-level properties');
   assert.equal(vars(r.steps[2]).this.node.cls, 'Acc');
   const lam = runKotlinTrace(M('    listOf(1, 2).forEach { x ->\n        println(x)\n    }'));
-  assert.deepEqual(lam.steps[1].stack.at(-1), { name: 'lambda', args: 'x=1' }, 'a lambda is a frame');
+  assert.deepEqual(lam.steps[1].stack.at(-1), { name: 'lambda', args: 'x=1', id: 2 }, 'a lambda is a frame');
 });
 
 test('Kotlin values become snapshot nodes: numbers, chars, strings, arrays, collections, data classes, pairs, enums, null', () => {

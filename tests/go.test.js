@@ -25,9 +25,9 @@ test('steps, the call stack with functions and methods, locals and package varia
   assert.equal(r.error, null);
   assert.deepEqual(r.logs, [{ type: 'log', s: '15' }]);
   assert.deepEqual(r.steps.map(s => s.line), [15, 16, 10, 11, 17, -1]);
-  assert.deepEqual(r.steps[0].stack, [{ name: 'main', args: '' }]);
+  assert.deepEqual(r.steps[0].stack, [{ name: 'main', args: '', id: 1 }]);
   const inAdd = r.steps[2];
-  assert.deepEqual(inAdd.stack.at(-1), { name: '(*Acc).Add', args: 'a=&Acc{…}, x=5' });
+  assert.deepEqual(inAdd.stack.at(-1), { name: '(*Acc).Add', args: 'a=&Acc{…}, x=5', id: 2 });
   assert.deepEqual(inAdd.vars.map(v => [v.name, v.scope]), [['a', 'local'], ['x', 'local'], ['calls', 'global']], 'the receiver, the locals, then the package variables');
   assert.equal(vars(inAdd).a.node.cls, 'Acc', 'a pointer to a struct is drawn as the struct');
   assert.deepEqual(r.steps.at(-1).vars.map(v => v.name), ['a', 'r', 'calls']);

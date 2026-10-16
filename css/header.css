@@ -5,18 +5,26 @@
   background: var(--surface); border-bottom: 1px solid var(--line);
   box-shadow: 0 1px 3px rgb(0 0 0 / .05);
 }
-.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 340px; }
+.brand > div { min-width: 0; }
+/* wide: one row, the subtitle gives way (cut with …, the whole sentence in its tooltip); narrow: it wraps */
+@media (min-width: 1100px) {
+  .site-header { flex-wrap: nowrap; }
+  .site-header p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .actions { flex: none; }
+}
 .logo { flex: none; width: 36px; height: 36px; }
 .logo rect { fill: var(--accent); }
 .logo path { fill: none; stroke: var(--surface); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .logo circle { fill: var(--surface); }
 .site-header h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.25; }
 .site-header p { margin: 1px 0 0; color: var(--muted); font-size: 13px; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px 32px; align-items: center; }
-.field { display: flex; align-items: center; gap: 6px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px 32px; align-items: center; min-width: 0; max-width: 100%; }
+.field { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.field .sel { min-width: 0; }   /* narrow: a long example name is cut, the page does not scroll sideways */
 .sel { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .field .sel { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
-.field select { min-height: 34px; padding-top: 5px; padding-bottom: 5px; font-size: 14px; text-transform: none; letter-spacing: normal; font-weight: 500;
+.field select { min-width: 0; max-width: 100%; text-overflow: ellipsis; min-height: 34px; padding-top: 5px; padding-bottom: 5px; font-size: 14px; text-transform: none; letter-spacing: normal; font-weight: 500;
   background-color: var(--surface-2); border-color: transparent; }
 .field select:hover { border-color: var(--line); }
 select, .btn {

@@ -9,6 +9,8 @@ import { RB_EXAMPLES, EXAMPLES } from '../src/examples.js';
 import { HELP } from '../src/components/GraphHelp.jsx';
 import { markersFor } from '../src/model.js';
 import { semanticGraph } from '../src/graph/semantic.js';
+import { callTree } from '../src/graph/calltree.js';
+import { gridMarkers, gridOf } from '../src/graph/grid.js';
 import { buildSemanticView } from '../src/graph/semantic-view.js';
 import { buildMemoryView } from '../src/graph/memory.js';
 
@@ -42,7 +44,7 @@ test('a snapshot before every line, with the call stack, locals and top-level va
   assert.deepEqual(r.logs, [{ type: 'log', s: '6' }]);
   assert.deepEqual(r.steps.map(s => s.line), [1, 6, 7, 2, 3, 8, -1], 'before each line, then the end');
   const inside = r.steps[4];
-  assert.deepEqual(inside.stack, [{ name: 'double', args: 'x=3' }]);
+  assert.deepEqual(inside.stack, [{ name: 'double', args: 'x=3', id: 1 }], 'the call, its arguments and its id (for the call tree)');
   assert.deepEqual(inside.vars.map(v => [v.name, v.scope, v.node.s]), [['x', 'local', '3'], ['y', 'local', '6'], ['n', 'global', '3']],
     'locals first; methods are not variables, and m is not shown before it is assigned');
   assert.equal(r.steps.at(-1).stack.length, 0);
@@ -138,4 +140,24 @@ test('every Ruby example in the graph help really is drawn as a graph', async ()
     assert.ok(semanticGraph(r.steps.at(-1), name), 'not a graph: ' + code);
   }
   for (const code of [HELP.ruby.age, HELP.ruby.fruits]) assert.equal(semanticGraph(await last('x = ' + code), 'x'), null, code + ' is data');
+});
+
+test('call tree: each call has an idruby and what it returned; a 2D array is a grid', async () => {
+  const r = await trace('def fib(n)\n  return n if n < 2\n  fib(n - 1) + fib(n - 2)\nend\ng = [[1, 2], [3, 4]]\nputs fib(3)');
+  const tree = callTree(r.steps, r.rets || {});
+  assert.deepEqual(tree.nodes.map(n => n.label + (n.ret != null ? '=' + n.ret : '')), ['fib(3)=2', 'fib(2)=1', 'fib(1)=1', 'fib(0)=0', 'fib(1)=1']);
+  assert.ok(tree.recursive);
+  const g = gridOf(r.steps.at(-1), 'g');
+  assert.ok(g, 'a grid');
+  assert.deepEqual(g.rows.map(row => row.map(c => c.s).join(' ')), ['1 2', '3 4']);
+});
+
+test('the Longest common subsequence example fills its table as a grid', async () => {
+  const r = await trace(RB_EXAMPLES['Longest common subsequence']);
+  assert.equal(r.error, null);
+  assert.deepEqual(r.logs.map(l => l.s.trim()).filter(Boolean), ['3']);
+  const step = r.steps.findLast(s => s.vars.some(v => v.name === 'dp'));
+  assert.deepEqual(gridOf(step, 'dp').rows.map(row => row.map(c => c.s).join('')), ['000000', '000011', '011112', '011222', '011223']);
+  const mid = r.steps.find(s => gridOf(s, 'dp') && s.vars.some(v => v.name === 'j'));
+  assert.deepEqual(gridMarkers(gridOf(mid, 'dp'), mid.vars, 'dp').cell, [1, 1], 'i and j meet at the first cell worked out');
 });

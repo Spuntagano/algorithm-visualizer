@@ -1,6 +1,8 @@
 /** Title, language and example pickers. */
 import { LangInfo } from './LangInfo.jsx';
 
+export const SUBTITLE = 'Visualize any algorithm by stepping through your code one statement at a time.';
+
 export function Header({ examples, example, onExample, lang, langs, onLang }) {
   return (
     <header className="site-header">
@@ -11,8 +13,8 @@ export function Header({ examples, example, onExample, lang, langs, onLang }) {
           <circle cx="24" cy="12" r="2.4" />
         </svg>
         <div>
-          <h1>Step through an algorithm</h1>
-          <p>Run your code one statement at a time and watch {lang === 'python' ? 'lists, dicts, sets and objects' : lang === 'lua' ? 'tables' : lang === 'ruby' ? 'arrays, hashes, sets and objects' : lang === 'c' ? 'arrays, structs, pointers and memory' : lang === 'cpp' ? 'vectors, maps, objects and pointers' : lang === 'java' ? 'arrays, lists, maps and objects' : lang === 'go' ? 'slices, maps, structs and pointers' : lang === 'csharp' ? 'arrays, lists, dictionaries and objects' : lang === 'kotlin' ? 'lists, maps, sets and objects' : lang === 'swift' ? 'arrays, dictionaries, structs and classes' : lang === 'php' ? 'arrays and objects' : 'arrays, objects, Maps and Sets'} change.</p>
+          <h1>Algorithm visualizer</h1>
+          <p title={SUBTITLE}>{SUBTITLE}</p>
         </div>
       </div>
       <div className="actions">

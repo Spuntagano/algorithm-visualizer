@@ -48,6 +48,7 @@ const EXCEPTIONS = {
 export function runJavaTrace(src) {
   const prog = parseJava(src);
   const steps = [], logs = [], stack = [], frames = [];
+  const rets = {}; let calls = 0;   // every call's frame gets an id; rets: what the call returned, by that id
   let line = 0, stopped = null, outBuf = '', errBuf = '', finalVars = null;
   const fail = msg => { throw new JError(msg); };
 
@@ -837,9 +838,10 @@ export function runJavaTrace(src) {
   }
   function withFrame(fr, fn) {
     const f = { scopes: [new Map()], ...fr };
-    if (!fr.hidden) stack.push({ name: f.name, args: (f.args || '').slice(0, 70) });
+    const id = fr.hidden ? 0 : ++calls;
+    if (id) stack.push({ name: f.name, args: (f.args || '').slice(0, 70), id });
     frames.push(f);
-    try { return fn(); } finally { if (frames.length === 1 && f.isMain) finalVars = captureVars(f); frames.pop(); if (!fr.hidden) stack.pop(); }
+    try { const r = fn(); if (id && r !== undefined) rets[id] = brief(r); return r; } finally { if (frames.length === 1 && f.isMain) finalVars = captureVars(f); frames.pop(); if (!fr.hidden) stack.pop(); }
   }
   const evalArgs = args => args.map(a => (a.k === 'arrayInit' ? fail('an array initializer { … } cannot be an argument: new int[]{ … }') : rval(a)));
   function callExpr(e) {
@@ -1313,5 +1315,5 @@ export function runJavaTrace(src) {
     const c = finalVars || captureVars(null);
     steps.push({ line: -1, stack: [], vars: c.vars, refs: c.refs, logs: logs.length });
   }
-  return { steps, logs, error };
+  return { steps, logs, error, rets };
 }

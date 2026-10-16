@@ -43,7 +43,7 @@ test('call stack tracks function entry and exit', () => {
   assert.ok(depths.includes(1));
   assert.equal(depths.at(-1), 0);
   const inside = t.steps.find(s => s.stack.length === 1);
-  assert.deepEqual(inside.stack[0], { name: 'f', args: 'n=7' });
+  assert.deepEqual(inside.stack[0], { name: 'f', args: 'n=7', id: 1 });
 });
 
 test('Maps, Sets and class instances are serialised', () => {

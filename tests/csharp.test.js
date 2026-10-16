@@ -23,15 +23,15 @@ test('steps, the call stack with constructors, methods and local functions, loca
   assert.equal(r.error, null);
   assert.deepEqual(r.logs, [{ type: 'log', s: '15' }]);
   assert.deepEqual(r.steps.map(s => s.line), [13, 5, 14, 8, 9, 15, -1]);
-  assert.deepEqual(r.steps[1].stack, [{ name: 'Program.Main', args: '' }, { name: 'new Program', args: 'b=10' }]);
+  assert.deepEqual(r.steps[1].stack, [{ name: 'Program.Main', args: '', id: 1 }, { name: 'new Program', args: 'b=10', id: 2 }]);
   const inAdd = r.steps[3];
-  assert.deepEqual(inAdd.stack.at(-1), { name: 'Program.Add', args: 'x=5' });
+  assert.deepEqual(inAdd.stack.at(-1), { name: 'Program.Add', args: 'x=5', id: 3 });
   assert.deepEqual(inAdd.vars.map(v => [v.name, v.scope]), [['this', 'local'], ['x', 'local'], ['calls', 'global']], 'this, the locals, then the static fields');
   assert.equal(vars(inAdd).this.node.cls, 'Program');
   const top = runCsTrace('int total = 0;\nint Square(int x) => x * x;\nfor (int i = 1; i <= 2; i++) total += Square(i);\nConsole.WriteLine(total);');
   assert.deepEqual(top.logs.map(l => l.s), ['5']);
   assert.deepEqual(top.steps.map(st => st.line), [1, 3, 3, 2, 3, 3, 2, 3, 4, -1], 'the hoisted local function is not a step of its own');
-  assert.deepEqual(top.steps[3].stack, [{ name: 'Main', args: '' }, { name: 'Square', args: 'x=1' }], 'top-level statements run as Main; a local function is a frame');
+  assert.deepEqual(top.steps[3].stack, [{ name: 'Main', args: '', id: 1 }, { name: 'Square', args: 'x=1', id: 2 }], 'top-level statements run as Main; a local function is a frame');
   assert.deepEqual(top.steps[3].vars.map(v => [v.name, v.scope]), [['x', 'local'], ['total', 'global']], 'a local function sees the top-level variables');
 });
 

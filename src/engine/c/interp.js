@@ -77,6 +77,7 @@ export function runCTrace(src, { cpp = false } = {}) {
   const lang = cpp ? 'C++' : 'C';
   const BOOL = cpp ? T.bool : T.int;               // what ==, <, !, && give: bool in C++, int in C
   const steps = [], logs = [], stack = [], frames = [];
+  const rets = {}; let calls = 0;   // every call's frame gets an id; rets: what the call returned, by that id
   const globals = new Map(), funcs = new Map(), protos = new Map();
   let line = 0, stopped = null, outBuf = '', errBuf = '';
   let nextBlock = 1, heapUsed = 0, finalVars = null;
@@ -661,7 +662,8 @@ export function runCTrace(src, { cpp = false } = {}) {
       else store(b, 0, t, convertArg(a.x, t, a.d, p.name), p.name);
       return p.name + '=' + brief(b, t);
     });
-    stack.push({ name: fname, args: params.join(', ').slice(0, 70) });
+    const id = ++calls;
+    stack.push({ name: fname, args: params.join(', ').slice(0, 70), id });
     frames.push(fr);
     let r;
     try {
@@ -678,12 +680,17 @@ export function runCTrace(src, { cpp = false } = {}) {
     }
     const ret = def.type.ret;
     if (ret.k === 'void' || def.kind === 'ctor' || def.kind === 'dtor') return val(T.void, undefined);
-    if (ret.k === 'auto') return r && r.ret ? r.ret : val(T.void, undefined);
+    if (ret.k === 'auto') return r && r.ret ? retOf(id, r.ret) : val(T.void, undefined);
     if (!r || !r.ret) {
       if (def.name === 'main') return val(T.int, 0);
       fail(`${def.name}() ended without returning a value (it returns ${typeName(ret)})`);
     }
-    return r.ret;
+    return retOf(id, r.ret);
+  }
+  /** notes what call `id` returned, for the call tree: a number, a char, a pointer… (a struct as {…}) */
+  function retOf(id, x) {
+    try { const t = x.t; rets[id] = t.k === 'struct' || t.k === 'stl' ? '{…}' : t.k === 'ptr' ? (x.v === null ? 'NULL' : x.v instanceof FnRef ? x.v.name : 'ptr') : primOf(t, x.v).s; } catch { /* nothing to show */ }
+    return x;
   }
   function convertArg(x, t, d, name) {
     if (t.k === 'ptr' && x.t.k !== 'ptr' && !(x.t.k === 'int' && x.v == 0) && x.t.k !== 'fn') fail(`${d} (${name}) must be a pointer, but it is given ${art(x.t)}`); // eslint-disable-line eqeqeq
@@ -1995,7 +2002,7 @@ export function runCTrace(src, { cpp = false } = {}) {
     const c = finalVars || captureVars(null);
     steps.push({ line: -1, stack: [], vars: c.vars, refs: c.refs, logs: logs.length });
   }
-  return { steps, logs, error };
+  return { steps, logs, error, rets };
 }
 
 /** Functions people often reach for that C does not have (or that need a header the page does not offer). */

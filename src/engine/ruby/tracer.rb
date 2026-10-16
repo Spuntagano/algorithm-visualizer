@@ -134,6 +134,7 @@ module RubyTracer
 
   def self.trace(src)
     steps, logs, stack = [], [], []
+    rets, calls, raising = {}, 0, {}                                 # what each call returned, by the id on its frame
     ser = Serializer.new
     top = TOPLEVEL_BINDING
     main = top.receiver
@@ -166,7 +167,7 @@ module RubyTracer
       steps << { line: line, stack: stack.map(&:dup), vars: vars, refs: refs, logs: logs.size }
     end
 
-    tp = TracePoint.new(:line, :call, :return) do |t|
+    tp = TracePoint.new(:line, :call, :return, :raise) do |t|
       next if busy || t.path != FILE
       if stopped
         raise StopRun, stopped if t.event == :line                     # keep stopping, even if the program rescues Exception
@@ -178,12 +179,17 @@ module RubyTracer
         args = t.parameters.map { |_, n| n && b.local_variable_defined?(n) ? "#{n}=#{brief(b.local_variable_get(n))}" : nil }.compact.join(", ")
         me = b.receiver
         name = me.equal?(main) ? t.method_id.to_s : "#{me.is_a?(Module) ? me : me.class}#{me.is_a?(Module) ? '.' : '#'}#{t.method_id}"
-        stack << { name: name, args: clip(args, 70) }
+        calls += 1
+        stack << { name: name, args: clip(args, 70), id: calls }
         raise StopRun, (stopped = "Trace stopped: more than #{MAX_CALLS} nested calls.") if stack.size > MAX_CALLS
       when :return
-        stack.pop
+        f = stack.pop
+        rets[f[:id].to_s] = brief(t.return_value) if f && !raising.delete(f[:id])
+      when :raise
+        raising[stack.last[:id]] = true if stack.last
       when :line
         raise StopRun, (stopped = "Trace stopped after #{MAX_STEPS} steps (possible infinite loop).") if steps.size >= MAX_STEPS
+        raising.delete(stack.last[:id]) if stack.last                  # rescued: the frame goes on
         busy = true
         begin
           snapshot.(t.binding, t.lineno, t.method_id)
@@ -213,7 +219,7 @@ module RubyTracer
     stack.clear
     busy = true
     snapshot.(nil, -1, nil)                                           # the end: what is left at the top level
-    { steps: steps, logs: logs, error: error }
+    { steps: steps, logs: logs, error: error, rets: rets }
   end
 
   # "(code):1: syntax errors found\n> 1 | x = = 1\n    |   ^ expected an expression…" → "line 1: expected an expression…"

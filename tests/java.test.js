@@ -24,9 +24,9 @@ test('steps, the call stack with constructors and methods, locals, this and stat
   assert.equal(r.error, null);
   assert.deepEqual(r.logs, [{ type: 'log', s: '15' }]);
   assert.deepEqual(r.steps.map(s => s.line), [10, 4, 11, 6, 7, 12, -1]);
-  assert.deepEqual(r.steps[1].stack, [{ name: 'Main.main', args: '' }, { name: 'new Main', args: 'b=10' }]);
+  assert.deepEqual(r.steps[1].stack, [{ name: 'Main.main', args: '', id: 1 }, { name: 'new Main', args: 'b=10', id: 2 }]);
   const inAdd = r.steps[4];
-  assert.deepEqual(inAdd.stack.at(-1), { name: 'Main.add', args: 'x=5' });
+  assert.deepEqual(inAdd.stack.at(-1), { name: 'Main.add', args: 'x=5', id: 3 });
   assert.deepEqual(inAdd.vars.map(v => [v.name, v.scope]), [['this', 'local'], ['x', 'local'], ['calls', 'global']], 'this, the locals, then the static fields');
   assert.equal(vars(inAdd).this.node.cls, 'Main');
   assert.deepEqual(r.steps.at(-1).vars.map(v => v.name), ['m', 'r', 'calls'], 'main\'s String[] args is not shown');

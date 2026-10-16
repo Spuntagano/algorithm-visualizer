@@ -88,6 +88,8 @@ await page.goto(pathToFileURL(target).href);
 
 // 0. the page starts empty: no code, no example, nothing to step, no error
 await page.waitForSelector('#placeholder');
+assert.equal(await page.title(), 'Algorithm visualizer', 'the browser tab says what the page is');
+assert.equal(await page.locator('.site-header h1').innerText(), 'Algorithm visualizer');
 assert.equal(await page.locator('#example').inputValue(), '', 'no example picked');
 assert.deepEqual(await page.locator('.cm-line').evaluateAll(ls => ls.map(l => { const c = l.cloneNode(true); c.querySelectorAll('.cm-placeholder').forEach(x => x.remove()); return c.textContent; })),
   [''], 'the editor is empty (apart from its placeholder hint)');
@@ -367,7 +369,7 @@ await page.selectOption('#lang', 'python');          // an open example is swapp
 await page.waitForFunction(k => +document.querySelector('.state-panel').dataset.run > k && !document.querySelector('.state-panel.stale'), nPy, { timeout: 60000 });
 assert.ok(await page.evaluate(() => window.__sawLoading), 'the first Python run says Python is loading');
 assert.equal(await page.locator('.cm-line').first().innerText(), 'class Node:', 'the Python version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* lists, dicts, sets and objects change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.equal(await page.evaluate(() => localStorage.getItem('algorithm-stepper.lang')), 'python', 'the language is remembered');
 await page.click('#bLast');
 await page.locator('button[data-vt="head|graph"]').click();
@@ -421,7 +423,7 @@ const nLua = await runs();
 await page.selectOption('#lang', 'lua');
 await settled(nLua);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'local graph = {');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* tables change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 for (let i = 0; i < 14; i++) await page.click('#bNext');
 const gIdx = await page.locator('.var:has(button[data-vt="graph|boxes"]) .g-idx').allTextContents();
 assert.deepEqual(gIdx.slice(0, 2), ['1', '2'], 'Memory numbers a Lua table from 1 (graph.A = {"B", "C"})');
@@ -450,7 +452,7 @@ await page.selectOption('#lang', 'ruby');
 await page.waitForFunction(k => +document.querySelector('.state-panel').dataset.run > k && !document.querySelector('.state-panel.stale'), nRb, { timeout: 60000 });
 assert.ok(await page.evaluate(() => window.__sawLoading), 'the first Ruby run says Ruby is loading');
 assert.equal(await page.locator('.cm-line').first().innerText(), 'require "set"', 'the Ruby version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* arrays, hashes, sets and objects change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Ruby code$/);
 for (let i = 0; i < 14; i++) await page.click('#bNext');
 await page.locator('button[data-vt="GRAPH|graph"]').click();
@@ -490,7 +492,7 @@ await page.selectOption('#lang', 'php');
 await page.waitForFunction(k => +document.querySelector('.state-panel').dataset.run > k && !document.querySelector('.state-panel.stale'), nPhp, { timeout: 60000 });
 assert.ok(await page.evaluate(() => window.__sawLoading), 'the first PHP run says PHP is loading');
 assert.equal(await page.locator('.cm-line').first().innerText(), '<?php', 'the PHP version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* arrays and objects change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^PHP code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^19$/ }).click();   // $order[] = $cur;
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -520,7 +522,7 @@ const nC = await runs();
 await page.selectOption('#lang', 'c');
 await settled(nC);
 assert.equal(await page.locator('.cm-line').first().innerText(), '#include <stdio.h>', 'the C version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* arrays, structs, pointers and memory change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^C code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^23$/ }).click();   // curr->next = prev;
 await page.click('#bBpNext'); await page.click('#bBpNext');            // a fresh run starts at step 1: on to the second hit
@@ -557,7 +559,7 @@ const nJava = await runs();
 await page.selectOption('#lang', 'java');
 await settled(nJava);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'import java.util.*;', 'the Java version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* arrays, lists, maps and objects change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Java code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^12$/ }).click();   // order.add(cur);
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -584,7 +586,7 @@ const nKt = await runs();
 await page.selectOption('#lang', 'kotlin');
 await settled(nKt);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'val graph = mapOf(', 'the Kotlin version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* lists, maps, sets and objects change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Kotlin code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^16$/ }).click();   // order.add(cur)
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -611,7 +613,7 @@ const nSw = await runs();
 await page.selectOption('#lang', 'swift');
 await settled(nSw);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'let graph: [String: [String]] = [', 'the Swift version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* arrays, dictionaries, structs and classes change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Swift code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^16$/ }).click();   // order.append(cur)
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -641,7 +643,7 @@ const nCs = await runs();
 await page.selectOption('#lang', 'csharp');
 await settled(nCs);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'var graph = new Dictionary<string, List<string>>', 'the C# version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* arrays, lists, dictionaries and objects change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^C# code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^20$/ }).click();   // order.Add(cur);
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -674,7 +676,7 @@ assert.match(await page.locator('#langInfo').innerText(), /What Go includes[\s\S
 await page.keyboard.press('Escape');
 await settled(nGo);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'package main', 'the Go version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* slices, maps, structs and pointers change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Go code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^21$/ }).click();   // order = append(order, cur)
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -708,7 +710,7 @@ const nCpp = await runs();
 await page.selectOption('#lang', 'cpp');
 await settled(nCpp);
 assert.equal(await page.locator('.cm-line').first().innerText(), '#include <iostream>', 'the C++ version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Run your code .* vectors, maps, objects and pointers change/);
+assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^C\+\+ code$/);
 await page.click('#bLast');
 await page.locator('button[data-vt="prev|graph"]').click();
@@ -729,6 +731,66 @@ await page.keyboard.press('Escape');
 await typeCode('#include <vector>\nint main() {\n    std::vector<int> v = {1, 2, 3};\n    int& r = v[0];\n    v.push_back(4);\n    r = 9;\n}');
 await page.click('#bLast');
 assert.match(await page.locator('#banner').innerText(), /Error on line 6: r is in memory that v gave up when it grew on line 5/, 'a stale reference is caught');
+await page.selectOption('#lang', 'javascript');
+
+// 6u. the call tree: a recursive program shows it first; each call under its caller, finished ones with what they returned
+await pick('Fibonacci with memo');
+assert.equal(await page.locator('.state-panel .sect-head h2').first().innerText(), 'Call tree');
+for (let i = 0; i < 25; i++) await page.click('#bNext');
+assert.match(await page.locator('#callTree .gcap').innerText(), /^\d+ calls so far · \d+ repeated/, 'memo hits are calls with the same arguments as an earlier one');
+assert.equal(await page.locator('#callTree .ct-node.cur').count(), 1, 'the running call is marked');
+assert.ok(await page.locator('#callTree .ct-ret').count() > 0, 'finished calls show what they returned');
+const cur = await page.locator('#callTree .ct-node.cur').boundingBox(), treeBox = await page.locator('#callTree .graph').boundingBox();
+assert.ok(cur.y >= treeBox.y && cur.y + cur.height <= treeBox.y + treeBox.height, 'the running call is scrolled into sight');
+await snap('18-call-tree');
+await page.click('#calls-stack');
+assert.match(await page.locator('#stack .frame.top').innerText(), /^fib\(n=\d\)$/, 'the switch goes back to the stack');
+await page.click('#calls-tree');
+await page.click('#bLast');
+assert.match(await page.locator('#callTree .ct-g').first().textContent(), /^fib\(n=6\) returned 8fib\(6\)→ 8$/, 'fib(6) returned 8 (and the tooltip says so with the names)');
+const longRun = since => page.waitForFunction(n => {
+  const p = document.querySelector('.state-panel');
+  return +p.dataset.run > n && !p.classList.contains('stale') && !!document.querySelector('#stateBody');
+}, since, { timeout: 60000 });
+for (const [lang, code, ret] of [
+  ['python', 'def fib(n):\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\nprint(fib(4))', true],
+  ['ruby', 'def fib(n)\n  return n if n < 2\n  fib(n - 1) + fib(n - 2)\nend\nputs fib(4)', true],
+  ['php', '<?php\nfunction fib(int $n): int { if ($n < 2) return $n; return fib($n - 1) + fib($n - 2); }\necho fib(4);', false],
+  ['lua', 'local function fib(n)\n  if n < 2 then return n end\n  return fib(n - 1) + fib(n - 2)\nend\nprint(fib(4))', false],
+]) {
+  await page.selectOption('#lang', lang);
+  await edit(() => replaceCode(code), longRun);
+  await page.click('#bLast');
+  assert.match(await page.locator('#callTree .gcap').innerText(), /^9 calls so far · 4 repeated/, lang + ': fib(4) makes 9 calls');
+  assert.equal(await page.locator('#callTree .ct-ret').count() > 0, ret, lang + (ret ? ' gives' : ' gives no') + ' return values');
+}
+await page.selectOption('#lang', 'javascript');
+
+// 6v. the grid view: the Longest common subsequence example's table; i tags a row, j a column, the cell they meet at is outlined
+await pick('Longest common subsequence');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^7$/ }).click();   // if (a[i - 1] === b[j - 1]) …
+for (let k = 0; k < 6; k++) await page.click('#bBpNext');
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^7$/ }).click();
+const grid = page.locator('table.gridv[aria-label="Grid of dp"]');
+assert.equal(await grid.locator('td').count(), 30, '5 rows of 6');
+assert.equal(await grid.locator('tbody th.tagged').count(), 1, 'i tags one row');
+assert.equal(await grid.locator('thead th.tagged').count(), 1, 'j tags one column');
+assert.equal(await grid.locator('td.at').count(), 1, 'the cell dp[i][j] is outlined');
+for (let k = 0; k < 4 && !(await grid.locator('td.chg').count()); k++) await page.click('#bNext');   // the write shows on the step after it
+assert.equal(await grid.locator('td.chg').count(), 1, 'the cell just written is marked');
+await snap('19-grid');
+await page.locator('button[data-vt="dp|memory"]').click();
+assert.equal(await grid.count(), 0, 'the switch shows the memory layout instead');
+await page.locator('button[data-vt="dp|grid"]').click();
+assert.equal(await grid.count(), 1);
+for (const [lang, name] of [['python', 'dp'], ['c', 'dp'], ['php', '$dp'], ['lua', 'dp']]) {   // the example's twin, in a hosted language and an interpreted one
+  await edit(() => page.selectOption('#lang', lang), longRun);
+  await page.click('#bLast');
+  const table = page.locator(`table.gridv[aria-label="Grid of ${name}"]`);
+  for (let k = 0; k < 6 && !(await table.count()); k++) await page.click('#bPrev');   // dp is lcs's own: gone once it returns
+  assert.equal(await table.locator('td').count(), 30, lang + ': the same 5 × 6 table');
+  assert.match(await table.locator('td').last().innerText(), /^3$/, lang + ': filled in to the answer');
+}
 await page.selectOption('#lang', 'javascript');
 
 // 7. theme: dark mode renders without errors

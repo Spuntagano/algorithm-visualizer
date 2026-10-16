@@ -8,6 +8,8 @@ import { PYODIDE_VERSION } from '../src/engine/python/pyodide.js';
 import { PY_EXAMPLES } from '../src/examples.js';
 import { HELP } from '../src/components/GraphHelp.jsx';
 import { semanticGraph } from '../src/graph/semantic.js';
+import { callTree } from '../src/graph/calltree.js';
+import { gridMarkers, gridOf } from '../src/graph/grid.js';
 import { buildSemanticView } from '../src/graph/semantic-view.js';
 import { buildMemoryView } from '../src/graph/memory.js';
 
@@ -32,7 +34,7 @@ test('a snapshot before every line, with the call stack, locals and globals', ()
   assert.deepEqual(r.logs, [{ type: 'log', s: '6' }]);
   assert.deepEqual(r.steps.map(s => s.line), [1, 5, 6, 2, 3, 7, -1], 'before each line, then the end');
   const inside = r.steps[4];
-  assert.deepEqual(inside.stack, [{ name: 'double', args: 'x=3' }]);
+  assert.deepEqual(inside.stack, [{ name: 'double', args: 'x=3', id: 1 }], 'the call, its arguments and its id (for the call tree)');
   assert.deepEqual(inside.vars.map(v => [v.name, v.scope, v.node.s]), [['x', 'local', '3'], ['y', 'local', '6'], ['n', 'global', '3']],
     'locals first; functions are not variables');
   assert.equal(r.steps.at(-1).stack.length, 0);
@@ -90,4 +92,24 @@ test('every Python example in the graph help really is drawn as a graph', () => 
     assert.ok(semanticGraph(r.steps.at(-1), name), 'not a graph: ' + code);
   }
   for (const code of [HELP.python.age, HELP.python.fruits]) assert.equal(semanticGraph(trace('x = ' + code).steps.at(-1), 'x'), null, code + ' is data');
+});
+
+test('call tree: each call has an idpython and what it returned; a 2D array is a grid', async () => {
+  const r = await trace('def fib(n):\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\ng = [[1, 2], [3, 4]]\nprint(fib(3))');
+  const tree = callTree(r.steps, r.rets || {});
+  assert.deepEqual(tree.nodes.map(n => n.label + (n.ret != null ? '=' + n.ret : '')), ['fib(3)=2', 'fib(2)=1', 'fib(1)=1', 'fib(0)=0', 'fib(1)=1']);
+  assert.ok(tree.recursive);
+  const g = gridOf(r.steps.at(-1), 'g');
+  assert.ok(g, 'a grid');
+  assert.deepEqual(g.rows.map(row => row.map(c => c.s).join(' ')), ['1 2', '3 4']);
+});
+
+test('the Longest common subsequence example fills its table as a grid', async () => {
+  const r = await trace(PY_EXAMPLES['Longest common subsequence']);
+  assert.equal(r.error, null);
+  assert.deepEqual(r.logs.map(l => l.s.trim()).filter(Boolean), ['3']);
+  const step = r.steps.findLast(s => s.vars.some(v => v.name === 'dp'));
+  assert.deepEqual(gridOf(step, 'dp').rows.map(row => row.map(c => c.s).join('')), ['000000', '000011', '011112', '011222', '011223']);
+  const mid = r.steps.find(s => gridOf(s, 'dp') && s.vars.some(v => v.name === 'j'));
+  assert.deepEqual(gridMarkers(gridOf(mid, 'dp'), mid.vars, 'dp').cell, [1, 1], 'i and j meet at the first cell worked out');
 });

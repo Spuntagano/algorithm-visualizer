@@ -70,6 +70,21 @@ function fib(n) {
 
 console.log(fib(6));`,
 
+"Longest common subsequence": `function lcs(a, b) {
+  // dp[i][j]: the longest common subsequence of the first i letters of a and the first j letters of b
+  const dp = [];
+  for (let i = 0; i <= a.length; i++) dp.push(new Array(b.length + 1).fill(0));
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+      else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+console.log(lcs("ABCB", "BDCAB"));`,
+
 "Reverse a linked list": `function node(val, next) {
   return { val, next };
 }
@@ -225,6 +240,19 @@ def fib(n):
     return memo[n]
 
 print(fib(6))`,
+
+"Longest common subsequence": `def lcs(a, b):
+    # dp[i][j]: the longest common subsequence of the first i letters of a and the first j letters of b
+    dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+    for i in range(1, len(a) + 1):
+        for j in range(1, len(b) + 1):
+            if a[i - 1] == b[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+    return dp[len(a)][len(b)]
+
+print(lcs("ABCB", "BDCAB"))`,
 
 "Reverse a linked list": `class Node:
     def __init__(self, val, next=None):
@@ -383,6 +411,21 @@ function fib(n: number): number {
 
 console.log(fib(6));`,
 
+"Longest common subsequence": `function lcs(a: string, b: string): number {
+  // dp[i][j]: the longest common subsequence of the first i letters of a and the first j letters of b
+  const dp: number[][] = [];
+  for (let i = 0; i <= a.length; i++) dp.push(new Array<number>(b.length + 1).fill(0));
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+      else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+console.log(lcs("ABCB", "BDCAB"));`,
+
 "Reverse a linked list": `class ListNode {
   constructor(public val: number, public next: ListNode | null = null) {}
 }
@@ -529,6 +572,28 @@ end
 
 print(fib(6))`,
 
+"Longest common subsequence": `local function lcs(a, b)
+  -- dp[i][j]: the longest common subsequence of the first i - 1 letters of a and the first j - 1 letters of b
+  -- (Lua counts from 1, so row 1 and column 1 are the empty start)
+  local dp = {}
+  for i = 1, #a + 1 do
+    dp[i] = {}
+    for j = 1, #b + 1 do dp[i][j] = 0 end
+  end
+  for i = 2, #a + 1 do
+    for j = 2, #b + 1 do
+      if a:sub(i - 1, i - 1) == b:sub(j - 1, j - 1) then
+        dp[i][j] = dp[i - 1][j - 1] + 1
+      else
+        dp[i][j] = math.max(dp[i - 1][j], dp[i][j - 1])
+      end
+    end
+  end
+  return dp[#a + 1][#b + 1]
+end
+
+print(lcs("ABCB", "BDCAB"))`,
+
 "Reverse a linked list": `local function node(val, next)
   return {val = val, next = next}
 end
@@ -671,6 +736,23 @@ def fib(n)
 end
 
 puts fib(6)`,
+
+"Longest common subsequence": `def lcs(a, b)
+  # dp[i][j]: the longest common subsequence of the first i letters of a and the first j letters of b
+  dp = Array.new(a.length + 1) { Array.new(b.length + 1, 0) }
+  1.upto(a.length) do |i|
+    1.upto(b.length) do |j|
+      if a[i - 1] == b[j - 1]
+        dp[i][j] = dp[i - 1][j - 1] + 1
+      else
+        dp[i][j] = [dp[i - 1][j], dp[i][j - 1]].max
+      end
+    end
+  end
+  dp[a.length][b.length]
+end
+
+puts lcs("ABCB", "BDCAB")`,
 
 "Reverse a linked list": `Node = Struct.new(:val, :next)
 
@@ -849,6 +931,30 @@ long long fib(int n) {
 
 int main(void) {
     printf("%lld\\n", fib(6));
+    return 0;
+}`,
+
+"Longest common subsequence": `#include <stdio.h>
+#include <string.h>
+
+int max(int x, int y) { return x > y ? x : y; }
+
+int lcs(const char *a, const char *b) {
+    int n = strlen(a), m = strlen(b);
+    /* dp[i][j]: the longest common subsequence of the first i letters of a and the first j letters of b */
+    int dp[n + 1][m + 1];
+    memset(dp, 0, sizeof dp);
+    for (int i = 1; i <= n; i++) {
+        for (int j = 1; j <= m; j++) {
+            if (a[i - 1] == b[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+            else dp[i][j] = max(dp[i - 1][j], dp[i][j - 1]);
+        }
+    }
+    return dp[n][m];
+}
+
+int main(void) {
+    printf("%d\\n", lcs("ABCB", "BDCAB"));
     return 0;
 }`,
 
@@ -1051,6 +1157,28 @@ function fib(int $n): int
 
 echo fib(6), "\\n";`,
 
+"Longest common subsequence": `<?php
+
+function lcs(string $a, string $b): int
+{
+    // $dp[$i][$j]: the longest common subsequence of the first $i letters of $a and the first $j letters of $b
+    $n = strlen($a);
+    $m = strlen($b);
+    $dp = array_fill(0, $n + 1, array_fill(0, $m + 1, 0));
+    for ($i = 1; $i <= $n; $i++) {
+        for ($j = 1; $j <= $m; $j++) {
+            if ($a[$i - 1] === $b[$j - 1]) {
+                $dp[$i][$j] = $dp[$i - 1][$j - 1] + 1;
+            } else {
+                $dp[$i][$j] = max($dp[$i - 1][$j], $dp[$i][$j - 1]);
+            }
+        }
+    }
+    return $dp[$n][$m];
+}
+
+echo lcs("ABCB", "BDCAB"), "\\n";`,
+
 "Reverse a linked list": `<?php
 
 class Node
@@ -1236,6 +1364,30 @@ long long fib(int n) {
 
 int main() {
     cout << fib(6) << endl;
+    return 0;
+}`,
+
+"Longest common subsequence": `#include <algorithm>
+#include <iostream>
+#include <string>
+#include <vector>
+using namespace std;
+
+int lcs(const string& a, const string& b) {
+    // dp[i][j]: the longest common subsequence of the first i letters of a and the first j letters of b
+    int n = a.size(), m = b.size();
+    vector<vector<int>> dp(n + 1, vector<int>(m + 1, 0));
+    for (int i = 1; i <= n; i++) {
+        for (int j = 1; j <= m; j++) {
+            if (a[i - 1] == b[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+            else dp[i][j] = max(dp[i - 1][j], dp[i][j - 1]);
+        }
+    }
+    return dp[n][m];
+}
+
+int main() {
+    cout << lcs("ABCB", "BDCAB") << endl;
     return 0;
 }`,
 
@@ -1448,6 +1600,24 @@ public class Main {
     }
 }`,
 
+"Longest common subsequence": `public class Main {
+    static int lcs(String a, String b) {
+        // dp[i][j]: the longest common subsequence of the first i letters of a and the first j letters of b
+        int[][] dp = new int[a.length() + 1][b.length() + 1];
+        for (int i = 1; i <= a.length(); i++) {
+            for (int j = 1; j <= b.length(); j++) {
+                if (a.charAt(i - 1) == b.charAt(j - 1)) dp[i][j] = dp[i - 1][j - 1] + 1;
+                else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+        return dp[a.length()][b.length()];
+    }
+
+    public static void main(String[] args) {
+        System.out.println(lcs("ABCB", "BDCAB"));
+    }
+}`,
+
 "Reverse a linked list": `public class Main {
     static class Node {
         int val;
@@ -1656,6 +1826,32 @@ func main() {
     fmt.Println(fib(6))
 }`,
 
+"Longest common subsequence": `package main
+
+import "fmt"
+
+func lcs(a, b string) int {
+    // dp[i][j]: the longest common subsequence of the first i letters of a and the first j letters of b
+    dp := make([][]int, len(a)+1)
+    for i := range dp {
+        dp[i] = make([]int, len(b)+1)
+    }
+    for i := 1; i <= len(a); i++ {
+        for j := 1; j <= len(b); j++ {
+            if a[i-1] == b[j-1] {
+                dp[i][j] = dp[i-1][j-1] + 1
+            } else {
+                dp[i][j] = max(dp[i-1][j], dp[i][j-1])
+            }
+        }
+    }
+    return dp[len(a)][len(b)]
+}
+
+func main() {
+    fmt.Println(lcs("ABCB", "BDCAB"))
+}`,
+
 "Reverse a linked list": `package main
 
 import "fmt"
@@ -1838,6 +2034,24 @@ func fib(_ n: Int) -> Int {
 
 print(fib(6))`,
 
+"Longest common subsequence": `func lcs(_ a: String, _ b: String) -> Int {
+    // dp[i][j]: the longest common subsequence of the first i letters of a and the first j letters of b
+    let s = Array(a), t = Array(b)
+    var dp = Array(repeating: Array(repeating: 0, count: t.count + 1), count: s.count + 1)
+    for i in 1...s.count {
+        for j in 1...t.count {
+            if s[i - 1] == t[j - 1] {
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            } else {
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+            }
+        }
+    }
+    return dp[s.count][t.count]
+}
+
+print(lcs("ABCB", "BDCAB"))`,
+
 "Reverse a linked list": `class Node {
     let value: Int
     var next: Node?
@@ -2002,6 +2216,23 @@ long Fib(int n)
 }
 
 Console.WriteLine(Fib(6));`,
+
+"Longest common subsequence": `int Lcs(string a, string b)
+{
+    // dp[i, j]: the longest common subsequence of the first i letters of a and the first j letters of b
+    var dp = new int[a.Length + 1, b.Length + 1];
+    for (int i = 1; i <= a.Length; i++)
+    {
+        for (int j = 1; j <= b.Length; j++)
+        {
+            if (a[i - 1] == b[j - 1]) dp[i, j] = dp[i - 1, j - 1] + 1;
+            else dp[i, j] = Math.Max(dp[i - 1, j], dp[i, j - 1]);
+        }
+    }
+    return dp[a.Length, b.Length];
+}
+
+Console.WriteLine(Lcs("ABCB", "BDCAB"));`,
 
 "Reverse a linked list": `var list = new Node(1, new Node(2, new Node(3, null)));
 
@@ -2177,6 +2408,21 @@ fun fib(n: Int): Long {
 
 fun main() {
     println(fib(6))
+}`,
+
+"Longest common subsequence": `fun lcs(a: String, b: String): Int {
+    // dp[i][j]: the longest common subsequence of the first i letters of a and the first j letters of b
+    val dp = Array(a.length + 1) { IntArray(b.length + 1) }
+    for (i in 1..a.length) {
+        for (j in 1..b.length) {
+            dp[i][j] = if (a[i - 1] == b[j - 1]) dp[i - 1][j - 1] + 1 else maxOf(dp[i - 1][j], dp[i][j - 1])
+        }
+    }
+    return dp[a.length][b.length]
+}
+
+fun main() {
+    println(lcs("ABCB", "BDCAB"))
 }`,
 
 "Reverse a linked list": `class Node(val value: Int, var next: Node?)

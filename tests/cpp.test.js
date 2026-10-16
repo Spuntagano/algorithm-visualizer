@@ -27,7 +27,7 @@ test('steps, the call stack with methods and references, locals and globals', ()
   assert.deepEqual(r.logs.map(l => l.s), ['5 0']);
   assert.deepEqual(r.steps.map(s => s.line), [8, 9, 10, 5, 5, 11, -1]);
   const inAdd = r.steps[3];
-  assert.deepEqual(inAdd.stack, [{ name: 'main', args: '' }, { name: 'Acc::add', args: 'x=5' }], 'a method is Class::name');
+  assert.deepEqual(inAdd.stack, [{ name: 'main', args: '', id: 1 }, { name: 'Acc::add', args: 'x=5', id: 2 }], 'a method is Class::name');
   const v = vars(inAdd);
   assert.equal(v.x.node.s, '5', 'a reference shows the value it refers to');
   assert.equal(v.this.node.cls, 'Acc', 'this is the object');

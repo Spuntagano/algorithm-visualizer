@@ -41,6 +41,7 @@ const isFloat = t => t && t.k === 'basic' && (t.name === 'float64' || t.name ===
 export function runGoTrace(src) {
   const prog = parseGo(src);
   const steps = [], logs = [], stack = [], frames = [];
+  const rets = {}; let calls = 0;   // every call's frame gets an id; rets: what the call returned, by that id
   let line = 0, stopped = null, outBuf = '', errBuf = '', finalVars = null;
   const fail = msg => { throw new GoError(msg); };
   // a runtime panic; a few of Go's have no "runtime error: " in front
@@ -634,7 +635,8 @@ export function runGoTrace(src) {
     for (const r of results) if (r.name) scope.set(r.name, { v: zero(r.t), t: r.t, name: r.name });
     const label = fn.recv ? (fn.recvT && fn.recv.type.k === 'ptr' ? `(*${shortType(fn.recvT.elem || fn.recvT)}).` : shortType(fn.recvT) + '.') + fn.name : fn.name;
     const fr = { name: label, scopes: [scope], env: fn.env, defers: [], fn, results };
-    stack.push({ name: label, args: [...(fn.recv && fn.recv.name ? [fn.recv.name + '=' + brief(recv)] : []), ...ps.filter(p => p.name).map(p => p.name + '=' + brief(scope.get(p.name).v))].join(', ').slice(0, 70) });
+    const id = ++calls;
+    stack.push({ id, name: label, args: [...(fn.recv && fn.recv.name ? [fn.recv.name + '=' + brief(recv)] : []), ...ps.filter(p => p.name).map(p => p.name + '=' + brief(scope.get(p.name).v))].join(', ').slice(0, 70) });
     frames.push(fr);
     let ret, panicking = null, recovered = false;
     try {
@@ -661,6 +663,7 @@ export function runGoTrace(src) {
     const vals = results.some(r => r.name) ? results.map(r => (r.name ? scope.get(r.name).v : zero(r.t))) : ret || results.map(r => zero(r.t));   // named results: what the defers left in them
     if (!ret && !recovered && results.some(r => !r.name) && fn.body.items.length) fail(`missing return at the end of ${fn.name}`);
     const out = vals.map((v, k) => conv(v, results[k].t, 'return statement'));
+    rets[id] = out.map(brief).join(', ');
     return out.length === 1 ? out[0] : out;
   }
   function closure(e) {
@@ -1118,5 +1121,5 @@ export function runGoTrace(src) {
     const c = finalVars || captureVars(null);
     steps.push({ line: -1, stack: [], vars: c.vars, refs: c.refs, logs: logs.length });
   }
-  return { steps, logs, error };
+  return { steps, logs, error, rets };
 }

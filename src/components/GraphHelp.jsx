@@ -438,6 +438,7 @@ export function GraphHelp({ lang = 'javascript' }) {
         <dl className="help-views">
           <div><dt>Memory</dt><dd>How your data is stored: {h.memory}, and arrows show what refers to what. Shown first.</dd></div>
           <div><dt>Boxes</dt><dd>The values themselves, nested inside each other.</dd></div>
+          <div><dt>Grid</dt><dd>Rows and columns, for a list of lists of plain values (a board, a matrix, a DP table). Shown first for one. Variables like i or row tag a row, j or col a column, and the cell they meet at is outlined.</dd></div>
           <div><dt>Graph</dt><dd>Circles and arrows (nodes and edges). This button only appears when your data has one of the shapes below.</dd></div>
         </dl>
 

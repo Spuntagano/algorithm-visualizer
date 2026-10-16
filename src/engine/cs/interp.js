@@ -41,6 +41,7 @@ const NET = { int: 'Int32', long: 'Int64', short: 'Int16', byte: 'Byte', sbyte: 
 export function runCsTrace(src) {
   const prog = parseCs(src);
   const steps = [], logs = [], stack = [], frames = [];
+  const rets = {}; let calls = 0;   // every call's frame gets an id; rets: what the call returned, by that id
   let line = 0, stopped = null, outBuf = '', finalVars = null, checkedOn = false;
   const fail = (msg, l) => { if (l) line = l; throw new CsError(msg); };
   const write = (s, err) => {
@@ -1053,7 +1054,8 @@ export function runCsTrace(src) {
     const label = fn.lambda ? 'lambda' : fn.localFn ? fn.name : fn.accessor ? (fn.cls ? fn.cls.name + '.' : '') + fn.name : fn.ctor ? 'new ' + fn.cls.name : (fn.cls && !fn.cls.topLevel ? fn.cls.name + '.' : '') + fn.name;
     const fr = { name: label, scopes: [scope], env: fn.env, fn, self: fn.lambda || fn.localFn ? (fn.selfAt !== undefined ? fn.selfAt : self) : self, ctorOf: fn.ctor ? self : null, pcArgs: fn.pcArgs };
     const shown = ps.filter(p => scope.has(p.name) && !(fn.isMain && p.name === 'args')).map(p => p.name + '=' + brief(scope.get(p.name).ref && !scope.get(p.name).out ? scope.get(p.name).ref.get() : scope.get(p.name).v)).join(', ');
-    if (!fn.accessor || fn.body) stack.push({ name: label, args: shown.slice(0, 70) });
+    const id = !fn.accessor || fn.body ? ++calls : 0;
+    if (id) stack.push({ name: label, args: shown.slice(0, 70), id });
     else fr.noStack = true;
     frames.push(fr);
     try {
@@ -1065,7 +1067,9 @@ export function runCsTrace(src) {
       if (r && r.k === 'return') {
         if (fn.ret && fn.ret.n === 'void' && r.v !== undefined && !fn.lambda) fail(`CS0127: Since '${label}' returns void, a return keyword must not be followed by an object expression`);
         if (fn.ret && fn.ret.n !== 'void' && r.v === undefined && !fn.lambda) fail(`CS0126: An object of a type convertible to '${typeText(fn.ret)}' is required`);
-        return fn.ret && !fn.lambda ? (fn.ret.n === 'void' ? undefined : conv(r.v, fn.ret, r.ast, 'return')) : r.v;
+        const out = fn.ret && !fn.lambda ? (fn.ret.n === 'void' ? undefined : conv(r.v, fn.ret, r.ast, 'return')) : r.v;
+        if (id && out !== undefined) rets[id] = brief(out);
+        return out;
       }
       return undefined;
     } finally {
@@ -1688,11 +1692,11 @@ export function runCsTrace(src) {
     const c = finalVars || captureVars(null);
     steps.push({ line: -1, stack: [], vars: c.vars, refs: c.refs, logs: logs.length });
   }
-  return { steps, logs, error };
+  return { steps, logs, error, rets };
 
   /** the top-level statements, run as Main (their scope is the one local functions close over) */
   function invokeTop(main) {
-    stack.push({ name: 'Main', args: '' });
+    stack.push({ name: 'Main', args: '', id: ++calls });
     const fr = { name: 'Main', scopes: [new Map()], fn: main, self: null };
     topScope = fr.scopes[0];
     frames.push(fr);

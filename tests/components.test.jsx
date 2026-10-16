@@ -5,7 +5,7 @@ import { renderToStaticMarkup as html } from 'react-dom/server';
 import { App } from '../src/components/App.jsx';
 import { Graph } from '../src/components/Graph.jsx';
 import { SHAPES } from '../src/components/GraphHelp.jsx';
-import { Header } from '../src/components/Header.jsx';
+import { Header, SUBTITLE } from '../src/components/Header.jsx';
 import { LANG_INFO } from '../src/components/LangInfo.jsx';
 import { StatePanel } from '../src/components/StatePanel.jsx';
 import { StepContext, Value } from '../src/components/Values.jsx';
@@ -105,9 +105,10 @@ test('the i next to the Language picker says what the picked language includes a
   assert.match(header('kotlin'), /What Kotlin includes[\s\S]*Coroutines and reflection/);
   assert.match(header('swift'), /What Swift includes[\s\S]*Not included[\s\S]*async \/ await/);
   assert.doesNotMatch(go.match(/<label[\s\S]*?<\/label>/)[0], /langInfoBtn/, 'the button is not inside the label, so it does not label the picker');
+  assert.match(go, /<h1>Algorithm visualizer<\/h1>/);
   for (const id of ['go', 'swift', 'cpp']) {
-    const sub = header(id).match(/<p>([\s\S]*?)<\/p>/)[1];
-    assert.match(sub, /^Run your code one statement at a time/, 'the subtitle says "your code", not the language: ' + sub);
+    const sub = header(id).match(/<p(?: [^>]*)?>([\s\S]*?)<\/p>/)[1];
+    assert.equal(sub, SUBTITLE, 'one subtitle for every language: ' + sub);
     assert.ok(!sub.includes(LANG_NAMES[id]), id + ' is not named in the subtitle');
   }
 });
@@ -344,4 +345,41 @@ test('breakpointStep finds the next / previous step on a marked line', () => {
   assert.equal(breakpointStep(steps, 4, bps), -1, 'none left: the caller goes to the end');
   assert.equal(breakpointStep(steps, 5, bps, -1), 4);
   assert.equal(breakpointStep(steps, 2, bps, -1), -1, 'none before: the caller goes to the start');
+});
+
+test('Calls: a recursive program shows its call tree first, with a switch back to the stack', () => {
+  const t = traceCode('function fib(n) { if (n < 2) return n; return fib(n - 1) + fib(n - 2); }\nfib(3);').trace;
+  const i = t.steps.findIndex(s => s.stack.length === 3);
+  const panel = (trace, k) => html(<StatePanel step={trace.steps[k]} prev={null} stepNo={k} logs={[]} stale={false} runs={1} trace={trace}
+    vars={{ views: {}, onView: () => {}, showPtrs: true }} />);
+  const m = panel(t, i);
+  assert.match(m, /<h2>Call tree<\/h2>/);
+  assert.match(m, /<button[^>]*id="calls-tree"[^>]*aria-pressed="true"/);
+  assert.match(m, /<button[^>]*id="calls-stack"[^>]*aria-pressed="false"/);
+  assert.match(m, /id="callTree"[\s\S]*<svg[^>]*aria-label="Call tree: 3 calls so far"/);
+  assert.equal(count(m, /class="ct-node cur"/g), 1, 'one running call');
+  assert.doesNotMatch(m, /id="stack"/);
+  const flat = traceCode('function add(a, b) { return a + b; }\nadd(1, 2);').trace;
+  const f = panel(flat, flat.steps.findIndex(s => s.stack.length));
+  assert.match(f, /<h2>Call stack<\/h2>[\s\S]*id="calls-tree"/, 'no recursion: the stack first, the tree one click away');
+  assert.match(f, /id="stack"/);
+  const none = traceCode('const x = 1;').trace;
+  assert.doesNotMatch(panel(none, 0), /calls-tree/, 'no calls, no tree to offer');
+});
+
+test('Variables: an array of arrays is shown as a grid first, the other views a click away', () => {
+  const t = traceCode('const dp = [[0, 0, 0], [0, 0, 0]];\nconst i = 1, j = 2;\ndp[i][j] = 7;').trace;
+  const k = t.steps.length - 1;
+  const m = html(<Variables step={t.steps[k]} prev={t.steps[k - 1]} stepNo={k} views={{}} onView={() => {}} showPtrs />);
+  assert.match(m, /data-vt="dp\|grid"[^>]*class="on"|class="on"[^>]*data-vt="dp\|grid"/);
+  assert.match(m, /<table class="gridv" aria-label="Grid of dp">/);
+  assert.equal(count(m, /<td/g), 6);
+  assert.match(m, /<td class="chg at"><span class="prim num">7<\/span><\/td>/, 'the changed cell, where i and j meet');
+  assert.match(m, /<th scope="row" class="tagged"><span class="gridv-n">1<\/span><span class="chip"[^>]*>i<\/span>/);
+  assert.match(m, /<th scope="col" class="tagged"><span class="gridv-n">2<\/span><span class="chip"[^>]*>j<\/span>/);
+  assert.match(m, /2 × 3/);
+  const mem = html(<Variables step={t.steps[k]} prev={null} stepNo={k} views={{ dp: 'memory' }} onView={() => {}} showPtrs />);
+  assert.doesNotMatch(mem, /class="gridv"/, 'the switch chose Memory');
+  const flat = html(<Variables step={traceCode('const a = [1, 2];').trace.steps.at(-1)} prev={null} stepNo={0} views={{}} onView={() => {}} showPtrs />);
+  assert.doesNotMatch(flat, /\|grid"/, 'a flat array offers no grid');
 });

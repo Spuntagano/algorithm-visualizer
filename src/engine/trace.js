@@ -12,13 +12,14 @@ const MAX_CALLS = 300;   // stop runaway recursion
 class StopRun extends Error {}
 
 /**
- * Runs `code` and returns { steps, logs, error }.
+ * Runs `code` and returns { steps, logs, error, rets }. Every call gets an `id` on its stack frame, and `rets` maps
+ * that id to a one-line preview of what the call returned (components/CallTree.jsx draws them).
  * Throws if the code does not parse (the message comes from acorn).
  */
 export function runTrace(code) {
   const instrumented = instrument(code);
   const { capture } = createSerializer();
-  const steps = [], logs = []; const stack = [];
+  const steps = [], logs = []; const stack = []; const rets = {}; let calls = 0;
 
   const __t = (line, fd, entries) => {
     if (steps.length >= MAX_STEPS) throw new StopRun('Trace stopped after ' + MAX_STEPS + ' steps (possible infinite loop).');
@@ -27,19 +28,20 @@ export function runTrace(code) {
   };
   const __enter = (name, entries) => {
     const args = entries.map(([n, th]) => { let v; try { v = th(); } catch (e) { v = undefined; } return n + '=' + brief(v); }).join(', ');
-    stack.push({ name, args: args.length > 70 ? args.slice(0, 70) + '…' : args });
+    stack.push({ name, args: args.length > 70 ? args.slice(0, 70) + '…' : args, id: ++calls });
     if (stack.length > MAX_CALLS) throw new StopRun('Trace stopped: more than ' + MAX_CALLS + ' nested calls.');
   };
   const __exit = () => { stack.pop(); };
+  const __ret = v => { const f = stack[stack.length - 1]; if (f) rets[f.id] = brief(v); return v; };
   const push = type => (...a) => logs.push({ type, s: a.map(fmtLog).join(' ') });
   const cons = { log: push('log'), info: push('log'), debug: push('log'), warn: push('warn'), error: push('error') };
 
   let error = null;
   try {
-    const fn = new Function('__t', '__enter', '__exit', 'console', instrumented);
-    fn(__t, __enter, __exit, cons);
+    const fn = new Function('__t', '__enter', '__exit', '__ret', 'console', instrumented);
+    fn(__t, __enter, __exit, __ret, cons);
   } catch (e) {
     error = e instanceof StopRun ? { msg: e.message, soft: true } : { msg: (e && e.name ? e.name + ': ' : '') + (e && e.message ? e.message : String(e)) };
   }
-  return { steps, logs, error };
+  return { steps, logs, error, rets };
 }

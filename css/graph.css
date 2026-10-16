@@ -40,3 +40,15 @@
 .g-elabel { font-size: 11px; fill: var(--ink-soft); paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; stroke-linejoin: round; }
 .g-edge.chg { stroke: var(--chg); stroke-width: 2.5; }
 .g-head.chg { fill: var(--chg); }
+/* Call tree (components/CallTree.jsx): finished calls plain with what they returned, the stack's calls tinted, the
+   running one strongest; a call with the same arguments as an earlier one is dashed */
+.sect-head .vseg { margin-top: 0; }
+.ct-node { fill: var(--surface); stroke: var(--ink-soft); stroke-width: 1.2; }
+.ct-node.on { fill: var(--accent-tint); stroke: var(--accent); stroke-width: 1.5; }
+.ct-node.cur { fill: var(--accent-tint); stroke: var(--accent); stroke-width: 2.5; }
+.ct-node.rep { stroke-dasharray: 5 4; }
+.ct-label { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+.ct-ret { font-size: 11.5px; fill: var(--str); }
+.ct-arrow { fill: var(--muted); }
+.ct-edge { fill: none; stroke: var(--ink-soft); stroke-opacity: .45; stroke-width: 1.4; }
+.ct-edge.on { stroke: var(--accent); stroke-opacity: 1; stroke-width: 2; }
