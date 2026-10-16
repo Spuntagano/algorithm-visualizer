@@ -44,7 +44,7 @@ const sorted = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
 const found = binarySearch(sorted, 23);
 console.log("found at index", found);`,
 
-"Two sum (Map)": `function twoSum(nums, target) {
+"Two sum": `function twoSum(nums, target) {
   const seen = new Map();
   for (let i = 0; i < nums.length; i++) {
     const need = target - nums[i];
@@ -202,7 +202,7 @@ print(data)`,
 nums = [1, 3, 5, 7, 9, 11, 13]
 print(binary_search(nums, 9))`,
 
-"Two sum (dict)": `def two_sum(nums, target):
+"Two sum": `def two_sum(nums, target):
     seen = {}
     for i, x in enumerate(nums):
         need = target - x
@@ -357,7 +357,7 @@ const sorted: number[] = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
 const found = binarySearch(sorted, 23);
 console.log("found at index", found);`,
 
-"Two sum (Map)": `function twoSum(nums: number[], target: number): [number, number] | null {
+"Two sum": `function twoSum(nums: number[], target: number): [number, number] | null {
   const seen = new Map<number, number>();
   for (let i = 0; i < nums.length; i++) {
     const need = target - nums[i];
@@ -503,7 +503,7 @@ local sorted = {2, 5, 8, 12, 16, 23, 38, 56, 72, 91}
 local found = binary_search(sorted, 23)
 print("found at index", found)`,
 
-"Two sum (table)": `local function two_sum(nums, target)
+"Two sum": `local function two_sum(nums, target)
   local seen = {}
   for i, x in ipairs(nums) do
     local need = target - x
@@ -649,7 +649,7 @@ sorted = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]
 found = binary_search(sorted, 23)
 puts "found at index #{found}"`,
 
-"Two sum (Hash)": `def two_sum(nums, target)
+"Two sum": `def two_sum(nums, target)
   seen = {}
   nums.each_with_index do |x, i|
     need = target - x
@@ -807,7 +807,7 @@ int main(void) {
     return 0;
 }`,
 
-"Two sum (lookup table)": `#include <stdio.h>
+"Two sum": `#include <stdio.h>
 
 #define MAX_VALUE 16
 
@@ -1018,7 +1018,7 @@ $sorted = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91];
 $found = binary_search($sorted, 23);
 echo "found at index $found\\n";`,
 
-"Two sum (array)": `<?php
+"Two sum": `<?php
 
 function two_sum(array $nums, int $target): ?array
 {
@@ -1198,7 +1198,7 @@ int main() {
     return 0;
 }`,
 
-"Two sum (unordered_map)": `#include <iostream>
+"Two sum": `#include <iostream>
 #include <unordered_map>
 #include <vector>
 using namespace std;
@@ -1409,7 +1409,7 @@ export const JAVA_EXAMPLES = {
     }
 }`,
 
-"Two sum (HashMap)": `import java.util.*;
+"Two sum": `import java.util.*;
 
 public class Main {
     static int[] twoSum(int[] nums, int target) {
@@ -1614,7 +1614,7 @@ func main() {
     fmt.Println("found at index", found)
 }`,
 
-"Two sum (map)": `package main
+"Two sum": `package main
 
 import "fmt"
 
@@ -1770,6 +1770,171 @@ func main() {
 }`
 };
 
+export const SWIFT_EXAMPLES = {
+"Bubble sort": `func bubbleSort(_ arr: inout [Int]) {
+    let n = arr.count
+    for i in 0..<n - 1 {
+        var swapped = false
+        for j in 0..<n - 1 - i {
+            if arr[j] > arr[j + 1] {
+                let tmp = arr[j]
+                arr[j] = arr[j + 1]
+                arr[j + 1] = tmp
+                swapped = true
+            }
+        }
+        if !swapped { break }
+    }
+}
+
+var data = [5, 2, 9, 1, 6]
+bubbleSort(&data)
+print(data)`,
+
+"Binary search": `func binarySearch(_ arr: [Int], _ target: Int) -> Int {
+    var lo = 0
+    var hi = arr.count - 1
+    while lo <= hi {
+        let mid = lo + (hi - lo) / 2
+        if arr[mid] == target {
+            return mid
+        } else if arr[mid] < target {
+            lo = mid + 1
+        } else {
+            hi = mid - 1
+        }
+    }
+    return -1
+}
+
+let sorted = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]
+let found = binarySearch(sorted, 23)
+print("found at index \\(found)")`,
+
+"Two sum": `func twoSum(_ nums: [Int], _ target: Int) -> [Int]? {
+    var seen: [Int: Int] = [:]   // value -> index
+    for (i, x) in nums.enumerated() {
+        if let j = seen[target - x] {
+            return [j, i]
+        }
+        seen[x] = i
+    }
+    return nil
+}
+
+if let result = twoSum([3, 8, 11, 4, 7], 15) {
+    print(result)
+}`,
+
+"Fibonacci with memo": `var memo: [Int: Int] = [:]
+
+func fib(_ n: Int) -> Int {
+    if n <= 1 { return n }
+    if let cached = memo[n] { return cached }
+    let value = fib(n - 1) + fib(n - 2)
+    memo[n] = value
+    return value
+}
+
+print(fib(6))`,
+
+"Reverse a linked list": `class Node {
+    let value: Int
+    var next: Node?
+    init(_ value: Int, _ next: Node? = nil) {
+        self.value = value
+        self.next = next
+    }
+}
+
+let list = Node(1, Node(2, Node(3)))
+
+var prev: Node? = nil
+var curr: Node? = list
+while let node = curr {
+    let next = node.next
+    node.next = prev
+    prev = node
+    curr = next
+}
+print(prev?.value ?? 0)`,
+
+"Breadth-first search": `let graph: [String: [String]] = [
+    "A": ["B", "C"],
+    "B": ["D"],
+    "C": ["D", "E"],
+    "D": ["F"],
+    "E": ["F"],
+    "F": [],
+]
+
+func bfs(_ start: String) -> [String] {
+    var visited: Set<String> = [start]
+    var queue = [start]
+    var order: [String] = []
+    while !queue.isEmpty {
+        let cur = queue.removeFirst()
+        order.append(cur)
+        for next in graph[cur, default: []] {
+            if visited.insert(next).inserted {
+                queue.append(next)
+            }
+        }
+    }
+    return order
+}
+
+print(bfs("A"))`,
+
+"Data structures": `struct Point { let x: Int; let y: Int }
+struct Job { let id: String; let color: String; let next: [String] }
+class TreeNode {
+    let value: Int
+    var left: TreeNode?
+    var right: TreeNode?
+    init(_ value: Int, _ left: TreeNode? = nil, _ right: TreeNode? = nil) {
+        self.value = value; self.left = left; self.right = right
+    }
+}
+class ListNode {
+    let value: Int
+    let next: ListNode?
+    init(_ value: Int, _ next: ListNode?) { self.value = value; self.next = next }
+}
+
+// ---- Memory / Boxes: any value ----
+var nums = [5, 2, 9, 1, 6]
+let i = 1, j = 3                                   // tags under nums[1] and nums[3]
+var words = ["hi", "there"]
+var scores = ["ada": 90]
+let primes: Set = [5, 2, 3]
+var stack: [Int] = []
+stack.append(1)
+stack.append(2)
+let p = Point(x: 1, y: 2)
+var copy = nums                                    // a copy: arrays are values
+copy[0] = 99
+let shared = TreeNode(7)
+let pair = [shared, shared]                        // the same object twice: #id badge
+
+// ---- Graph: neighbour lists in a dictionary ----
+let g1 = ["A": ["B", "C"], "B": ["D"], "C": ["D"], "D": []]
+let g2: [Character: [Character: Int]] = ["a": ["b": 4], "b": ["c": 5], "c": [:]]   // weighted
+let adj = [[1, 2], [3], [3], []]                   // by position
+let edges = [(0, 1), (1, 2), (2, 0)]
+
+// ---- Graph: objects that point at each other ----
+let tree = TreeNode(1, TreeNode(2, TreeNode(4)), TreeNode(3))
+let linked = ListNode(1, ListNode(2, ListNode(3, nil)))
+
+// ---- Graph: data in the nodes ----
+let jobs = [Job(id: "A", color: "red", next: ["B", "C"]), Job(id: "B", color: "blue", next: ["C"]), Job(id: "C", color: "green", next: [])]
+
+let cur = "B"                                      // tags node B in g1
+let visited: Set = ["A", "C"]                      // ∈ visited tags
+print("done")`
+};
+
 export const CS_EXAMPLES = {
 "Bubble sort": `void BubbleSort(int[] arr)
 {
@@ -1810,7 +1975,7 @@ int[] sorted = { 2, 5, 8, 12, 16, 23, 38, 56, 72, 91 };
 int found = BinarySearch(sorted, 23);
 Console.WriteLine($"found at index {found}");`,
 
-"Two sum (Dictionary)": `int[] TwoSum(int[] nums, int target)
+"Two sum": `int[] TwoSum(int[] nums, int target)
 {
     var seen = new Dictionary<int, int>();   // value -> index
     for (int i = 0; i < nums.Length; i++)
@@ -1985,7 +2150,7 @@ fun main() {
     println("found at index $found")
 }`,
 
-"Two sum (map)": `fun twoSum(nums: IntArray, target: Int): List<Int>? {
+"Two sum": `fun twoSum(nums: IntArray, target: Int): List<Int>? {
     val seen = mutableMapOf<Int, Int>()   // value -> index
     for ((i, x) in nums.withIndex()) {
         val j = seen[target - x]

@@ -24,12 +24,12 @@ const common = dev => ({
 });
 
 /**
- * The engines only some languages need (Sucrase for TypeScript, Fengari for Lua, the C and C++, Java, Kotlin, C# and Go interpreters), each bundled on its
+ * The engines only some languages need (Sucrase for TypeScript, Fengari for Lua, the C and C++, Java, Kotlin, Swift, C# and Go interpreters), each bundled on its
  * own, gzipped and base64'd: the worker is handed and unpacks only the one a run needs (engine/worker.js). This keeps
  * the page one file that works offline, a third the size it would be with them as plain code.
  */
 export const ENGINES = { typescript: 'src/engine/typescript.js', lua: 'src/engine/lua/tracer.js', c: 'src/engine/c/interp.js', cpp: 'src/engine/c/cpp.js',
-  java: 'src/engine/java/interp.js', kotlin: 'src/engine/kotlin/interp.js', csharp: 'src/engine/cs/interp.js', go: 'src/engine/go/interp.js' };
+  java: 'src/engine/java/interp.js', kotlin: 'src/engine/kotlin/interp.js', swift: 'src/engine/swift/interp.js', csharp: 'src/engine/cs/interp.js', go: 'src/engine/go/interp.js' };
 export async function bundleEngines({ dev = false } = {}) {
   // Fengari (Lua) is written for Node too: its Node-only modules are never used in a worker, so they are stubbed out
   const nodeOnly = { name: 'node-only', setup(b) {

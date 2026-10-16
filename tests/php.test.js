@@ -152,7 +152,7 @@ test('every PHP example runs, prints like its twin, and its graphs are found', a
     assert.ok(r.steps.length > 3 && r.logs.length > 0, name);
   }
   assert.deepEqual((await trace(PHP_EXAMPLES['Breadth-first search'])).logs.map(l => l.s), ['A B C D E F']);
-  assert.deepEqual((await trace(PHP_EXAMPLES['Two sum (array)'])).logs.map(l => l.s), ['[2,3]']);
+  assert.deepEqual((await trace(PHP_EXAMPLES['Two sum'])).logs.map(l => l.s), ['[2,3]']);
   const ds = await last(PHP_EXAMPLES['Data structures']);
   for (const [n, k] of [['$g1', 'Graph'], ['$g2', 'Graph'], ['$adj', 'Graph'], ['$edges', 'Graph'], ['$tree', 'Tree'], ['$linked', 'Linked list'], ['$jobs', 'Graph'], ['$intervals', 'Graph']])
     assert.equal(kind(ds, n), k, n);

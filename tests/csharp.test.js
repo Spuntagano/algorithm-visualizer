@@ -171,7 +171,7 @@ test('every C# example runs, prints like its twin, and its graphs are found', ()
   const logs = name => runCsTrace(CS_EXAMPLES[name]).logs.map(l => l.s);
   assert.deepEqual(logs('Bubble sort'), ['1, 2, 5, 6, 9']);
   assert.deepEqual(logs('Binary search'), ['found at index 5']);
-  assert.deepEqual(logs('Two sum (Dictionary)'), ['[2, 3]']);
+  assert.deepEqual(logs('Two sum'), ['[2, 3]']);
   assert.deepEqual(logs('Fibonacci with memo'), ['8']);
   assert.deepEqual(logs('Reverse a linked list'), ['3']);
   assert.deepEqual(logs('Breadth-first search'), ['A, B, C, D, E, F']);

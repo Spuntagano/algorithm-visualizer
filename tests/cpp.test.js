@@ -154,7 +154,7 @@ test('every C++ example runs, prints like its twin, and its graphs are found', (
   }
   const logs = name => runCppTrace(CPP_EXAMPLES[name]).logs.map(l => l.s);
   assert.deepEqual(logs('Bubble sort'), ['1 2 5 6 9 ']);
-  assert.deepEqual(logs('Two sum (unordered_map)'), ['[2, 3]']);
+  assert.deepEqual(logs('Two sum'), ['[2, 3]']);
   assert.deepEqual(logs('Reverse a linked list'), ['3']);
   assert.deepEqual(logs('Breadth-first search'), ['A B C D E F ']);
   const bfs = runCppTrace(CPP_EXAMPLES['Breadth-first search']).steps.find(s => s.stack.length === 2 && s.vars.some(v => v.name === 'cur'));

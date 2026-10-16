@@ -1,6 +1,6 @@
 # Algorithm Stepper (React edition)
 
-Step through JavaScript, TypeScript, Lua, Python, Ruby, PHP, Java, Kotlin, C#, Go, C or C++ one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
+Step through JavaScript, TypeScript, Lua, Python, Ruby, PHP, Java, Kotlin, Swift, C#, Go, C or C++ one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
 Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`); the choice is kept per variable while you step and edit.
 
 ## TypeScript
@@ -83,6 +83,34 @@ compiler would refuse is reported as Kotlin 2 words it, when the line runs: `'va
 `initializer type mismatch: expected 'kotlin.Double', actual 'kotlin.Int'`, a call on a nullable value without `?.`,
 a `when` expression that is not exhaustive, `add` on a read-only `List`. Not supported: coroutines, reflection,
 regular expressions, reading input, and libraries beyond those listed.
+
+## Swift
+Pick **Swift** in the Language menu. Swift runs in an interpreter written for this page (`src/engine/swift/`: `parse.js`,
+`interp.js`, `values.js`, and `lib.js` for the library), so it works offline. It covers the Swift that algorithms use
+(Swift 6, a `main.swift` file of top-level code): functions with argument labels, defaults, variadics, `inout` and
+`throws`; structs (with memberwise inits and `mutating` methods), classes with inheritance, `init` / `convenience
+init` / `super.init`, `override` and `static` members; enums with raw values, associated values, `indirect` cases and
+`CaseIterable`; protocols with extensions (and default methods), extensions of the program's own and of the library's
+types (`extension Int { … }`, `extension Array where …`), generics (erased), stored, computed, `lazy` and observed
+(`willSet` / `didSet`) properties, subscripts, operator functions; optionals (`if let`, `guard let`, `while let`, `?.`,
+`??`, `!`, `if case`), closures (with `$0`, trailing ones, captures), `switch` with patterns (tuples, ranges, `let`,
+`where`, enum cases, `fallthrough`), `if` and `switch` expressions, `for … in … where`, `stride`, labels, `defer`, `do` / `catch` / `try?` / `try!`, and
+tuples. The library: `print`, `Int` and the other integer types, `Double` and `Float`, `Bool`, `Character`, `String`
+(counted in Characters, with `String.Index`), `Array`, `Dictionary`, `Set`, ranges, the sequence functions (`map`,
+`filter`, `reduce`, `sorted`, `compactMap`, `enumerated`, `zip`…), `min` / `max` / `abs` / `swap`, and Foundation's math,
+`String(format:)`, `components(separatedBy:)` and `trimmingCharacters(in:)` (after `import Foundation`, as in Swift).
+What a program can see of Swift is kept: arrays, dictionaries, sets, strings, tuples and structs are values (a copy is
+changed on its own; the views draw each in its own box), class instances are shared, Int is 64 bits and overflow stops
+the program, literals take the type their place needs (`let x: Double = 1`, `d * 2`), `print` writes `Optional(3)`,
+`[main.P(x: 1)]` and doubles as Swift does (`1e+16`, `0.30000000000000004`), a method dispatches on the object's own
+class, and the runtime's fatal errors have its words (`Fatal error: Index out of range`, `Unexpectedly found nil while
+unwrapping an Optional value`). What the compiler would refuse is reported as Swift words it: a function that can end
+without returning its value before the program runs, the rest (`cannot assign to value: 'x' is a 'let' constant`,
+`binary operator '*' cannot be applied to operands of type 'Double' and 'Int'`, a missing argument label, a call to a
+throwing function without `try`) when the line runs. A Dictionary or Set keeps insertion order here, where real Swift
+picks a random order on purpose; an arithmetic overflow, which real Swift stops on without a message, says so. `deinit`
+never runs. Not supported: `async` / `await` and actors, key paths, property wrappers, result builders, macros, regular expressions,
+reading input (`readLine()` returns nil), and libraries beyond those listed.
 
 ## C#
 Pick **C#** in the Language menu. C# runs in an interpreter written for this page (`src/engine/cs/`: `parse.js`,
@@ -203,7 +231,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 - **Limits**: 60 nodes in Graph, 50 boxes in Memory; snapshots expand 5 levels deep, 60 items / 30 entries per container.
 
 ## Structure
-- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, `python/` for Python, `ruby/` for Ruby, `php/` for PHP, `java/` for Java, `kotlin/` for Kotlin, `cs/` for C# and `go/` for Go (interpreters of their own) (each hosted one: the tracer, and where its runtime is loaded from), and `c/` for C and C++ (an interpreter of its own, with `stl.js` for the C++ library). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker each for Python, Ruby and PHP. `sync.js` traces JavaScript on the current thread, for tests.
+- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, `python/` for Python, `ruby/` for Ruby, `php/` for PHP, `java/` for Java, `kotlin/` for Kotlin, `swift/` for Swift, `cs/` for C# and `go/` for Go (interpreters of their own) (each hosted one: the tracer, and where its runtime is loaded from), and `c/` for C and C++ (an interpreter of its own, with `stl.js` for the C++ library). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker each for Python, Ruby and PHP. `sync.js` traces JavaScript on the current thread, for tests.
 - `src/graph/` – graph math (general graphs and the Memory view are laid out by dagre, trees and lists by a small tidy-tree layout) and **view-model builders**. They return drawable primitives (`{tag, p, text}`), so geometry is testable without a DOM.
 - `src/hooks/useStepper.js` – trace, step index, playback, re-runs.
 - `src/editor.js` – CodeMirror 6 setup: highlighting, keys, and the current/previous step lines (the step state is testable without a DOM).

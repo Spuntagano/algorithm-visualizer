@@ -4,7 +4,7 @@
   /* --split is the editor's share of the width in percent, set by the divider (components/Splitter.jsx) */
   --split: 50;
   display: grid; grid-template-columns: minmax(0, calc(var(--split) * 1% - 6px)) 12px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr); padding: 0 16px 14px; height: 100%;
+  grid-template-rows: minmax(0, 1fr); padding: 14px 16px; height: 100%;
 }
 .splitter { position: relative; cursor: col-resize; touch-action: none; outline: none; }
 .splitter::after {                              /* a thin grip in the middle of the gap, shown on hover, focus and drag */
@@ -68,3 +68,8 @@ body.resizing { cursor: col-resize; user-select: none; }
 .help-pop code.inline { padding: 0 4px; }
 .state-panel.stale #stateBody { opacity: .55; transition: opacity .15s .15s; }
 .placeholder { padding: 40px 24px; color: var(--muted); text-align: center; }
+
+/* "i" next to the Language picker (components/LangInfo.jsx); it uses the popover styles above */
+.help-runs { margin: 0 0 4px; color: var(--ink-soft); }
+.help-has li::marker { content: "✓  "; color: var(--accent); }
+.help-not li::marker { content: "✕  "; color: var(--muted); }

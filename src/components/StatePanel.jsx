@@ -1,5 +1,4 @@
 /** The right panel: call stack, variables and console output for the current step. */
-import { LANG_NAMES } from '../editor.js';
 import { GraphHelp } from './GraphHelp.jsx';
 import { Variables } from './Variables.jsx';
 
@@ -33,12 +32,12 @@ export function StatePanel({ step, prev, stepNo, logs, stale, runs, vars, lang =
   return (
     <section className={'panel state-panel' + (stale ? ' stale' : '')} aria-label="Program state" aria-busy={stale || undefined} data-run={runs}>
       {!step
-        ? <div id="placeholder" className="placeholder">Write or paste some {LANG_NAMES[lang] || 'JavaScript'}, or pick an example: it runs as you type.<br />Ctrl/Cmd + Enter runs it right away.</div>
+        ? <div id="placeholder" className="placeholder">Write or paste your code, or pick an example: it runs as you type.<br />Ctrl/Cmd + Enter runs it right away.</div>
         : (
           <div id="stateBody">
             <div className="sect"><h2>Call stack</h2><CallStack stack={step.stack} /></div>
             <div className="sect"><div className="sect-head"><h2>Variables</h2><GraphHelp lang={lang} /></div><Variables step={step} prev={prev} stepNo={stepNo} {...vars} /></div>
-            <div className="sect"><h2>Output</h2><Output lines={logs.slice(0, step.logs)} print={lang === 'ruby' ? 'puts' : lang === 'c' ? 'printf' : lang === 'cpp' ? 'cout <<' : lang === 'java' ? 'System.out.println' : lang === 'go' ? 'fmt.Println' : lang === 'csharp' ? 'Console.WriteLine' : lang === 'kotlin' ? 'println' : lang === 'php' ? 'echo' : lang === 'python' || lang === 'lua' ? 'print' : 'console.log'} /></div>
+            <div className="sect"><h2>Output</h2><Output lines={logs.slice(0, step.logs)} print={lang === 'ruby' ? 'puts' : lang === 'c' ? 'printf' : lang === 'cpp' ? 'cout <<' : lang === 'java' ? 'System.out.println' : lang === 'go' ? 'fmt.Println' : lang === 'csharp' ? 'Console.WriteLine' : lang === 'kotlin' ? 'println' : lang === 'swift' ? 'print' : lang === 'php' ? 'echo' : lang === 'python' || lang === 'lua' ? 'print' : 'console.log'} /></div>
           </div>
         )}
     </section>

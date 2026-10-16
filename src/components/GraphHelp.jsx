@@ -2,9 +2,10 @@
  * The "?" next to the Variables heading: a short guide, for someone new to the app, to the three views and to every
  * shape of data the Graph view can draw. A native popover (top layer, so the panel's overflow cannot clip it; Escape
  * and an outside click close it), placed under its button. Written for the language picked in the header; every
- * example here is checked by tests (tests/components.test.jsx for JavaScript, tests/python.test.js, lua.test.js, ruby.test.js, php.test.js, java.test.js, kotlin.test.js, csharp.test.js, go.test.js, c.test.js and cpp.test.js for the others).
+ * example here is checked by tests (tests/components.test.jsx for JavaScript, tests/python.test.js, lua.test.js, ruby.test.js, php.test.js, java.test.js, kotlin.test.js, csharp.test.js, go.test.js, swift.test.js, c.test.js and cpp.test.js for the others).
  */
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
+import { usePopover } from '../hooks/usePopover.js';
 
 /**
  * Everything the guide says that depends on the language. SHAPES items are [example, explanation, program?, variable?]:
@@ -240,6 +241,42 @@ export const HELP = {
     arrowObject: 'Edge("B", 4) (to, w)', pair: 'from to to', tuples: ['Triple(1, 0, 3)', 'Triple(0, 3, 1)', 'Triple(0, 1, 3)'],
     nodeData: 'Task(1, 3) (id, weight)', arrowData: 'Edge("B", 0, 3) (to, start, end)', age: 'a Person with an Int age', fruits: 'listOf("apple")',
   },
+  swift: {
+    values: 'Every array, dictionary, set, struct and object',
+    memory: 'each array, dictionary, set, struct or object is a box, and a class reference is an arrow to what it refers to',
+    containers: 'an array or Set (or a [Bool] of flags, one per node)',
+    names: { keyed: 'Neighbour lists (in a dictionary)', named: 'Values that name each other', numbers: 'Arrays of numbers' },
+    shapes: [
+      ['A list of neighbours for each name (in a dictionary)', [
+        ['let g = ["A": ["B", "C"], "B": ["C"], "C": []]', 'A points to B and C, B points to C. Sets, or Character or Int keys, work too.', null, 'g'],
+        ['let g = ["A": ["B": 4, "C": 2], "B": ["C": 1]]', 'The same, with a number (weight) on each arrow. ("B", 4) tuples work too.', null, 'g'],
+        ['let g: [String: [Edge]]  // struct Edge { let to: String; let start: Int; let end: Int }', 'Each arrow written as a struct; its other fields are written on the arrow.',
+          'struct Edge { let to: String; let start: Int; let end: Int }\nlet g: [String: [Edge]] = ["A": [Edge(to: "B", start: 0, end: 3)], "B": []]', 'g'],
+      ]],
+      ['Objects that point at each other', [
+        ['class Node { let value: Int; var next: Node? }', 'A linked list: next refers to the next node, and nil ends it.',
+          'class Node {\n    let value: Int\n    var next: Node?\n    init(_ value: Int, _ next: Node?) { self.value = value; self.next = next }\n}\nlet list = Node(1, Node(2, nil))', 'list'],
+        ['class Tree { let value: Int; var left: Tree?; var right: Tree? }', 'A binary tree.',
+          'class Tree {\n    let value: Int\n    var left: Tree?\n    var right: Tree?\n    init(_ value: Int, _ left: Tree? = nil, _ right: Tree? = nil) { self.value = value; self.left = left; self.right = right }\n}\nlet root = Tree(1, Tree(2), Tree(3))', 'root'],
+        ['class Vertex { let name: String; var nbrs: [Vertex] = [] }', 'Objects that keep other objects in an array: any graph.',
+          'class Vertex {\n    let name: String\n    var nbrs: [Vertex] = []\n    init(_ name: String) { self.name = name }\n}\nlet a = Vertex("A")\na.nbrs.append(Vertex("B"))\na.nbrs.append(Vertex("C"))', 'a'],
+      ]],
+      ['Values that name each other', [
+        ['let jobs: [Job]  // struct Job { let id: String; let deps: [String] }', 'By an id, key or name property.',
+          'struct Job { let id: String; let deps: [String] }\nlet jobs = [Job(id: "test", deps: ["build"]), Job(id: "build", deps: [])]', 'jobs'],
+        ['let items: [Item]  // struct Item { let v: String; let out: [Int] }', 'By position in the array.',
+          'struct Item { let v: String; let out: [Int] }\nlet items = [Item(v: "a", out: [1]), Item(v: "b", out: [])]', 'items'],
+      ]],
+      ['Arrays of numbers (the variable\'s name decides)', [
+        ['let adj = [[1, 2], [2], []]', 'The neighbours of node 0, 1, 2… The name must contain adj, graph, neigh or tree, or be g.', null, 'adj'],
+        ['let adj = [[(1, 4), (2, 7)], [(2, 1)], []]', 'The same with (node, weight) tuples: the node is the first position where every one holds a node number. One other number is a weight; more are written on the arrow.', null, 'adj'],
+        ['let graph = [[0, 1, 1], [0, 0, 1], [0, 0, 0]]', 'An adjacency matrix: graph[a][b] is 1 (or a weight) when a points to b.', null, 'graph'],
+        ['let edges = [(0, 1), (1, 2)]', 'One (from, to) tuple per arrow; a third number is its weight. The name must contain edge.', null, 'edges'],
+      ]],
+    ],
+    arrowObject: 'Edge(to: "B", w: 4)', pair: '(from, to)', tuples: ['(1, 0, 3)', '(0, 3, 1)', '(0, 1, 3)'],
+    nodeData: 'Task(id: 1, weight: 3)', arrowData: 'Edge(to: "B", start: 0, end: 3)', age: 'a Person with an Int age', fruits: '["apple"]',
+  },
   csharp: {
     values: 'Every array, List, Dictionary, HashSet, Queue, Stack and object',
     memory: 'each array, collection or object is a box, and a reference is an arrow to what it refers to',
@@ -382,33 +419,14 @@ export const SHAPES = HELP.javascript.shapes;
 const GROUPS = ['keyed', 'nested', 'named', 'numbers'];
 const NAMES = { keyed: 'Neighbour lists', nested: 'Objects inside objects', named: 'Objects that name each other', numbers: 'Lists of numbers' };
 
-/** @param lang  'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'php' | 'java' | 'kotlin' | 'csharp' | 'go' | 'c' | 'cpp': which language the guide's examples are written in (TypeScript uses JavaScript's) */
+/** @param lang  'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'php' | 'java' | 'kotlin' | 'swift' | 'csharp' | 'go' | 'c' | 'cpp': which language the guide's examples are written in (TypeScript uses JavaScript's) */
 export function GraphHelp({ lang = 'javascript' }) {
   const h = HELP[lang] || HELP.javascript;
   const groups = h.groups || GROUPS, no = id => groups.indexOf(id) + 1, has = id => groups.includes(id);
   const title = id => <b>{no(id)}. {(h.names && h.names[id]) || NAMES[id]}:</b>;
   const btn = useRef(null), pop = useRef(null);
 
-  useEffect(() => {
-    const p = pop.current;
-    /* Placed in page coordinates (position: absolute in the top layer), so it scrolls along with its button; closing it on
-       scroll instead would also close it right after it opens when a tap follows a scroll, or when a phone's address bar moves. */
-    const place = () => {
-      const r = btn.current.getBoundingClientRect(), w = Math.min(520, window.innerWidth - 32);
-      Object.assign(p.style, {
-        width: w + 'px',
-        left: window.scrollX + Math.max(16, Math.min(r.right - w, window.innerWidth - w - 16)) + 'px',
-        top: window.scrollY + r.bottom + 6 + 'px',
-        maxHeight: Math.max(160, window.innerHeight - r.bottom - 22) + 'px',   // fits below the button; longer text scrolls inside
-      });
-    };
-    const onToggle = e => { if (e.newState === 'open') place(); };
-    // follow the button when the window is resized or the debugger panel it sits in scrolls (never when the help itself scrolls)
-    const follow = e => { if (p.matches(':popover-open') && !(e.target instanceof Node && p.contains(e.target))) place(); };
-    p.addEventListener('beforetoggle', onToggle);
-    window.addEventListener('resize', follow); window.addEventListener('scroll', follow, true);
-    return () => { p.removeEventListener('beforetoggle', onToggle); window.removeEventListener('resize', follow); window.removeEventListener('scroll', follow, true); };
-  }, []);
+  usePopover(btn, pop);
 
   return (
     <>

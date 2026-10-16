@@ -1,5 +1,5 @@
 /**
- * Highlighting for C, C++, Java, Kotlin, C# and Go, as a CodeMirror stream parser: keywords and types (in the keyword colour), numbers, strings and
+ * Highlighting for C, C++, Java, Kotlin, Swift, C# and Go, as a CodeMirror stream parser: keywords and types (in the keyword colour), numbers, strings and
  * characters, comments and preprocessor lines. (The legacy "clike" mode does the same, but brings every C-like
  * language with it: about 22 KB.)
  */
@@ -35,7 +35,7 @@ function makeMode(name, keywords, atoms, types = TYPES) {
     if (state.comment) return inComment(stream, state);
     if (state.raw) return inRaw(stream, state);
     if (name === 'go' && stream.eat('`')) { state.raw = true; return inRaw(stream, state); }
-    if (name === 'kotlin' && stream.match('"""')) { state.raw = true; state.rawEnd = '"""'; return inRaw(stream, state); }
+    if ((name === 'kotlin' || name === 'swift') && stream.match('"""')) { state.raw = true; state.rawEnd = '"""'; return inRaw(stream, state); }
     if (stream.eatSpace()) return null;
     if (stream.sol() && stream.peek() === '#') { stream.skipToEnd(); return 'keyword'; }   // #include, #define…
     if (stream.match('//')) { stream.skipToEnd(); return 'comment'; }
@@ -88,3 +88,11 @@ const KT_WORDS = ['as', 'break', 'class', 'continue', 'do', 'else', 'for', 'fun'
   'protected', 'public', 'sealed', 'vararg'];
 const KT_TYPES = new Set(['Int', 'Long', 'Double', 'Float', 'Boolean', 'Char', 'String', 'Unit', 'Any', 'Short', 'Byte', 'Nothing']);
 export const ktMode = makeMode('kotlin', new Set(KT_WORDS), new Set(['true', 'false', 'null']), KT_TYPES);
+/** Swift: its keywords (let, func, guard…) and basic types; true, false, nil and self are atoms; """multi-line strings""" go on over lines */
+const SWIFT_WORDS = ['associatedtype', 'as', 'break', 'case', 'catch', 'class', 'continue', 'default', 'defer', 'deinit', 'do', 'else', 'enum', 'extension',
+  'fallthrough', 'fileprivate', 'for', 'func', 'guard', 'if', 'import', 'in', 'init', 'inout', 'internal', 'is', 'let', 'mutating', 'open', 'operator',
+  'override', 'private', 'protocol', 'public', 'repeat', 'rethrows', 'return', 'static', 'struct', 'subscript', 'super', 'switch', 'throw', 'throws',
+  'try', 'typealias', 'var', 'where', 'while', 'lazy', 'weak', 'final', 'convenience', 'required', 'indirect', 'some', 'any', 'get', 'set', 'willSet', 'didSet'];
+const SWIFT_TYPES = new Set(['Int', 'Double', 'Float', 'Bool', 'String', 'Character', 'Array', 'Dictionary', 'Set', 'Optional', 'Void', 'Any', 'AnyObject',
+  'Int8', 'Int16', 'Int32', 'Int64', 'UInt', 'UInt8', 'UInt16', 'UInt32', 'UInt64', 'Self']);
+export const swiftMode = makeMode('swift', new Set(SWIFT_WORDS), new Set(['true', 'false', 'nil', 'self']), SWIFT_TYPES);

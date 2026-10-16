@@ -5,6 +5,8 @@ import { renderToStaticMarkup as html } from 'react-dom/server';
 import { App } from '../src/components/App.jsx';
 import { Graph } from '../src/components/Graph.jsx';
 import { SHAPES } from '../src/components/GraphHelp.jsx';
+import { Header } from '../src/components/Header.jsx';
+import { LANG_INFO } from '../src/components/LangInfo.jsx';
 import { StatePanel } from '../src/components/StatePanel.jsx';
 import { StepContext, Value } from '../src/components/Values.jsx';
 import { Variables } from '../src/components/Variables.jsx';
@@ -15,9 +17,9 @@ import { traceCode } from '../src/engine/sync.js';
 import { highlightCode } from '@lezer/highlight';
 import { javascriptLanguage } from '@codemirror/lang-javascript';
 import { StreamLanguage } from '@codemirror/language';
-import { cMode, cppMode, csMode, goMode, javaMode, ktMode } from '../src/c-mode.js';
+import { cMode, cppMode, csMode, goMode, javaMode, ktMode, swiftMode } from '../src/c-mode.js';
 import { phpMode } from '../src/php-mode.js';
-import { EditorState, EditorView, breakpointField, breakpointLines, clearBreakpoints, highlight, setStep, stepField, stepLines, toggleBreakpoint } from '../src/editor.js';
+import { LANG_NAMES, EditorState, EditorView, breakpointField, breakpointLines, clearBreakpoints, highlight, setStep, stepField, stepLines, toggleBreakpoint } from '../src/editor.js';
 import { EXAMPLES } from '../src/examples.js';
 
 const count = (s, re) => (s.match(re) || []).length;
@@ -26,7 +28,7 @@ const stepAt = (code, i) => traceCode(code).trace.steps[i];
 test('App starts empty: no code, no example picked, no error', () => {
   const m = html(<App />);
   assert.doesNotMatch(m, /id="stateBody"/);
-  assert.match(m, /id="placeholder"[^>]*>Write or paste some JavaScript, or pick an example/);
+  assert.match(m, /id="placeholder"[^>]*>Write or paste your code, or pick an example/);
   assert.doesNotMatch(m, /id="banner"/, 'an empty editor is not an error');
   assert.match(m, /id="transport"/, 'the timeline is always shown');
   assert.match(m, /id="stepLabel">No steps yet</);
@@ -37,7 +39,7 @@ test('App starts empty: no code, no example picked, no error', () => {
   const picker = m.match(/<select[^>]*id="example"[\s\S]*?<\/select>/)[0];
   assert.equal(count(picker, /<option value="[^"]+">/g), Object.keys(EXAMPLES).length, 'every example is offered');
   assert.doesNotMatch(m, /id="btnRun"|id="btnEdit"/, 'no Visualize / Edit code button: the code is always editable');
-  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="lua"[^>]*>Lua<\/option><option value="python"[^>]*>Python<\/option><option value="ruby"[^>]*>Ruby<\/option><option value="php"[^>]*>PHP<\/option><option value="java"[^>]*>Java<\/option><option value="kotlin"[^>]*>Kotlin<\/option><option value="csharp"[^>]*>C#<\/option><option value="go"[^>]*>Go<\/option><option value="c"[^>]*>C<\/option><option value="cpp"[^>]*>C\+\+<\/option><\/select>/, 'a language picker');
+  assert.match(m, /<select id="lang"[^>]*><option value="javascript"[^>]*>JavaScript<\/option><option value="typescript"[^>]*>TypeScript<\/option><option value="lua"[^>]*>Lua<\/option><option value="python"[^>]*>Python<\/option><option value="ruby"[^>]*>Ruby<\/option><option value="php"[^>]*>PHP<\/option><option value="java"[^>]*>Java<\/option><option value="kotlin"[^>]*>Kotlin<\/option><option value="swift"[^>]*>Swift<\/option><option value="csharp"[^>]*>C#<\/option><option value="go"[^>]*>Go<\/option><option value="c"[^>]*>C<\/option><option value="cpp"[^>]*>C\+\+<\/option><\/select>/, 'a language picker');
   assert.match(m, /<div class="splitter" role="separator" aria-orientation="vertical"[^>]*aria-valuenow="50"[^>]*tabindex="0"/, 'a focusable divider, half and half by default');
   assert.match(m, /<main class="grid" style="--split:50"/);
 });
@@ -67,6 +69,10 @@ test('the graph help is written for the language that is picked', () => {
   const kt = help('kotlin');
   assert.match(kt, /Every list, map, set, array and object/); assert.match(kt, /val g = mapOf\(&quot;A&quot; to listOf/);
   for (const other of [/None/, /nil/, /const adj/, /Map\.of/, /new List/]) assert.doesNotMatch(kt, other, 'no other language in the Kotlin guide: ' + other);
+  const sw = help('swift');
+  assert.match(sw, /Every array, dictionary, set, struct and object/); assert.match(sw, /let g = \[&quot;A&quot;: \[&quot;B&quot;, &quot;C&quot;\]/);
+  assert.match(sw, /<b>1\. Neighbour lists \(in a dictionary\):<\/b>/);
+  for (const other of [/None/, /null/, /const adj/, /Map\.of/, /listOf/]) assert.doesNotMatch(sw, other, 'no other language in the Swift guide: ' + other);
   const cs = help('csharp');
   assert.match(cs, /Every array, List, Dictionary, HashSet, Queue, Stack and object/); assert.match(cs, /new Dictionary&lt;string, List&lt;string&gt;&gt;/);
   assert.match(cs, /<b>1\. Neighbour lists \(in a Dictionary\):<\/b>/);
@@ -84,6 +90,26 @@ test('the graph help is written for the language that is picked', () => {
   assert.match(c, /<b>1\. Structs that point at structs:<\/b>/); assert.doesNotMatch(c, /Neighbour lists:/, 'no lists by name: C has no dictionaries');
   assert.match(js, /checks the shapes in the order 1, 4, 2, 3 /); assert.match(js, /<b>1\. Neighbour lists:<\/b>/);
   for (const other of [/None/, /next: null/, /const adj/, /nil/]) assert.doesNotMatch(c, other, 'no other language in the C guide: ' + other);
+});
+
+test('the i next to the Language picker says what the picked language includes and what it does not', () => {
+  assert.deepEqual(Object.keys(LANG_INFO).sort(), Object.keys(LANG_NAMES).sort(), 'every language in the picker has an entry, and no other');
+  for (const [id, info] of Object.entries(LANG_INFO)) {
+    assert.ok(info.runs && info.has.length && info.not.length, id + ' says what runs it, what is included and what is not');
+  }
+  const header = lang => html(<Header examples={[]} example="" onExample={() => {}} lang={lang} langs={LANG_NAMES} onLang={() => {}} />);
+  const go = header('go');
+  assert.match(go, /<button[^>]*id="langInfoBtn"[^>]*popovertarget="langInfo"[^>]*title="What Go includes"/i);
+  assert.match(go, /<div[^>]*id="langInfo"[^>]*popover="auto"[\s\S]*What Go includes[\s\S]*Included[\s\S]*Goroutines, channels and select/);
+  assert.doesNotMatch(go, /Coroutines and reflection/, 'only the picked language is described');
+  assert.match(header('kotlin'), /What Kotlin includes[\s\S]*Coroutines and reflection/);
+  assert.match(header('swift'), /What Swift includes[\s\S]*Not included[\s\S]*async \/ await/);
+  assert.doesNotMatch(go.match(/<label[\s\S]*?<\/label>/)[0], /langInfoBtn/, 'the button is not inside the label, so it does not label the picker');
+  for (const id of ['go', 'swift', 'cpp']) {
+    const sub = header(id).match(/<p>([\s\S]*?)<\/p>/)[1];
+    assert.match(sub, /^Run your code one statement at a time/, 'the subtitle says "your code", not the language: ' + sub);
+    assert.ok(!sub.includes(LANG_NAMES[id]), id + ' is not named in the subtitle');
+  }
 });
 
 test('StatePanel: the ? next to Variables opens the graph help', () => {
@@ -244,6 +270,11 @@ test('C highlighting: keywords and types, strings and chars, numbers, comments, 
   for (const kw of ['fun', 'val', 'Int', 'if', 'true', 'null']) assert.match(klss(kw), /var\(--code-kw\)/, 'Kotlin: ' + kw);
   assert.match(klss('still raw"""'), /var\(--code-str\)/, 'a raw string goes on over lines');
   assert.equal(klss('xs'), '', 'names are plain');
+  const sw = colours('func f(_ xs: [Int]) -> Int? { guard let x = xs.first else { return nil }; let s = """\nraw\nstill raw"""; return self.n }', StreamLanguage.define(swiftMode).parser);
+  const swss = text => (sw.find(([t]) => t === text) || [])[1] || '';
+  for (const kw of ['func', 'Int', 'guard', 'let', 'else', 'return', 'nil', 'self']) assert.match(swss(kw), /var\(--code-kw\)/, 'Swift: ' + kw);
+  assert.match(swss('still raw"""'), /var\(--code-str\)/, 'a multi-line string goes on over lines');
+  assert.equal(swss('xs'), '', 'names are plain');
   const cl = colours('var xs = new List<int>(); foreach (int x in xs) { string s = null; bool ok = true; }', StreamLanguage.define(csMode).parser);
   const clss = text => (cl.find(([t]) => t === text) || [])[1] || '';
   for (const kw of ['var', 'new', 'foreach', 'int', 'in', 'string', 'null', 'bool', 'true']) assert.match(clss(kw), /var\(--code-kw\)/, 'C#: ' + kw);
