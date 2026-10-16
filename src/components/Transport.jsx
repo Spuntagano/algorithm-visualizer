@@ -1,6 +1,10 @@
 /** The bottom bar (the timeline): first / back / play / forward / last, previous / next breakpoint, step over / out,
-    scrubber with a tick wherever a breakpoint is hit, speed, pointer tags. */
+    scrubber with a tick wherever a breakpoint is hit, speed, pointer tags, and the About button. */
+import { MOD } from '../editor.js';
+import { About } from './About.jsx';
 const Icon = ({ children }) => <svg viewBox="0 0 16 16" aria-hidden="true">{children}</svg>;
+
+const NO_BPS = 'Click a line number, or press F9 on a line in the editor, to add a breakpoint';
 
 /**
  * Always shown. With no trace (empty editor, syntax error, stopped run) the stepping controls are disabled;
@@ -21,7 +25,7 @@ export function Transport({ s, disabled: busy, showPtrs, onPtrs }) {
           <Icon><rect x="3" y="3" width="2" height="10" /><path d="M13 3v10L6 8z" /></Icon></button>
         <button className="ib" id="bPrev" title="Back one step (Left arrow)" aria-label="Back one step" disabled={atFirst} onClick={() => s.go(s.idx - 1)}>
           <Icon><path d="M12 3v10L5 8z" /></Icon></button>
-        <button className="ib play" id="bPlay" title="Play / pause (Space)" aria-label={s.playing ? 'Pause' : 'Play'} disabled={disabled} onClick={s.togglePlay}>
+        <button className="ib play" id="bPlay" title={`Play / pause (Space, or ${MOD}+Enter in the editor)`} aria-label={s.playing ? 'Pause' : 'Play'} disabled={disabled} onClick={s.togglePlay}>
           {s.playing
             ? <Icon><rect x="4" y="3" width="3" height="10" /><rect x="9" y="3" width="3" height="10" /></Icon>
             : <Icon><path d="M5 3v10l8-5z" /></Icon>}
@@ -33,10 +37,10 @@ export function Transport({ s, disabled: busy, showPtrs, onPtrs }) {
       </div>
       <div className="tc">
         <button className="ib bp" id="bBpPrev" aria-label="Back to the previous breakpoint" disabled={noBps || atFirst} onClick={s.prevBreak}
-          title={noBps ? 'Click a line number to add a breakpoint' : 'Back to the previous breakpoint (Shift+F8)'}>
+          title={noBps ? NO_BPS : 'Back to the previous breakpoint (Shift+F8)'}>
           <Icon><circle cx="4.5" cy="8" r="2.5" className="dot" /><path d="M14 3v10L8 8z" /></Icon></button>
         <button className="ib bp" id="bBpNext" aria-label="Continue to the next breakpoint" disabled={noBps || atLast} onClick={s.nextBreak}
-          title={noBps ? 'Click a line number to add a breakpoint' : 'Continue to the next breakpoint (F8)'}>
+          title={noBps ? NO_BPS : 'Continue to the next breakpoint (F8)'}>
           <Icon><path d="M2 3v10l6-5z" /><circle cx="11.5" cy="8" r="2.5" className="dot" /></Icon></button>
       </div>
       <div className="tc">
@@ -58,6 +62,7 @@ export function Transport({ s, disabled: busy, showPtrs, onPtrs }) {
         </label>
         <label><input type="checkbox" id="ptrToggle" checked={showPtrs} onChange={e => onPtrs(e.target.checked)} /> Pointer tags</label>
       </div>
+      <div className="about-slot"><About /></div>
     </footer>
   );
 }

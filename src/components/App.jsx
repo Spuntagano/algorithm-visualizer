@@ -20,16 +20,19 @@ function runBanner(trace, atLast, count) {
   return { text: 'Finished. The program ran ' + (count - 1) + ' statements.', error: false };
 }
 
-const LANG_KEY = 'algorithm-stepper.lang';
+const LANG_KEY = 'algorithm-visualizer.lang';
+const SPLIT_KEY = 'algorithm-visualizer.split';
+/** A saved setting, or the one saved under the page's old name (Algorithm Stepper), so a returning viewer keeps theirs */
+const stored = key => localStorage.getItem(key) ?? localStorage.getItem(key.replace('algorithm-visualizer.', 'algorithm-stepper.'));
+
 /** The language the viewer used last time (JavaScript unless they picked another). */
 function readLang() {
-  try { const v = localStorage.getItem(LANG_KEY); return v && EXAMPLES_BY_LANG[v] ? v : 'javascript'; } catch { return 'javascript'; }
+  try { const v = stored(LANG_KEY); return v && EXAMPLES_BY_LANG[v] ? v : 'javascript'; } catch { return 'javascript'; }
 }
 
-const SPLIT_KEY = 'algorithm-stepper.split';
 /** The divider position the viewer chose last time, or the default (storage can be missing or blocked). */
 function readSplit() {
-  try { const v = parseFloat(localStorage.getItem(SPLIT_KEY)); return Number.isFinite(v) ? v : SPLIT_DEFAULT; } catch { return SPLIT_DEFAULT; }
+  try { const v = parseFloat(stored(SPLIT_KEY)); return Number.isFinite(v) ? v : SPLIT_DEFAULT; } catch { return SPLIT_DEFAULT; }
 }
 
 /** How long typing has to pause before the edited code is run again. */
@@ -49,7 +52,8 @@ export function App() {
   const s = useStepper('', breakpoints, lang);
   const stale = code !== s.tracedCode || lang !== s.tracedLang;   // edited (or switched language) since the last run
 
-  const runNow = () => { s.run(code, lang); };
+  // Ctrl/Cmd+Enter: play the run (or pause it); code changed since it was traced is run first, without waiting for the pause
+  const runNow = () => { if (stale || !s.trace) s.run(code, lang, { play: true }); else s.togglePlay(); };
   const pickExample = name => { setExample(name); setCode(examples[name]); setViews({}); s.run(examples[name], lang); };
   /**
    * Another language: an example still as it was loaded is swapped for its twin (or cleared); anything the viewer

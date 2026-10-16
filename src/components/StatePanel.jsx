@@ -23,7 +23,7 @@ export function StatePanel({ step, prev, stepNo, logs, stale, runs, vars, trace 
   return (
     <section className={'panel state-panel' + (stale ? ' stale' : '')} aria-label="Program state" aria-busy={stale || undefined} data-run={runs}>
       {!step
-        ? <div id="placeholder" className="placeholder">Write or paste your code, or pick an example: it runs as you type.<br />Ctrl/Cmd + Enter runs it right away.</div>
+        ? <div id="placeholder" className="placeholder">Write or paste your code, or pick an example: it runs as you type.<br />Ctrl/Cmd + Enter plays it step by step.</div>
         : (
           <div id="stateBody">
             <div className="sect"><Calls trace={trace} step={step} stepNo={stepNo} /></div>

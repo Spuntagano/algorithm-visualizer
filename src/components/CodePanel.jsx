@@ -16,6 +16,8 @@ function CodeEditor({ code, lang, onCode, onRun, onBreakpoints, line, prevLine }
       }),
     });
     view.current = v;
+    const gutters = v.dom.querySelector('.cm-gutters');      // the line numbers: clicking one toggles a breakpoint
+    if (gutters) gutters.title = 'Click a line number to add or remove a breakpoint (F9 on the cursor\'s line)';
     return () => { v.destroy(); view.current = null; };
   }, []);
 

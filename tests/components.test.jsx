@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderToStaticMarkup as html } from 'react-dom/server';
+import { About } from '../src/components/About.jsx';
 import { App } from '../src/components/App.jsx';
 import { Graph } from '../src/components/Graph.jsx';
 import { SHAPES } from '../src/components/GraphHelp.jsx';
@@ -382,4 +383,13 @@ test('Variables: an array of arrays is shown as a grid first, the other views a 
   assert.doesNotMatch(mem, /class="gridv"/, 'the switch chose Memory');
   const flat = html(<Variables step={traceCode('const a = [1, 2];').trace.steps.at(-1)} prev={null} stepNo={0} views={{}} onView={() => {}} showPtrs />);
   assert.doesNotMatch(flat, /\|grid"/, 'a flat array offers no grid');
+});
+
+test('About: what the app is, every language it runs, and its keys', () => {
+  const m = html(<About />);
+  assert.match(m, /<button[^>]*id="aboutBtn"[^>]*popovertarget="about"[^>]*title="About this app"/i);
+  assert.match(m, /<div[^>]*id="about"[^>]*popover="auto"/);
+  for (const name of Object.values(LANG_NAMES)) assert.ok(m.includes(name.replace('+', '&#x2B;')) || m.includes(name), name + ' is listed');
+  for (const view of ['Memory', 'Boxes', 'Grid', 'Graph', 'call tree']) assert.match(m, new RegExp(view), view + ' is described');
+  for (const key of ['Space', 'Enter', 'Home', 'End', 'F8', 'F9']) assert.match(m, new RegExp('<kbd>' + key + '</kbd>'), key);
 });

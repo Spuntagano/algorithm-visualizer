@@ -48,10 +48,10 @@ export function useStepper(initialCode, breakpoints = [], initialLang = 'javascr
   const bps = useMemo(() => new Set(bpKey ? bpKey.split(',').map(Number) : []), [bpKey]);   // keyed by content, not array identity
 
   /**
-   * Trace `code` and show step 1; a run still in progress is stopped. Resolves to false (and shows why)
-   * if the code cannot run, or if a newer run replaced this one.
+   * Trace `code` and show step 1 (and start playing, with `play`); a run still in progress is stopped. Resolves to
+   * false (and shows why) if the code cannot run, or if a newer run replaced this one.
    */
-  const run = async (code, lang = 'javascript') => {
+  const run = async (code, lang = 'javascript', { play = false } = {}) => {
     if (pending.current) pending.current.abort();
     const ctl = pending.current = new AbortController();
     pendingFor.current = lang + '\u0001' + code;
@@ -62,6 +62,7 @@ export function useStepper(initialCode, breakpoints = [], initialLang = 'javascr
     setRunning(false); setLoading(false); setTracedCode(code); setTracedLang(lang); setIdx(0); setRuns(n => n + 1);
     if (r.empty || r.error) { setTrace(null); setNotice(r.error || null); return false; }
     setTrace(r.trace); setNotice(null);
+    if (play) setPlaying(true);
     return true;
   };
   const pause = () => setPlaying(false);

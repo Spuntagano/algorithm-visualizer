@@ -8,7 +8,7 @@ import zlib from 'node:zlib';
 import { ENGINES, build, bundleEngines } from '../build.mjs';
 
 test('the build is one self-contained HTML file', async () => {
-  const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stepper-')), 'out.html');
+  const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'visualizer-')), 'out.html');
   await build({ out });
   const html = fs.readFileSync(out, 'utf8');
   assert.match(html, /<div id="root"><\/div>/);

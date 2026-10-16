@@ -17,7 +17,7 @@ const { chromium } = load(['playwright', 'playwright-core', '/home/claude/.npm-g
 const si = process.argv.indexOf('--shots'); const shots = si > 0 ? process.argv[si + 1] : null;
 if (shots) fs.mkdirSync(shots, { recursive: true });
 const fi = process.argv.indexOf('--file');
-const target = fi > 0 ? path.resolve(process.argv[fi + 1]) : path.join(ROOT, 'dist', 'algorithm-stepper.html');
+const target = fi > 0 ? path.resolve(process.argv[fi + 1]) : path.join(ROOT, 'dist', 'algorithm-visualizer.html');
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -180,6 +180,25 @@ await snap('16-lang-info');
 await page.keyboard.press('Escape');
 assert.ok(!(await infoOpen()), 'Escape closes it');
 
+// 1e. every control with a shortcut names it in its tooltip
+assert.equal(await page.getAttribute('#bPlay', 'title'), 'Play / pause (Space, or Ctrl+Enter in the editor)');
+for (const [id, key] of [['#bFirst', 'Home'], ['#bPrev', 'Left arrow'], ['#bNext', 'Right arrow'], ['#bLast', 'End']]) assert.match(await page.getAttribute(id, 'title'), new RegExp('\\(' + key + '\\)$'), id);
+assert.match(await page.getAttribute('#bBpNext', 'title'), /F9/, 'with no breakpoints: how to add one');
+assert.match(await page.getAttribute('.cm-gutters', 'title'), /breakpoint \(F9/);
+assert.match(await page.getAttribute('.splitter', 'title'), /arrows[\s\S]*Enter resets/);
+
+// 1f. the i at the right end of the timeline says what the app is and lists its keys, opening above its button
+const aboutOpen = () => page.evaluate(() => document.querySelector('#about').matches(':popover-open'));
+await page.click('#aboutBtn');
+assert.ok(await aboutOpen(), 'About opens');
+const ab = await page.locator('#about').boundingBox(), abtn = await page.locator('#aboutBtn').boundingBox();
+assert.ok(ab.y >= 0 && ab.y + ab.height <= abtn.y && ab.x >= 0 && ab.x + ab.width <= 1280, 'above its button, inside the window: ' + JSON.stringify(ab));
+assert.ok(Math.abs(1280 - 16 - (abtn.x + abtn.width)) < 1 && Math.abs(1280 - 16 - (ab.x + ab.width)) < 1, 'the button and the popover sit at the right edge of the window');
+assert.match(await page.locator('#about').innerText(), /About Algorithm visualizer[\s\S]*never sent anywhere[\s\S]*Keys[\s\S]*Ctrl\s*\+\s*Enter[\s\S]*Play \/ pause/);
+await snap('20-about');
+await page.keyboard.press('Escape');
+assert.ok(!(await aboutOpen()), 'Escape closes it');
+
 // 2. stepping forward / back / keyboard
 await page.click('#bNext'); assert.match(await stepLabel(), /^Step 2 of/);
 assert.ok(await page.locator('.cm-line.cm-step-prev').count() === 1, 'previous line is marked faintly');
@@ -267,16 +286,30 @@ await typeCode('let fast = 2;');                                // …and the ne
 await page.click('#bLast');
 assert.match(await page.locator('#stateBody').innerText(), /fast/);
 
-// 6c. editor keys: Tab indents with two spaces, Ctrl+Enter runs at once
+// 6c. editor keys: Tab indents with two spaces, Ctrl+Enter plays the run (running edited code first, at once)
 await typeCode('let a = 1;');
 const ed = page.locator('#editor');
 await edit(async () => { await ed.press('End'); await ed.press('Enter'); await ed.press('Tab'); await ed.pressSequentially('a = 2;'); });
 assert.equal(await page.locator('.cm-line').nth(1).innerText(), '  a = 2;');
 await page.click('#bLast'); assert.match(await stepLabel(), /done$/);
+const playing = () => page.locator('#bPlay').getAttribute('aria-label').then(l => l === 'Pause');
 const n6 = await runs();
-await ed.press('Control+Enter');                                 // same code: runs again at once, from step 1
-await settled(n6);
-assert.match(await stepLabel(), /^Step 1 of/);
+await ed.press('Control+Enter');                                 // same code, at the end: plays again from step 1, no new run
+await page.waitForFunction(() => /^Step [12] of/.test(document.querySelector('#stepLabel').textContent), null, { timeout: 3000 });
+assert.ok(await playing(), 'Ctrl+Enter plays');
+assert.equal(await runs(), n6, 'the code was already traced: not run again');
+await ed.press('Control+Enter');
+assert.ok(!(await playing()), 'pressed again, it pauses');
+await ed.press('End'); await ed.pressSequentially(' a = 3;');
+const n6b = await runs();
+await ed.press('Control+Enter');                                 // edited: run now (no waiting for the typing pause), then play
+await settled(n6b);
+assert.equal(await runs(), n6b + 1, 'one run, not one now and another after the pause');
+await page.waitForFunction(() => document.querySelector('#bPlay').getAttribute('aria-label') === 'Pause', null, { timeout: 3000 });
+await page.waitForTimeout(800);
+assert.equal(await runs(), n6b + 1, 'still one run after the typing pause has passed');
+await page.click('#bPlay');
+assert.ok(!(await playing()));
 
 // 6d. a long program: the current line is scrolled into view
 await typeCode(Array.from({ length: 120 }, (_, i) => `let v${i} = ${i};`).join('\n'));
@@ -352,7 +385,7 @@ const label0 = await stepLabel(), v0 = +(await page.locator('.splitter').getAttr
 await page.locator('.splitter').focus(); await page.keyboard.press('ArrowRight');
 assert.ok(Math.abs(+(await page.locator('.splitter').getAttribute('aria-valuenow')) - (v0 + 2)) <= 1, 'ArrowRight widens the editor by 2%');
 assert.equal(await stepLabel(), label0, 'arrow keys on the divider do not step the program');
-assert.ok(Math.abs(+(await page.evaluate(() => localStorage.getItem('algorithm-stepper.split'))) - (v0 + 2)) <= 1, 'the position is remembered');
+assert.ok(Math.abs(+(await page.evaluate(() => localStorage.getItem('algorithm-visualizer.split'))) - (v0 + 2)) <= 1, 'the position is remembered');
 await page.locator('.splitter').dblclick();
 const [w2, d2] = await widths();
 assert.ok(Math.abs(w2 - d2) < 1, 'double-click resets to half and half');
@@ -370,7 +403,7 @@ await page.waitForFunction(k => +document.querySelector('.state-panel').dataset.
 assert.ok(await page.evaluate(() => window.__sawLoading), 'the first Python run says Python is loading');
 assert.equal(await page.locator('.cm-line').first().innerText(), 'class Node:', 'the Python version of the example');
 assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
-assert.equal(await page.evaluate(() => localStorage.getItem('algorithm-stepper.lang')), 'python', 'the language is remembered');
+assert.equal(await page.evaluate(() => localStorage.getItem('algorithm-visualizer.lang')), 'python', 'the language is remembered');
 await page.click('#bLast');
 await page.locator('button[data-vt="head|graph"]').click();
 assert.match(await page.locator('.var:has(button[data-vt="head|boxes"]) .gcap').innerText(), /^Linked list · 3 nodes/);
@@ -798,6 +831,47 @@ await page.emulateMedia({ colorScheme: 'dark' });
 await pick('Breadth-first search');
 await page.click('#bLast');
 await snap('06-dark');
+
+// 7b. undo and redo in the editor, as on Windows (where CodeMirror's own keys redo with Ctrl+Y only)
+{
+  const win = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36' });
+  await win.addInitScript(() => Object.defineProperty(Navigator.prototype, 'platform', { get: () => 'Win32' }));
+  const wp = await win.newPage();
+  await wp.goto(pathToFileURL(target).href);
+  await wp.waitForSelector('#placeholder');
+  assert.equal(await wp.evaluate(() => navigator.platform), 'Win32');
+  const text = () => wp.evaluate(() => [...document.querySelectorAll('.cm-line')].map(l => l.textContent).join('\n'));
+  await wp.locator('#editor').focus();
+  await wp.keyboard.type('let a = 1;');
+  await wp.waitForTimeout(600);                                 // a pause: the next typing is a separate undo step
+  await wp.keyboard.type(' let b = 2;');
+  assert.equal(await text(), 'let a = 1; let b = 2;');
+  await wp.keyboard.press('Control+Z');
+  assert.equal(await text(), 'let a = 1;', 'Ctrl+Z undoes the last typing');
+  await wp.keyboard.press('Control+Shift+Z');
+  assert.equal(await text(), 'let a = 1; let b = 2;', 'Ctrl+Shift+Z redoes it');
+  await wp.keyboard.press('Control+Z');
+  await wp.keyboard.press('Control+Y');
+  assert.equal(await text(), 'let a = 1; let b = 2;', 'Ctrl+Y redoes too');
+  await win.close();
+}
+{
+  const mac = await browser.newContext();
+  await mac.addInitScript(() => Object.defineProperty(Navigator.prototype, 'platform', { get: () => 'MacIntel' }));
+  const mp = await mac.newPage();
+  await mp.goto(pathToFileURL(target).href);
+  await mp.waitForSelector('#placeholder');
+  assert.equal(await mp.getAttribute('#bPlay', 'title'), 'Play / pause (Space, or Cmd+Enter in the editor)', 'a Mac names Cmd');
+  assert.match(await mp.locator('#about').textContent(), /Cmd\+Enter/, 'and so does About');
+  await mac.close();
+}
+
+// 8. settings saved under the page's old name (Algorithm Stepper) are still picked up
+await page.evaluate(() => { localStorage.clear(); localStorage.setItem('algorithm-stepper.lang', 'go'); localStorage.setItem('algorithm-stepper.split', '40'); });
+await page.reload();
+await page.waitForSelector('#placeholder');
+assert.equal(await page.locator('#lang').inputValue(), 'go', 'the language saved under the old name');
+assert.match(await page.locator('.grid').getAttribute('style'), /--split: ?40\b/, 'the divider saved under the old name');
 
 assert.deepEqual(errors, [], 'no page errors');
 await browser.close();

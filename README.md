@@ -1,4 +1,4 @@
-# Algorithm Stepper (React edition)
+# Algorithm Visualizer (React edition)
 
 Step through JavaScript, TypeScript, Lua, Python, Ruby, PHP, Java, Kotlin, Swift, C#, Go, C or C++ one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
 Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values), **Grid** (rows and columns, for an array of arrays of plain values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`), and an array of arrays in Grid; the choice is kept per variable while you step and edit.
@@ -258,7 +258,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 
 ## Commands
     npm install
-    npm run build        # dist/algorithm-stepper.html (one self-contained file, ~1.45 MB; Python, Ruby and PHP are downloaded on first use)
+    npm run build        # dist/algorithm-visualizer.html (one self-contained file, ~1.7 MB; Python, Ruby and PHP are downloaded on first use)
     npm run dev          # watch + unminified build (shows React warnings), served on http://localhost:8000/
     npm run check        # lint + unit tests
     npm run test:browser # Playwright against the built file

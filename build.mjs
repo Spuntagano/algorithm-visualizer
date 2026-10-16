@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds ONE self-contained HTML file (dist/algorithm-stepper.html): esbuild bundles src/main.jsx
+ * Builds ONE self-contained HTML file (dist/algorithm-visualizer.html): esbuild bundles src/main.jsx
  * together with React and acorn, and the stylesheets from css/ are inlined. One file is what the
  * page needs to be published or opened from disk.
  *
@@ -72,7 +72,7 @@ export async function build({ out, dev = false } = {}) {
   });
   const js = await bundleJs({ dev });
   block('js', () => `<script>\n${js}\n</script>`);
-  const file = out || path.join(ROOT, 'dist', 'algorithm-stepper.html');
+  const file = out || path.join(ROOT, 'dist', 'algorithm-visualizer.html');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, html);
   return { file, bytes: Buffer.byteLength(html) };
@@ -107,6 +107,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       clearTimeout(t); t = setTimeout(once, 80);
     });
     console.log('watching src/, css/ and index.html …');
-    serve(out || path.join(ROOT, 'dist', 'algorithm-stepper.html'), arg.includes('--port') ? +arg[arg.indexOf('--port') + 1] : 8000);
+    serve(out || path.join(ROOT, 'dist', 'algorithm-visualizer.html'), arg.includes('--port') ? +arg[arg.indexOf('--port') + 1] : 8000);
   }
 }

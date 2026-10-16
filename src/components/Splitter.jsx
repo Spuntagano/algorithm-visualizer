@@ -50,7 +50,7 @@ export function Splitter({ value, onChange, gridRef }) {
   return (
     <div className="splitter" role="separator" aria-orientation="vertical" aria-label="Resize the editor and the debugger"
       aria-valuemin={SPLIT_MIN} aria-valuemax={SPLIT_MAX} aria-valuenow={Math.round(value)} tabIndex={0}
-      title="Drag to resize (double-click to reset)"
+      title="Drag to resize, or focus it and use the Left / Right arrows (Shift for bigger steps); double-click or Enter resets"
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
       onDoubleClick={() => onChange(SPLIT_DEFAULT)} onKeyDown={onKeyDown} />
   );

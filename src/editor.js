@@ -4,7 +4,7 @@
  * so light and dark mode follow the rest of the page. Only the view needs a DOM; the state parts
  * (stepField, setStep) can be used and tested without one.
  */
-import { indentLess, indentMore, defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { indentLess, indentMore, defaultKeymap, history, historyKeymap, redo } from '@codemirror/commands';
 import { javascriptLanguage, typescriptLanguage } from '@codemirror/lang-javascript';
 import { pythonLanguage } from '@codemirror/lang-python';
 import { HighlightStyle, StreamLanguage, bracketMatching, indentUnit, syntaxHighlighting } from '@codemirror/language';
@@ -157,6 +157,9 @@ const languageExtensions = lang => [
   placeholder('Write or paste your code, or pick an example above'),
   EditorView.contentAttributes.of({ 'aria-label': LANG_NAMES[lang] + ' code' }),
 ];
+/** Ctrl, or Cmd on a Mac: how tooltips and help name CodeMirror's Mod key */
+export const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '') ? 'Cmd' : 'Ctrl';
+
 /** Switches an editor to another language (the code itself is left as it is). */
 export function setLanguage(view, lang) { view.dispatch({ effects: languageConf.reconfigure(languageExtensions(lang)) }); }
 
@@ -178,7 +181,8 @@ export function editorExtensions({ onChange, onRun, onBreakpoints = () => {}, la
       { key: 'Mod-Enter', run: () => { onRun(); return true; } },
       { key: 'F9', run: v => { v.dispatch({ effects: toggleBreakpoint.of(v.state.selection.main.head) }); return true; } },
     ])),
-    keymap.of([...tabKeys, ...defaultKeymap, ...historyKeymap]),
+    // Ctrl/Cmd+Shift+Z redoes everywhere (CodeMirror binds it on Linux and Mac only; Windows gets just Ctrl+Y)
+    keymap.of([...tabKeys, { key: 'Mod-Shift-z', run: redo, preventDefault: true }, ...defaultKeymap, ...historyKeymap]),
     EditorView.contentAttributes.of({ id: 'editor', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }),
     EditorView.updateListener.of(u => {
       if (u.docChanged) onChange(u.state.doc.toString());

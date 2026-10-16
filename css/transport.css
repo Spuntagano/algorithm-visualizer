@@ -3,7 +3,9 @@
   flex: none; background: var(--surface); border-top: 1px solid var(--line);
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
   display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: center;
+  position: relative; padding-right: 56px;     /* room for the About button, pinned to the right edge */
 }
+.about-slot { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); display: flex; }
 @media (max-width: 860px) { .transport { position: sticky; bottom: 0; z-index: 5; } }   /* narrow: the page scrolls, the timeline stays */
 .tc { display: flex; gap: 6px; align-items: center; }
 .ib {

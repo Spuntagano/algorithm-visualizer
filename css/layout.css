@@ -73,3 +73,14 @@ body.resizing { cursor: col-resize; user-select: none; }
 .help-runs { margin: 0 0 4px; color: var(--ink-soft); }
 .help-has li::marker { content: "✓  "; color: var(--accent); }
 .help-not li::marker { content: "✕  "; color: var(--muted); }
+
+/* About (components/About.jsx): the keys as a two-column list */
+.help-keys { margin: 0; display: grid; gap: 5px; }
+.help-keys div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.help-keys dt { color: var(--ink-soft); }
+.help-keys dd { margin: 0; color: var(--ink-soft); }
+.help-pop kbd {
+  font: 600 11.5px "JetBrains Mono", ui-monospace, monospace; padding: 1px 5px; border-radius: 4px;
+  border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); color: var(--ink);
+}
+.help-foot { margin-top: 12px !important; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; }
