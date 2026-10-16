@@ -9,7 +9,8 @@
   function gtag(){dataLayer.push(arguments);}
   window.analytics = {
     id: 'G-G14L8V66QF',
-    enabled: location.hostname === 'spuntagano.github.io',
+    // the published site: its domain, and the GitHub Pages address (which redirects there once the domain is set up)
+    enabled: ['algorithmvisualizer.io', 'spuntagano.github.io'].includes(location.hostname),
     loaded: false,
     load() {
       if (!this.enabled) return;
@@ -33,7 +34,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Algorithm visualizer: step through code in 13 languages</title>
 <meta name="description" content="Free algorithm visualizer in your browser. Step through JavaScript, Python, Java, C++, Go and 8 more languages line by line and watch every value change.">
-<link rel="canonical" href="https://spuntagano.github.io/algorithm-visualizer/">
+<link rel="canonical" href="https://algorithmvisualizer.io/">
 <meta name="theme-color" content="#2457f5">
 <!-- the logo, as the tab icon (an SVG, so it is part of this one file); a PNG for iOS home screens is published next to it -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232457f5'/%3E%3Cpath d='M8 22h5v-5h5v-5h6' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='24' cy='12' r='2.4' fill='%23fff'/%3E%3C/svg%3E">
@@ -43,17 +44,17 @@
 <meta property="og:site_name" content="Algorithm visualizer">
 <meta property="og:title" content="Algorithm visualizer: step through code in 13 languages">
 <meta property="og:description" content="Free algorithm visualizer in your browser. Step through JavaScript, Python, Java, C++, Go and 8 more languages line by line and watch every value change.">
-<meta property="og:url" content="https://spuntagano.github.io/algorithm-visualizer/">
-<meta property="og:image" content="https://spuntagano.github.io/algorithm-visualizer/og-image.png">
+<meta property="og:url" content="https://algorithmvisualizer.io/">
+<meta property="og:image" content="https://algorithmvisualizer.io/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="The algorithm visualizer stepping through a recursive Fibonacci: the code on the left, its call tree on the right">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Algorithm visualizer: step through code in 13 languages">
 <meta name="twitter:description" content="Free algorithm visualizer in your browser. Step through JavaScript, Python, Java, C++, Go and 8 more languages line by line and watch every value change.">
-<meta name="twitter:image" content="https://spuntagano.github.io/algorithm-visualizer/og-image.png">
+<meta name="twitter:image" content="https://algorithmvisualizer.io/og-image.png">
 <script type="application/ld+json">
-{"@context": "https://schema.org", "@type": "WebApplication", "name": "Algorithm visualizer", "url": "https://spuntagano.github.io/algorithm-visualizer/",
+{"@context": "https://schema.org", "@type": "WebApplication", "name": "Algorithm visualizer", "url": "https://algorithmvisualizer.io/",
  "description": "Free algorithm visualizer in your browser. Step through JavaScript, Python, Java, C++, Go and 8 more languages line by line and watch every value change.",
  "applicationCategory": "EducationalApplication", "operatingSystem": "Any (runs in the browser)", "browserRequirements": "Requires JavaScript",
  "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},

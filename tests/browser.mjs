@@ -879,10 +879,10 @@ assert.equal(await page.locator('#consent').count(), 0, 'and no question: nothin
 {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const asked = [];
-  await ctx.route('https://spuntagano.github.io/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(target) }));
+  await ctx.route('https://algorithmvisualizer.io/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(target) }));
   await ctx.route('https://www.googletagmanager.com/**', r => { asked.push(r.request().url()); return r.fulfill({ status: 200, contentType: 'text/javascript', body: '' }); });
   const live = await ctx.newPage();
-  const open = async () => { await live.goto('https://spuntagano.github.io/algorithm-visualizer/'); await live.waitForSelector('#placeholder'); await live.waitForTimeout(300); };
+  const open = async () => { await live.goto('https://algorithmvisualizer.io/'); await live.waitForSelector('#placeholder'); await live.waitForTimeout(300); };
   await open();
   assert.ok(await live.locator('#consent').isVisible(), 'the published site asks first');
   assert.deepEqual(asked, [], 'and sends nothing before an answer');

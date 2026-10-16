@@ -15,7 +15,7 @@ test('the build is one self-contained HTML file', async () => {
   assert.match(html, /<div id="root">\s*<!--[^>]*-->\s*<div class="prerender">/, 'the app mounts in #root, over the text for crawlers');
   assert.equal((html.match(/^<script>/gm) || []).length, 2, 'one inline script of code, and the Google tag\'s loader');
   assert.equal((html.match(/googletagmanager\.com/g) || []).length, 1, 'the only script from elsewhere is the Google tag');
-  assert.match(html, /id: 'G-G14L8V66QF',\s*enabled: location\.hostname === 'spuntagano\.github\.io',/, 'and only on the published site');
+  assert.match(html, /id: 'G-G14L8V66QF',[^\n]*\n[^\n]*\n\s*enabled: \['algorithmvisualizer\.io', 'spuntagano\.github\.io'\]\.includes\(location\.hostname\),/, 'and only on the published site');
   assert.match(html, /try \{ if \(localStorage\.getItem\('algorithm-visualizer\.analytics'\) === 'yes'\) window\.analytics\.load\(\); \}/, 'loaded at start only for a visitor who said yes');
   assert.equal((html.match(/analytics\.load\(\)/g) || []).length, 2, 'and otherwise only from the consent banner or About (the one other call)');
   assert.equal((html.match(/<script type="application\/ld\+json">/g) || []).length, 1, 'and the structured data, which is not code');
@@ -55,7 +55,7 @@ test('search engines and link previews get a title, a description, a preview ima
   const html = fs.readFileSync(out, 'utf8');
   const head = html.slice(0, html.indexOf('</head>'));
   const meta = (attr, name) => (head.match(new RegExp(`<meta ${attr}="${name}" content="([^"]*)"`)) || [])[1];
-  const SITE = 'https://spuntagano.github.io/algorithm-visualizer/';
+  const SITE = 'https://algorithmvisualizer.io/';
   const title = head.match(/<title>([^<]+)<\/title>/)[1];
   assert.ok(title.length >= 30 && title.length <= 65, 'a title search results show in full: ' + title);
   const desc = meta('name', 'description');
