@@ -1,4 +1,4 @@
-# Algorithm Visualizer (React edition)
+# Algorithm Visualizer
 
 Step through JavaScript, TypeScript, Lua, Python, Ruby, PHP, Java, Kotlin, Swift, C#, Go, C or C++ one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
 Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values), **Grid** (rows and columns, for an array of arrays of plain values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`), and an array of arrays in Grid; the choice is kept per variable while you step and edit.

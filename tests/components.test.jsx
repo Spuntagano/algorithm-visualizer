@@ -107,6 +107,7 @@ test('the i next to the Language picker says what the picked language includes a
   assert.match(header('swift'), /What Swift includes[\s\S]*Not included[\s\S]*async \/ await/);
   assert.doesNotMatch(go.match(/<label[\s\S]*?<\/label>/)[0], /langInfoBtn/, 'the button is not inside the label, so it does not label the picker');
   assert.match(go, /<h1>Algorithm visualizer<\/h1>/);
+  assert.match(go, /<a class="gh-link" href="https:\/\/github\.com\/Spuntagano\/algorithm-visualizer" target="_blank" rel="noopener noreferrer"[^>]*aria-label="Source on GitHub"/, 'the GitHub mark links to the repo, in a new tab');
   for (const id of ['go', 'swift', 'cpp']) {
     const sub = header(id).match(/<p(?: [^>]*)?>([\s\S]*?)<\/p>/)[1];
     assert.equal(sub, SUBTITLE, 'one subtitle for every language: ' + sub);

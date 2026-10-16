@@ -90,6 +90,9 @@ await page.goto(pathToFileURL(target).href);
 await page.waitForSelector('#placeholder');
 assert.equal(await page.title(), 'Algorithm visualizer', 'the browser tab says what the page is');
 assert.equal(await page.locator('.site-header h1').innerText(), 'Algorithm visualizer');
+const gh = await page.locator('.gh-link').boundingBox();
+assert.ok(gh && Math.abs(1280 - 16 - (gh.x + gh.width)) < 1, 'the GitHub link sits at the top right: ' + JSON.stringify(gh));
+assert.equal(await page.getAttribute('.gh-link', 'href'), 'https://github.com/Spuntagano/algorithm-visualizer');
 assert.equal(await page.locator('#example').inputValue(), '', 'no example picked');
 assert.deepEqual(await page.locator('.cm-line').evaluateAll(ls => ls.map(l => { const c = l.cloneNode(true); c.querySelectorAll('.cm-placeholder').forEach(x => x.remove()); return c.textContent; })),
   [''], 'the editor is empty (apart from its placeholder hint)');
