@@ -9,6 +9,8 @@ import { dispOf, isText, keyOf, short, stepIndex } from '../model.js';
 
 const SEM_MAX = 60;
 
+/** Field names compare without case: Go's exported fields are Val, Next, ID */
+const lc = k => (typeof k === 'string' ? k.toLowerCase() : k);
 const LABEL_KEYS = ['val', 'value', 'data', 'key', 'name', 'id', 'label', 'title', 'v', 'x', 'n', 'item', 'char', 'letter', 'weight'];
 
 /** A node's own plain values, shown inside it: primitives and short arrays of primitives, minus the fields in `skip`. */
@@ -55,13 +57,13 @@ const WEIGHT_KEYS = ['weight', 'w', 'cost', 'dist', 'distance', 'len', 'length',
 function edgeObject(o, nodeOf) {
   if (!o || o.t !== 'obj' || o.more) return null;
   const prims = o.entries.filter(([, x]) => x.t === 'p' && x.k !== 'null' && x.k !== 'undef');
-  let tf = TARGET_KEYS.map(k => prims.find(([f]) => f === k)).find(e => e && nodeOf(e[1], true) != null), to = tf && nodeOf(tf[1], true);
+  let tf = TARGET_KEYS.map(k => prims.find(([f]) => lc(f) === k)).find(e => e && nodeOf(e[1], true) != null), to = tf && nodeOf(tf[1], true);
   if (!tf) {
     const hits = prims.filter(([, x]) => nodeOf(x, false) != null);
     if (hits.length !== 1) return null;
     tf = hits[0]; to = nodeOf(tf[1], false);
   }
-  const wf = prims.find(([f, x]) => f !== tf[0] && x.k === 'num' && WEIGHT_KEYS.includes(f));
+  const wf = prims.find(([f, x]) => f !== tf[0] && x.k === 'num' && WEIGHT_KEYS.includes(lc(f)));
   const attrs = prims.filter(([f]) => f !== tf[0]).map(([f, x]) => [f, short(dispOf(x), 14)]);   // everything else the edge says
   return { to, weight: wf ? wf[1].s : undefined, attrs };
 }
@@ -165,8 +167,8 @@ function fromIndexed(root0, name0, resolve) {
 function recordNode(o) {
   const real = x => x.k !== 'null' && x.k !== 'undef';
   const prims = o.entries.filter(([, x]) => x.t === 'p');
-  const lk = LABEL_KEYS.find(k => prims.some(([kk, x]) => kk === k && real(x)));
-  const le = (lk && prims.find(([kk]) => kk === lk)) || prims.find(([, x]) => real(x));
+  const lk = LABEL_KEYS.find(k => prims.some(([kk, x]) => lc(kk) === k && real(x)));
+  const le = (lk && prims.find(([kk]) => lc(kk) === lk)) || prims.find(([, x]) => real(x));
   return {
     key: String(o.id), label: le ? short(dispOf(le[1]), 10) : '#' + o.id, fields: fieldRows(o, new Set(le ? [le[0]] : [])),
     labelField: le ? { k: le[0], text: short(dispOf(le[1]), 16), kind: le[1].k } : null,
@@ -217,7 +219,7 @@ const LINK_NAME = /next|prev|out|adj|neigh|nbr|edge|link|child|kid|parent|left|r
  */
 function fromRefRecords(root, resolve) {
   const asObj = n => { const r = resolve(n); return r && r.t === 'obj' ? r : null; };
-  const primOf = (o, k) => { const e = o.entries.find(([kk]) => kk === k); return e && e[1].t === 'p' && e[1].k !== 'null' && e[1].k !== 'undef' ? e[1] : null; };
+  const primOf = (o, k) => { const e = o.entries.find(([kk]) => lc(kk) === lc(k)); return e && e[1].t === 'p' && e[1].k !== 'null' && e[1].k !== 'undef' ? e[1] : null; };
   let recs, strKeys, idKey = null;
   if ((root.t === 'obj' || root.t === 'map') && !root.more && root.entries.length >= 2) {
     recs = root.entries.map(([k, x]) => ({ key: root.t === 'obj' ? k : (k.t === 'p' ? String(keyOf(k)) : null), o: asObj(x) }));
@@ -229,6 +231,7 @@ function fromRefRecords(root, resolve) {
         const vals = recs.map(r => primOf(r.o, k));
         return vals.every(p => p && (isText(p) || p.k === 'num')) && new Set(vals.map(p => p.s)).size === vals.length;
       }) || null;
+      if (idKey) idKey = (recs[0].o.entries.find(([kk]) => lc(kk) === idKey) || [idKey])[0];   // the field's own spelling (ID)
       if (idKey) recs.forEach(r => { r.key = String(keyOf(primOf(r.o, idKey))); });
       strKeys = !!idKey && recs.some(r => isText(primOf(r.o, idKey)));
     }
@@ -248,7 +251,7 @@ function fromRefRecords(root, resolve) {
   const linkFields = new Set();
   for (const { key, o } of recs) {
     for (const [field, x] of o.entries) {
-      if (LABEL_KEYS.includes(field) || field === idKey) continue;
+      if (LABEL_KEYS.includes(lc(field)) || field === idKey) continue;
       const c = x.t === 'p' ? null : resolve(x);
       let vals = x.t === 'p' ? [x] : c && (c.t === 'arr' || c.t === 'set') && !c.more ? c.items : null;
       if (!vals) continue;
@@ -267,8 +270,8 @@ function fromRefRecords(root, resolve) {
 
   const nodes = recs.map(({ key, o }) => {
     const prims = o.entries.filter(([k, x]) => x.t === 'p' && x.k !== 'null' && x.k !== 'undef' && !linkFields.has(k) && k !== idKey);
-    const lk = root.t === 'arr' && !idKey ? LABEL_KEYS.find(k => prims.some(([kk]) => kk === k)) : null;   // an index says little: show a label field
-    const le = lk ? prims.find(([kk]) => kk === lk) : null;
+    const lk = root.t === 'arr' && !idKey ? LABEL_KEYS.find(k => prims.some(([kk]) => lc(kk) === k)) : null;   // an index says little: show a label field
+    const le = lk ? prims.find(([kk]) => lc(kk) === lk) : null;
     const idp = idKey ? primOf(o, idKey) : null;
     const labelField = idp ? { k: idKey, text: short(dispOf(idp), 16), kind: idp.k } : le ? { k: le[0], text: short(dispOf(le[1]), 16), kind: le[1].k } : null;
     return { key, label: le ? short(dispOf(le[1]), 10) : short(key, 10), fields: fieldRows(o, new Set([...linkFields, idKey, le && le[0]])), labelField };

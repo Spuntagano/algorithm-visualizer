@@ -1358,3 +1358,738 @@ int main() {
     return 0;
 }`
 };
+
+/** The same kind of examples in Java (same names where there is a JavaScript twin). */
+export const JAVA_EXAMPLES = {
+"Bubble sort": `public class Main {
+    static void bubbleSort(int[] arr) {
+        int n = arr.length;
+        for (int i = 0; i < n - 1; i++) {
+            boolean swapped = false;
+            for (int j = 0; j < n - 1 - i; j++) {
+                if (arr[j] > arr[j + 1]) {
+                    int tmp = arr[j];
+                    arr[j] = arr[j + 1];
+                    arr[j + 1] = tmp;
+                    swapped = true;
+                }
+            }
+            if (!swapped) break;
+        }
+    }
+
+    public static void main(String[] args) {
+        int[] data = {5, 2, 9, 1, 6};
+        bubbleSort(data);
+        System.out.println(java.util.Arrays.toString(data));
+    }
+}`,
+
+"Binary search": `public class Main {
+    static int binarySearch(int[] arr, int target) {
+        int lo = 0;
+        int hi = arr.length - 1;
+        while (lo <= hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (arr[mid] == target) {
+                return mid;
+            } else if (arr[mid] < target) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return -1;
+    }
+
+    public static void main(String[] args) {
+        int[] sorted = {2, 5, 8, 12, 16, 23, 38, 56, 72, 91};
+        int found = binarySearch(sorted, 23);
+        System.out.println("found at index " + found);
+    }
+}`,
+
+"Two sum (HashMap)": `import java.util.*;
+
+public class Main {
+    static int[] twoSum(int[] nums, int target) {
+        Map<Integer, Integer> seen = new HashMap<>();   // value -> index
+        for (int i = 0; i < nums.length; i++) {
+            int need = target - nums[i];
+            if (seen.containsKey(need)) {
+                return new int[]{seen.get(need), i};
+            }
+            seen.put(nums[i], i);
+        }
+        return null;
+    }
+
+    public static void main(String[] args) {
+        int[] result = twoSum(new int[]{3, 8, 11, 4, 7}, 15);
+        System.out.println(Arrays.toString(result));
+    }
+}`,
+
+"Fibonacci with memo": `import java.util.*;
+
+public class Main {
+    static Map<Integer, Long> memo = new HashMap<>();
+
+    static long fib(int n) {
+        if (n <= 1) return n;
+        if (memo.containsKey(n)) return memo.get(n);
+        long value = fib(n - 1) + fib(n - 2);
+        memo.put(n, value);
+        return value;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(fib(6));
+    }
+}`,
+
+"Reverse a linked list": `public class Main {
+    static class Node {
+        int val;
+        Node next;
+        Node(int val, Node next) { this.val = val; this.next = next; }
+    }
+
+    public static void main(String[] args) {
+        Node list = new Node(1, new Node(2, new Node(3, null)));
+
+        Node prev = null;
+        Node curr = list;
+        while (curr != null) {
+            Node nextNode = curr.next;
+            curr.next = prev;
+            prev = curr;
+            curr = nextNode;
+        }
+        System.out.println(prev.val);
+    }
+}`,
+
+"Breadth-first search": `import java.util.*;
+
+public class Main {
+    static Map<String, List<String>> graph = new HashMap<>();
+
+    static List<String> bfs(String start) {
+        Set<String> visited = new HashSet<>(List.of(start));
+        Queue<String> queue = new ArrayDeque<>(List.of(start));
+        List<String> order = new ArrayList<>();
+        while (!queue.isEmpty()) {
+            String cur = queue.poll();
+            order.add(cur);
+            for (String next : graph.get(cur)) {
+                if (!visited.contains(next)) {
+                    visited.add(next);
+                    queue.add(next);
+                }
+            }
+        }
+        return order;
+    }
+
+    public static void main(String[] args) {
+        graph.put("A", List.of("B", "C"));
+        graph.put("B", List.of("D"));
+        graph.put("C", List.of("D", "E"));
+        graph.put("D", List.of("F"));
+        graph.put("E", List.of("F"));
+        graph.put("F", List.of());
+        System.out.println(bfs("A"));
+    }
+}`,
+
+"Data structures": `import java.util.*;
+
+public class Main {
+    record Point(int x, int y) {}
+    record Job(String id, String color, List<String> next) {}
+    static class TreeNode {
+        int val;
+        TreeNode left, right;
+        TreeNode(int val) { this.val = val; }
+    }
+    static class ListNode {
+        int val;
+        ListNode next;
+        ListNode(int val, ListNode next) { this.val = val; this.next = next; }
+    }
+
+    public static void main(String[] args) {
+        // ---- Memory / Boxes: any value ----
+        int[] nums = {5, 2, 9, 1, 6};
+        int i = 1, j = 3;                                 // tags under nums[1] and nums[3]
+        List<String> words = new ArrayList<>(List.of("hi", "there"));
+        Map<String, Integer> scores = new HashMap<>(Map.of("ada", 90));
+        Set<Integer> primes = new TreeSet<>(List.of(5, 2, 3));
+        Deque<Integer> stack = new ArrayDeque<>();
+        stack.push(1);
+        stack.push(2);
+        Point p = new Point(1, 2);
+        Point[] pair = {p, p};                            // the same object twice: #id badge
+
+        // ---- Graph: neighbour lists in a Map ----
+        Map<String, List<String>> g1 = new HashMap<>();
+        g1.put("A", List.of("B", "C"));
+        g1.put("B", List.of("D"));
+        g1.put("C", List.of("D"));
+        g1.put("D", List.of());
+        Map<Character, Map<Character, Integer>> g2 = new TreeMap<>();   // weighted
+        g2.put('a', Map.of('b', 4));
+        g2.put('b', Map.of('c', 5));
+        g2.put('c', Map.of());
+        List<List<Integer>> adj = List.of(List.of(1, 2), List.of(3), List.of(3), List.of());   // by position
+        int[][] edges = {{0, 1}, {1, 2}, {2, 0}};
+
+        // ---- Graph: objects that point at each other ----
+        TreeNode tree = new TreeNode(1);
+        tree.left = new TreeNode(2);
+        tree.right = new TreeNode(3);
+        tree.left.left = new TreeNode(4);
+        ListNode linked = new ListNode(1, new ListNode(2, new ListNode(3, null)));
+
+        // ---- Graph: data in the nodes ----
+        List<Job> jobs = List.of(new Job("A", "red", List.of("B", "C")), new Job("B", "blue", List.of("C")), new Job("C", "green", List.of()));
+
+        String cur = "B";                                 // tags node B in g1
+        Set<String> visited = new HashSet<>(List.of("A", "C"));   // ∈ visited tags
+        System.out.println("done");
+    }
+}`
+};
+
+export const GO_EXAMPLES = {
+"Bubble sort": `package main
+
+import "fmt"
+
+func bubbleSort(arr []int) {
+    n := len(arr)
+    for i := 0; i < n-1; i++ {
+        swapped := false
+        for j := 0; j < n-1-i; j++ {
+            if arr[j] > arr[j+1] {
+                arr[j], arr[j+1] = arr[j+1], arr[j]
+                swapped = true
+            }
+        }
+        if !swapped {
+            break
+        }
+    }
+}
+
+func main() {
+    data := []int{5, 2, 9, 1, 6}
+    bubbleSort(data)
+    fmt.Println(data)
+}`,
+
+"Binary search": `package main
+
+import "fmt"
+
+func binarySearch(arr []int, target int) int {
+    lo, hi := 0, len(arr)-1
+    for lo <= hi {
+        mid := lo + (hi-lo)/2
+        if arr[mid] == target {
+            return mid
+        } else if arr[mid] < target {
+            lo = mid + 1
+        } else {
+            hi = mid - 1
+        }
+    }
+    return -1
+}
+
+func main() {
+    sorted := []int{2, 5, 8, 12, 16, 23, 38, 56, 72, 91}
+    found := binarySearch(sorted, 23)
+    fmt.Println("found at index", found)
+}`,
+
+"Two sum (map)": `package main
+
+import "fmt"
+
+func twoSum(nums []int, target int) []int {
+    seen := map[int]int{}   // value -> index
+    for i, x := range nums {
+        if j, ok := seen[target-x]; ok {
+            return []int{j, i}
+        }
+        seen[x] = i
+    }
+    return nil
+}
+
+func main() {
+    result := twoSum([]int{3, 8, 11, 4, 7}, 15)
+    fmt.Println(result)
+}`,
+
+"Fibonacci with memo": `package main
+
+import "fmt"
+
+var memo = map[int]int{}
+
+func fib(n int) int {
+    if n <= 1 {
+        return n
+    }
+    if v, ok := memo[n]; ok {
+        return v
+    }
+    value := fib(n-1) + fib(n-2)
+    memo[n] = value
+    return value
+}
+
+func main() {
+    fmt.Println(fib(6))
+}`,
+
+"Reverse a linked list": `package main
+
+import "fmt"
+
+type Node struct {
+    Val  int
+    Next *Node
+}
+
+func main() {
+    list := &Node{1, &Node{2, &Node{3, nil}}}
+
+    var prev *Node
+    curr := list
+    for curr != nil {
+        next := curr.Next
+        curr.Next = prev
+        prev = curr
+        curr = next
+    }
+    fmt.Println(prev.Val)
+}`,
+
+"Breadth-first search": `package main
+
+import "fmt"
+
+var graph = map[string][]string{
+    "A": {"B", "C"},
+    "B": {"D"},
+    "C": {"D", "E"},
+    "D": {"F"},
+    "E": {"F"},
+    "F": {},
+}
+
+func bfs(start string) []string {
+    visited := map[string]bool{start: true}
+    queue := []string{start}
+    var order []string
+    for len(queue) > 0 {
+        cur := queue[0]
+        queue = queue[1:]
+        order = append(order, cur)
+        for _, next := range graph[cur] {
+            if !visited[next] {
+                visited[next] = true
+                queue = append(queue, next)
+            }
+        }
+    }
+    return order
+}
+
+func main() {
+    fmt.Println(bfs("A"))
+}`,
+
+"Data structures": `package main
+
+import "fmt"
+
+type Point struct{ X, Y int }
+
+type Job struct {
+    ID, Color string
+    Next      []string
+}
+
+type TreeNode struct {
+    Val         int
+    Left, Right *TreeNode
+}
+
+type ListNode struct {
+    Val  int
+    Next *ListNode
+}
+
+func main() {
+    // ---- Memory / Boxes: any value ----
+    nums := []int{5, 2, 9, 1, 6}
+    i, j := 1, 3                                   // tags under nums[1] and nums[3]
+    words := []string{"hi", "there"}
+    scores := map[string]int{"ada": 90}
+    grid := [2][3]int{{1, 2, 3}, {4, 5, 6}}
+    window := nums[1:3]                            // a slice: a view of nums
+    p := &Point{1, 2}
+    pair := []*Point{p, p}                         // the same struct twice: #id badge
+
+    // ---- Graph: neighbour lists in a map ----
+    g1 := map[string][]string{"A": {"B", "C"}, "B": {"D"}, "C": {"D"}, "D": {}}
+    g2 := map[rune]map[rune]int{'a': {'b': 4}, 'b': {'c': 5}, 'c': {}}   // weighted
+    adj := [][]int{{1, 2}, {3}, {3}, {}}           // by position
+    edges := [][2]int{{0, 1}, {1, 2}, {2, 0}}
+
+    // ---- Graph: structs that point at each other ----
+    tree := &TreeNode{Val: 1}
+    tree.Left = &TreeNode{Val: 2}
+    tree.Right = &TreeNode{Val: 3}
+    tree.Left.Left = &TreeNode{Val: 4}
+    linked := &ListNode{1, &ListNode{2, &ListNode{3, nil}}}
+
+    // ---- Graph: data in the nodes ----
+    jobs := []Job{{"A", "red", []string{"B", "C"}}, {"B", "blue", []string{"C"}}, {"C", "green", nil}}
+
+    cur := "B"                                     // tags node B in g1
+    visited := map[string]bool{"A": true, "C": true}   // ∈ visited tags
+    // Go refuses a variable that is never used, so print them all
+    fmt.Println(i, j, words, scores, grid, window, pair[0].X, cur, visited)
+    fmt.Println(g1, g2, adj, edges, tree.Val, linked.Val, len(jobs))
+}`
+};
+
+export const CS_EXAMPLES = {
+"Bubble sort": `void BubbleSort(int[] arr)
+{
+    int n = arr.Length;
+    for (int i = 0; i < n - 1; i++)
+    {
+        bool swapped = false;
+        for (int j = 0; j < n - 1 - i; j++)
+        {
+            if (arr[j] > arr[j + 1])
+            {
+                (arr[j], arr[j + 1]) = (arr[j + 1], arr[j]);
+                swapped = true;
+            }
+        }
+        if (!swapped) break;
+    }
+}
+
+int[] data = { 5, 2, 9, 1, 6 };
+BubbleSort(data);
+Console.WriteLine(string.Join(", ", data));`,
+
+"Binary search": `int BinarySearch(int[] arr, int target)
+{
+    int lo = 0, hi = arr.Length - 1;
+    while (lo <= hi)
+    {
+        int mid = lo + (hi - lo) / 2;
+        if (arr[mid] == target) return mid;
+        if (arr[mid] < target) lo = mid + 1;
+        else hi = mid - 1;
+    }
+    return -1;
+}
+
+int[] sorted = { 2, 5, 8, 12, 16, 23, 38, 56, 72, 91 };
+int found = BinarySearch(sorted, 23);
+Console.WriteLine($"found at index {found}");`,
+
+"Two sum (Dictionary)": `int[] TwoSum(int[] nums, int target)
+{
+    var seen = new Dictionary<int, int>();   // value -> index
+    for (int i = 0; i < nums.Length; i++)
+    {
+        if (seen.TryGetValue(target - nums[i], out int j))
+            return new[] { j, i };
+        seen[nums[i]] = i;
+    }
+    return null;
+}
+
+int[] result = TwoSum(new[] { 3, 8, 11, 4, 7 }, 15);
+Console.WriteLine($"[{string.Join(", ", result)}]");`,
+
+"Fibonacci with memo": `var memo = new Dictionary<int, long>();
+
+long Fib(int n)
+{
+    if (n <= 1) return n;
+    if (memo.TryGetValue(n, out long cached)) return cached;
+    long value = Fib(n - 1) + Fib(n - 2);
+    memo[n] = value;
+    return value;
+}
+
+Console.WriteLine(Fib(6));`,
+
+"Reverse a linked list": `var list = new Node(1, new Node(2, new Node(3, null)));
+
+Node prev = null;
+Node curr = list;
+while (curr != null)
+{
+    Node next = curr.Next;
+    curr.Next = prev;
+    prev = curr;
+    curr = next;
+}
+Console.WriteLine(prev.Val);
+
+class Node
+{
+    public int Val;
+    public Node Next;
+    public Node(int val, Node next) { Val = val; Next = next; }
+}`,
+
+"Breadth-first search": `var graph = new Dictionary<string, List<string>>
+{
+    ["A"] = new() { "B", "C" },
+    ["B"] = new() { "D" },
+    ["C"] = new() { "D", "E" },
+    ["D"] = new() { "F" },
+    ["E"] = new() { "F" },
+    ["F"] = new(),
+};
+
+List<string> Bfs(string start)
+{
+    var visited = new HashSet<string> { start };
+    var queue = new Queue<string>();
+    queue.Enqueue(start);
+    var order = new List<string>();
+    while (queue.Count > 0)
+    {
+        string cur = queue.Dequeue();
+        order.Add(cur);
+        foreach (string next in graph[cur])
+        {
+            if (visited.Add(next))
+                queue.Enqueue(next);
+        }
+    }
+    return order;
+}
+
+Console.WriteLine(string.Join(", ", Bfs("A")));`,
+
+"Data structures": `// ---- Memory / Boxes: any value ----
+int[] nums = { 5, 2, 9, 1, 6 };
+int i = 1, j = 3;                                  // tags under nums[1] and nums[3]
+var words = new List<string> { "hi", "there" };
+var scores = new Dictionary<string, int> { ["ada"] = 90 };
+var primes = new SortedSet<int> { 5, 2, 3 };
+var stack = new Stack<int>();
+stack.Push(1);
+stack.Push(2);
+int[,] grid = { { 1, 2, 3 }, { 4, 5, 6 } };
+var p = new Point(1, 2);
+Point[] pair = { p, p };                           // the same object twice: #id badge
+
+// ---- Graph: neighbour lists in a Dictionary ----
+var g1 = new Dictionary<string, List<string>>
+{
+    ["A"] = new() { "B", "C" }, ["B"] = new() { "D" }, ["C"] = new() { "D" }, ["D"] = new(),
+};
+var g2 = new Dictionary<char, Dictionary<char, int>>   // weighted
+{
+    ['a'] = new() { ['b'] = 4 }, ['b'] = new() { ['c'] = 5 }, ['c'] = new(),
+};
+var adj = new List<List<int>> { new() { 1, 2 }, new() { 3 }, new() { 3 }, new() };   // by position
+var edges = new List<(int, int)> { (0, 1), (1, 2), (2, 0) };
+
+// ---- Graph: objects that point at each other ----
+var tree = new TreeNode(1) { Left = new TreeNode(2), Right = new TreeNode(3) };
+tree.Left.Left = new TreeNode(4);
+var linked = new ListNode(1, new ListNode(2, new ListNode(3, null)));
+
+// ---- Graph: data in the nodes ----
+var jobs = new List<Job> { new("A", "red", new() { "B", "C" }), new("B", "blue", new() { "C" }), new("C", "green", new()) };
+
+string cur = "B";                                  // tags node B in g1
+var visited = new HashSet<string> { "A", "C" };    // ∈ visited tags
+Console.WriteLine("done");
+
+record Point(int X, int Y);
+record Job(string Id, string Color, List<string> Next);
+class TreeNode
+{
+    public int Val;
+    public TreeNode Left, Right;
+    public TreeNode(int val) { Val = val; }
+}
+class ListNode
+{
+    public int Val;
+    public ListNode Next;
+    public ListNode(int val, ListNode next) { Val = val; Next = next; }
+}`
+};
+
+export const KT_EXAMPLES = {
+"Bubble sort": `fun bubbleSort(arr: IntArray) {
+    val n = arr.size
+    for (i in 0 until n - 1) {
+        var swapped = false
+        for (j in 0 until n - 1 - i) {
+            if (arr[j] > arr[j + 1]) {
+                val tmp = arr[j]
+                arr[j] = arr[j + 1]
+                arr[j + 1] = tmp
+                swapped = true
+            }
+        }
+        if (!swapped) break
+    }
+}
+
+fun main() {
+    val data = intArrayOf(5, 2, 9, 1, 6)
+    bubbleSort(data)
+    println(data.contentToString())
+}`,
+
+"Binary search": `fun binarySearch(arr: IntArray, target: Int): Int {
+    var lo = 0
+    var hi = arr.size - 1
+    while (lo <= hi) {
+        val mid = lo + (hi - lo) / 2
+        when {
+            arr[mid] == target -> return mid
+            arr[mid] < target -> lo = mid + 1
+            else -> hi = mid - 1
+        }
+    }
+    return -1
+}
+
+fun main() {
+    val sorted = intArrayOf(2, 5, 8, 12, 16, 23, 38, 56, 72, 91)
+    val found = binarySearch(sorted, 23)
+    println("found at index $found")
+}`,
+
+"Two sum (map)": `fun twoSum(nums: IntArray, target: Int): List<Int>? {
+    val seen = mutableMapOf<Int, Int>()   // value -> index
+    for ((i, x) in nums.withIndex()) {
+        val j = seen[target - x]
+        if (j != null) return listOf(j, i)
+        seen[x] = i
+    }
+    return null
+}
+
+fun main() {
+    val result = twoSum(intArrayOf(3, 8, 11, 4, 7), 15)
+    println(result)
+}`,
+
+"Fibonacci with memo": `val memo = mutableMapOf<Int, Long>()
+
+fun fib(n: Int): Long {
+    if (n <= 1) return n.toLong()
+    memo[n]?.let { return it }
+    val value = fib(n - 1) + fib(n - 2)
+    memo[n] = value
+    return value
+}
+
+fun main() {
+    println(fib(6))
+}`,
+
+"Reverse a linked list": `class Node(val value: Int, var next: Node?)
+
+fun main() {
+    val list = Node(1, Node(2, Node(3, null)))
+
+    var prev: Node? = null
+    var curr: Node? = list
+    while (curr != null) {
+        val next = curr.next
+        curr.next = prev
+        prev = curr
+        curr = next
+    }
+    println(prev?.value)
+}`,
+
+"Breadth-first search": `val graph = mapOf(
+    "A" to listOf("B", "C"),
+    "B" to listOf("D"),
+    "C" to listOf("D", "E"),
+    "D" to listOf("F"),
+    "E" to listOf("F"),
+    "F" to listOf(),
+)
+
+fun bfs(start: String): List<String> {
+    val visited = mutableSetOf(start)
+    val queue = ArrayDeque(listOf(start))
+    val order = mutableListOf<String>()
+    while (queue.isNotEmpty()) {
+        val cur = queue.removeFirst()
+        order.add(cur)
+        for (next in graph.getValue(cur)) {
+            if (visited.add(next)) queue.addLast(next)
+        }
+    }
+    return order
+}
+
+fun main() {
+    println(bfs("A"))
+}`,
+
+"Data structures": `data class Point(val x: Int, val y: Int)
+data class Job(val id: String, val color: String, val next: List<String>)
+class TreeNode(val value: Int, var left: TreeNode? = null, var right: TreeNode? = null)
+class ListNode(val value: Int, val next: ListNode?)
+
+fun main() {
+    // ---- Memory / Boxes: any value ----
+    val nums = intArrayOf(5, 2, 9, 1, 6)
+    val i = 1; val j = 3                               // tags under nums[1] and nums[3]
+    val words = mutableListOf("hi", "there")
+    val scores = mutableMapOf("ada" to 90)
+    val primes = sortedSetOf(5, 2, 3)
+    val stack = ArrayDeque<Int>()
+    stack.addLast(1)
+    stack.addLast(2)
+    val p = Point(1, 2)
+    val pair = listOf(p, p)                            // the same object twice: #id badge
+
+    // ---- Graph: neighbour lists in a map ----
+    val g1 = mapOf("A" to listOf("B", "C"), "B" to listOf("D"), "C" to listOf("D"), "D" to listOf())
+    val g2 = mapOf('a' to mapOf('b' to 4), 'b' to mapOf('c' to 5), 'c' to mapOf())   // weighted
+    val adj = listOf(listOf(1, 2), listOf(3), listOf(3), listOf())                   // by position
+    val edges = listOf(0 to 1, 1 to 2, 2 to 0)
+
+    // ---- Graph: objects that point at each other ----
+    val tree = TreeNode(1, TreeNode(2, TreeNode(4)), TreeNode(3))
+    val linked = ListNode(1, ListNode(2, ListNode(3, null)))
+
+    // ---- Graph: data in the nodes ----
+    val jobs = listOf(Job("A", "red", listOf("B", "C")), Job("B", "blue", listOf("C")), Job("C", "green", listOf()))
+
+    val cur = "B"                                      // tags node B in g1
+    val visited = setOf("A", "C")                      // ∈ visited tags
+    println("done")
+}`
+};

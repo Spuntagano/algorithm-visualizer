@@ -30,6 +30,9 @@ export function semTags(step, sem, graphName) {
     // a set written as a table of trues, visited = { A = true } (Lua's way; { A: true } in JavaScript)
     else if (c && c.t === 'obj' && c.id !== sem.rootId && c.entries.length && c.entries.every(([, x]) => x.t === 'p' && x.k === 'bool' && /^true$/i.test(x.s)))
       c.entries.forEach(([k]) => { const kk = keyFor({ t: 'p', k: 'str', s: JSON.stringify(k) }); if (kk != null) add(kk, w.name, 'in'); });
+    // a map of flags, visited := map[string]bool{} (Go's set): the keys whose flag is true
+    else if (c && c.t === 'map' && c.id !== sem.rootId && c.entries.length && c.entries.every(([, x]) => x.t === 'p' && x.k === 'bool'))
+      c.entries.forEach(([k, x]) => { const kk = x.s === 'true' ? keyFor(k) : null; if (kk != null) add(kk, w.name, 'in'); });
   });
   tags.forEach(a => a.sort((x, y) => (x.kind === 'ptr' ? 0 : 1) - (y.kind === 'ptr' ? 0 : 1)));
   return tags;

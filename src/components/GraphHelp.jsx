@@ -2,7 +2,7 @@
  * The "?" next to the Variables heading: a short guide, for someone new to the app, to the three views and to every
  * shape of data the Graph view can draw. A native popover (top layer, so the panel's overflow cannot clip it; Escape
  * and an outside click close it), placed under its button. Written for the language picked in the header; every
- * example here is checked by tests (tests/components.test.jsx for JavaScript, tests/python.test.js, lua.test.js, ruby.test.js, php.test.js, c.test.js and cpp.test.js for the others).
+ * example here is checked by tests (tests/components.test.jsx for JavaScript, tests/python.test.js, lua.test.js, ruby.test.js, php.test.js, java.test.js, kotlin.test.js, csharp.test.js, go.test.js, c.test.js and cpp.test.js for the others).
  */
 import { useEffect, useRef } from 'react';
 
@@ -168,6 +168,150 @@ export const HELP = {
     arrowObject: "['to' => 'B', 'w' => 4]", pair: '[from, to]', tuples: ['[1, 0, 3]', '[0, 3, 1]', '[0, 1, 3]'],
     nodeData: "['id' => 1, 'weight' => 3]", arrowData: "['to' => 'B', 'start' => 0, 'end' => 3]", age: "['age' => 1]", fruits: "['fruits' => ['apple']]",
   },
+  java: {
+    values: 'Every array, List, Map, Set, Deque and object',
+    memory: 'each array, collection or object is a box, and a reference is an arrow to what it refers to',
+    containers: 'a List, Set or array (or a boolean[] of flags, one per node)',
+    names: { keyed: 'Neighbour lists (in a Map)' },
+    shapes: [
+      ['A list of neighbours for each name (in a Map)', [
+        ['Map<String, List<String>> g = Map.of("A", List.of("B", "C"), "B", List.of("C"), "C", List.of());', 'A points to B and C, B points to C. Sets, or Integer or Character keys, work too.', null, 'g'],
+        ['Map<String, Map<String, Integer>> g = Map.of("A", Map.of("B", 4, "C", 2), "B", Map.of("C", 1));', 'The same, with a number (weight) on each arrow.', null, 'g'],
+        ['Map<String, List<Edge>> g;  // record Edge(String to, int start, int end) {}', 'Each arrow written as an object; its other fields are written on the arrow.',
+          'import java.util.*;\npublic class Main {\n    record Edge(String to, int start, int end) {}\n    public static void main(String[] args) {\n        Map<String, List<Edge>> g = Map.of("A", List.of(new Edge("B", 0, 3)), "B", List.of());\n    }\n}', 'g'],
+      ]],
+      ['Objects that point at each other', [
+        ['class Node { int val; Node next; }', 'A linked list: next refers to the next node, and null ends it.',
+          'public class Main {\n    static class Node { int val; Node next; Node(int v, Node n) { val = v; next = n; } }\n    public static void main(String[] args) {\n        Node list = new Node(1, new Node(2, null));\n    }\n}', 'list'],
+        ['class Tree { int val; Tree left, right; }', 'A binary tree.',
+          'public class Main {\n    static class Tree { int val; Tree left, right; Tree(int v) { val = v; } }\n    public static void main(String[] args) {\n        Tree root = new Tree(1);\n        root.left = new Tree(2);\n        root.right = new Tree(3);\n    }\n}', 'root'],
+        ['class Vertex { String name; List<Vertex> nbrs; }', 'Objects that keep other objects in a list: any graph.',
+          'import java.util.*;\npublic class Main {\n    static class Vertex { String name; List<Vertex> nbrs = new ArrayList<>(); Vertex(String n) { name = n; } }\n    public static void main(String[] args) {\n        Vertex a = new Vertex("A"), b = new Vertex("B"), c = new Vertex("C");\n        a.nbrs.add(b); a.nbrs.add(c);\n    }\n}', 'a'],
+      ]],
+      ['Objects that name each other', [
+        ['List<Job> jobs;  // record Job(String id, List<String> deps) {}', 'By an id, key or name field.',
+          'import java.util.*;\npublic class Main {\n    record Job(String id, List<String> deps) {}\n    public static void main(String[] args) {\n        List<Job> jobs = List.of(new Job("test", List.of("build")), new Job("build", List.of()));\n    }\n}', 'jobs'],
+        ['List<Item> items;  // record Item(String v, List<Integer> out) {}', 'By position in the list.',
+          'import java.util.*;\npublic class Main {\n    record Item(String v, List<Integer> out) {}\n    public static void main(String[] args) {\n        List<Item> items = List.of(new Item("a", List.of(1)), new Item("b", List.of()));\n    }\n}', 'items'],
+      ]],
+      ['Lists of numbers (the variable\'s name decides)', [
+        ['int[][] adj = {{1, 2}, {2}, {}};', 'The neighbours of node 0, 1, 2… (a List<List<Integer>> too). The name must contain adj, graph, neigh or tree, or be g.', null, 'adj'],
+        ['int[][][] adj = {{{1, 4}, {2, 7}}, {{2, 1}}, {}};', 'The same with {node, weight} pairs, or longer arrays of values: the node is the first position where every one holds a node number. One other number is a weight; more are written on the arrow.', null, 'adj'],
+        ['int[][] graph = {{0, 1, 1}, {0, 0, 1}, {0, 0, 0}};', 'An adjacency matrix: graph[a][b] is 1 (or a weight) when a points to b.', null, 'graph'],
+        ['int[][] edges = {{0, 1}, {1, 2}};', 'One {from, to} pair per arrow; a third number is its weight. The name must contain edge.', null, 'edges'],
+      ]],
+    ],
+    arrowObject: 'new Edge("B", 4) (to, w)', pair: '{from, to}', tuples: ['{1, 0, 3}', '{0, 3, 1}', '{0, 1, 3}'],
+    nodeData: 'new Task(1, 3) (fields id, weight)', arrowData: 'new Edge("B", 0, 3) (fields to, start, end)', age: 'a Person with an int age', fruits: 'List.of("apple")',
+  },
+  kotlin: {
+    values: 'Every list, map, set, array and object',
+    memory: 'each list, map, set, array or object is a box, and a reference is an arrow to what it refers to',
+    containers: 'a list, set or array (or a BooleanArray of flags, one per node)',
+    names: { keyed: 'Neighbour lists (in a map)' },
+    shapes: [
+      ['A list of neighbours for each name (in a map)', [
+        ['val g = mapOf("A" to listOf("B", "C"), "B" to listOf("C"), "C" to listOf())', 'A points to B and C, B points to C. Sets, or Char or Int keys, work too.', null, 'g'],
+        ['val g = mapOf("A" to mapOf("B" to 4, "C" to 2), "B" to mapOf("C" to 1))', 'The same, with a number (weight) on each arrow. Pairs ("B" to 4) work too.', null, 'g'],
+        ['val g: Map<String, List<Edge>>  // data class Edge(val to: String, val start: Int, val end: Int)', 'Each arrow written as an object; its other fields are written on the arrow.',
+          'data class Edge(val to: String, val start: Int, val end: Int)\n\nfun main() {\n    val g = mapOf("A" to listOf(Edge("B", 0, 3)), "B" to listOf())\n}', 'g'],
+      ]],
+      ['Objects that point at each other', [
+        ['class Node(val value: Int, var next: Node?)', 'A linked list: next refers to the next node, and null ends it.',
+          'class Node(val value: Int, var next: Node?)\n\nfun main() {\n    val list = Node(1, Node(2, null))\n}', 'list'],
+        ['class Tree(val value: Int, var left: Tree? = null, var right: Tree? = null)', 'A binary tree.',
+          'class Tree(val value: Int, var left: Tree? = null, var right: Tree? = null)\n\nfun main() {\n    val root = Tree(1, Tree(2), Tree(3))\n}', 'root'],
+        ['class Vertex(val name: String) { val nbrs = mutableListOf<Vertex>() }', 'Objects that keep other objects in a list: any graph.',
+          'class Vertex(val name: String) { val nbrs = mutableListOf<Vertex>() }\n\nfun main() {\n    val a = Vertex("A")\n    a.nbrs += Vertex("B")\n    a.nbrs += Vertex("C")\n}', 'a'],
+      ]],
+      ['Objects that name each other', [
+        ['val jobs: List<Job>  // data class Job(val id: String, val deps: List<String>)', 'By an id, key or name property.',
+          'data class Job(val id: String, val deps: List<String>)\n\nfun main() {\n    val jobs = listOf(Job("test", listOf("build")), Job("build", listOf()))\n}', 'jobs'],
+        ['val items: List<Item>  // data class Item(val v: String, val out: List<Int>)', 'By position in the list.',
+          'data class Item(val v: String, val out: List<Int>)\n\nfun main() {\n    val items = listOf(Item("a", listOf(1)), Item("b", listOf()))\n}', 'items'],
+      ]],
+      ['Lists of numbers (the variable\'s name decides)', [
+        ['val adj = listOf(listOf(1, 2), listOf(2), listOf())', 'The neighbours of node 0, 1, 2… (an Array<IntArray> too). The name must contain adj, graph, neigh or tree, or be g.', null, 'adj'],
+        ['val adj = listOf(listOf(1 to 4, 2 to 7), listOf(2 to 1), listOf())', 'The same with (node, weight) pairs, or Triples: the node is the first position where every one holds a node number. One other number is a weight; more are written on the arrow.', null, 'adj'],
+        ['val graph = arrayOf(intArrayOf(0, 1, 1), intArrayOf(0, 0, 1), intArrayOf(0, 0, 0))', 'An adjacency matrix: graph[a][b] is 1 (or a weight) when a points to b.', null, 'graph'],
+        ['val edges = listOf(0 to 1, 1 to 2)', 'One (from, to) pair per arrow; a Triple\'s third number is its weight. The name must contain edge.', null, 'edges'],
+      ]],
+    ],
+    arrowObject: 'Edge("B", 4) (to, w)', pair: 'from to to', tuples: ['Triple(1, 0, 3)', 'Triple(0, 3, 1)', 'Triple(0, 1, 3)'],
+    nodeData: 'Task(1, 3) (id, weight)', arrowData: 'Edge("B", 0, 3) (to, start, end)', age: 'a Person with an Int age', fruits: 'listOf("apple")',
+  },
+  csharp: {
+    values: 'Every array, List, Dictionary, HashSet, Queue, Stack and object',
+    memory: 'each array, collection or object is a box, and a reference is an arrow to what it refers to',
+    containers: 'a List, HashSet or array (or a bool[] of flags, one per node)',
+    names: { keyed: 'Neighbour lists (in a Dictionary)' },
+    shapes: [
+      ['A list of neighbours for each name (in a Dictionary)', [
+        ['var g = new Dictionary<string, List<string>> { ["A"] = new() { "B", "C" }, ["B"] = new() { "C" }, ["C"] = new() };', 'A points to B and C, B points to C. HashSets, or char or int keys, work too.', null, 'g'],
+        ['var g = new Dictionary<string, Dictionary<string, int>> { ["A"] = new() { ["B"] = 4, ["C"] = 2 }, ["B"] = new() { ["C"] = 1 } };', 'The same, with a number (weight) on each arrow. (string, int) tuples work too.', null, 'g'],
+        ['Dictionary<string, List<Edge>> g;  // record Edge(string To, int Start, int End);', 'Each arrow written as an object; its other fields are written on the arrow.',
+          'var g = new Dictionary<string, List<Edge>> { ["A"] = new() { new Edge("B", 0, 3) }, ["B"] = new() };\n\nrecord Edge(string To, int Start, int End);', 'g'],
+      ]],
+      ['Objects that point at each other', [
+        ['class Node { public int Val; public Node Next; }', 'A linked list: Next refers to the next node, and null ends it.',
+          'var list = new Node { Val = 1, Next = new Node { Val = 2 } };\n\nclass Node { public int Val; public Node Next; }', 'list'],
+        ['class Tree { public int Val; public Tree Left, Right; }', 'A binary tree.',
+          'var root = new Tree { Val = 1, Left = new Tree { Val = 2 }, Right = new Tree { Val = 3 } };\n\nclass Tree { public int Val; public Tree Left, Right; }', 'root'],
+        ['class Vertex { public string Name; public List<Vertex> Nbrs = new(); }', 'Objects that keep other objects in a list: any graph.',
+          'var a = new Vertex { Name = "A" };\na.Nbrs.Add(new Vertex { Name = "B" });\na.Nbrs.Add(new Vertex { Name = "C" });\n\nclass Vertex { public string Name; public List<Vertex> Nbrs = new(); }', 'a'],
+      ]],
+      ['Objects that name each other', [
+        ['List<Job> jobs;  // record Job(string Id, List<string> Deps);', 'By an Id, Key or Name property.',
+          'var jobs = new List<Job> { new("test", new() { "build" }), new("build", new()) };\n\nrecord Job(string Id, List<string> Deps);', 'jobs'],
+        ['List<Item> items;  // record Item(string V, List<int> Out);', 'By position in the list.',
+          'var items = new List<Item> { new("a", new() { 1 }), new("b", new()) };\n\nrecord Item(string V, List<int> Out);', 'items'],
+      ]],
+      ['Lists of numbers (the variable\'s name decides)', [
+        ['var adj = new List<List<int>> { new() { 1, 2 }, new() { 2 }, new() };', 'The neighbours of node 0, 1, 2… (an int[][] too). The name must contain adj, graph, neigh or tree, or be g.', null, 'adj'],
+        ['var adj = new List<List<(int, int)>> { new() { (1, 4), (2, 7) }, new() { (2, 1) }, new() };', 'The same with (node, weight) tuples, or longer ones: the node is the first position where every one holds a node number. One other number is a weight; more are written on the arrow.', null, 'adj'],
+        ['int[,] graph = { { 0, 1, 1 }, { 0, 0, 1 }, { 0, 0, 0 } };', 'An adjacency matrix: graph[a, b] is 1 (or a weight) when a points to b.', null, 'graph'],
+        ['var edges = new List<(int, int)> { (0, 1), (1, 2) };', 'One (from, to) pair per arrow; a third number is its weight. The name must contain edge.', null, 'edges'],
+      ]],
+    ],
+    arrowObject: 'new Edge("B", 4) (To, W)', pair: '(from, to)', tuples: ['(1, 0, 3)', '(0, 3, 1)', '(0, 1, 3)'],
+    nodeData: 'new Task(1, 3) (Id, Weight)', arrowData: 'new Edge("B", 0, 3) (To, Start, End)', age: 'a Person with an int Age', fruits: 'new List<string> { "apple" }',
+  },
+  go: {
+    values: 'Every slice, array, map, struct and pointer',
+    memory: 'each slice, array, map or struct is a box, and a pointer is an arrow to what it points at',
+    containers: 'a slice, or a map[string]bool of flags (or a []bool, one per node)',
+    names: { keyed: 'Neighbour lists (in a map)', nested: 'Structs that point at structs', named: 'Structs that name each other' },
+    shapes: [
+      ['A list of neighbours for each name (in a map)', [
+        ['g := map[string][]string{"A": {"B", "C"}, "B": {"C"}, "C": {}}', 'A points to B and C, B points to C. rune or int keys work too.', null, 'g'],
+        ['g := map[string]map[string]int{"A": {"B": 4, "C": 2}, "B": {"C": 1}}', 'The same, with a number (weight) on each arrow.', null, 'g'],
+        ['g := map[string][]Edge{…}  // type Edge struct { To string; Start, End int }', 'Each arrow written as a struct; its other fields are written on the arrow.',
+          'package main\n\ntype Edge struct {\n    To         string\n    Start, End int\n}\n\nfunc main() {\n    g := map[string][]Edge{"A": {{"B", 0, 3}}, "B": {}}\n    _ = g\n}', 'g'],
+      ]],
+      ['Structs that point at each other (pointers)', [
+        ['type Node struct { Val int; Next *Node }', 'A linked list: Next points at the next node, and nil ends it.',
+          'package main\n\ntype Node struct {\n    Val  int\n    Next *Node\n}\n\nfunc main() {\n    list := &Node{1, &Node{2, nil}}\n    _ = list\n}', 'list'],
+        ['type Tree struct { Val int; Left, Right *Tree }', 'A binary tree.',
+          'package main\n\ntype Tree struct {\n    Val         int\n    Left, Right *Tree\n}\n\nfunc main() {\n    root := &Tree{Val: 1, Left: &Tree{Val: 2}, Right: &Tree{Val: 3}}\n    _ = root\n}', 'root'],
+        ['type Vertex struct { Name string; Nbrs []*Vertex }', 'Structs that hold pointers to other structs: any graph.',
+          'package main\n\ntype Vertex struct {\n    Name string\n    Nbrs []*Vertex\n}\n\nfunc main() {\n    b, c := &Vertex{Name: "B"}, &Vertex{Name: "C"}\n    a := &Vertex{"A", []*Vertex{b, c}}\n    _ = a\n}', 'a'],
+      ]],
+      ['Structs that name each other', [
+        ['jobs := []Job{{"test", []string{"build"}}, {"build", nil}}  // type Job struct { ID string; Deps []string }', 'By an ID, Key or Name field.',
+          'package main\n\ntype Job struct {\n    ID   string\n    Deps []string\n}\n\nfunc main() {\n    jobs := []Job{{"test", []string{"build"}}, {"build", nil}}\n    _ = jobs\n}', 'jobs'],
+        ['items := []Item{{"a", []int{1}}, {"b", nil}}  // type Item struct { V string; Out []int }', 'By position in the slice.',
+          'package main\n\ntype Item struct {\n    V   string\n    Out []int\n}\n\nfunc main() {\n    items := []Item{{"a", []int{1}}, {"b", nil}}\n    _ = items\n}', 'items'],
+      ]],
+      ['Slices of numbers (the variable\'s name decides)', [
+        ['adj := [][]int{{1, 2}, {2}, {}}', 'The neighbours of node 0, 1, 2… The name must contain adj, graph, neigh or tree, or be g.', null, 'adj'],
+        ['adj := [][][2]int{{{1, 4}, {2, 7}}, {{2, 1}}, {}}', 'The same with {node, weight} pairs, or longer arrays of values: the node is the first position where every one holds a node number. One other number is a weight; more are written on the arrow.', null, 'adj'],
+        ['graph := [][]int{{0, 1, 1}, {0, 0, 1}, {0, 0, 0}}', 'An adjacency matrix: graph[a][b] is 1 (or a weight) when a points to b.', null, 'graph'],
+        ['edges := [][2]int{{0, 1}, {1, 2}}', 'One {from, to} pair per arrow; a third number is its weight. The name must contain edge.', null, 'edges'],
+      ]],
+    ],
+    arrowObject: 'Edge{"B", 4} (To, W)', pair: '{from, to}', tuples: ['{1, 0, 3}', '{0, 3, 1}', '{0, 1, 3}'],
+    nodeData: 'Task{ID: 1, Weight: 3}', arrowData: 'Edge{To: "B", Start: 0, End: 3}', age: 'struct{ Age int }', fruits: '[]string{"apple"}',
+  },
   cpp: {
     values: 'Every array, vector, map, set, string, struct and pointer',
     memory: 'each array, container or object is a box, and a pointer is an arrow to what it points at',
@@ -238,7 +382,7 @@ export const SHAPES = HELP.javascript.shapes;
 const GROUPS = ['keyed', 'nested', 'named', 'numbers'];
 const NAMES = { keyed: 'Neighbour lists', nested: 'Objects inside objects', named: 'Objects that name each other', numbers: 'Lists of numbers' };
 
-/** @param lang  'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'php' | 'c' | 'cpp': which language the guide's examples are written in (TypeScript uses JavaScript's) */
+/** @param lang  'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'php' | 'java' | 'kotlin' | 'csharp' | 'go' | 'c' | 'cpp': which language the guide's examples are written in (TypeScript uses JavaScript's) */
 export function GraphHelp({ lang = 'javascript' }) {
   const h = HELP[lang] || HELP.javascript;
   const groups = h.groups || GROUPS, no = id => groups.indexOf(id) + 1, has = id => groups.includes(id);

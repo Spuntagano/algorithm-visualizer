@@ -10,12 +10,13 @@ export function layoutTree(sem, sp, lr) {
   const lab = sem.edges.filter(e => e.lines && e.lines.length).map(e => labelSize(e.lines));   // labels sit between levels
   const GD = (lr ? 64 : 54) + Math.max(0, ...lab.map(l => (lr ? l.width : l.height) - (lr ? 40 : 24)));
   const bre = n => (lr ? n.h : n.w), dep = n => (lr ? n.w : n.h);
-  const binary = sem.edges.length > 0 && sem.edges.every(e => e.label === 'left' || e.label === 'right');
+  const side = e => String(e.label).toLowerCase();   // left, or Go's Left
+  const binary = sem.edges.length > 0 && sem.edges.every(e => side(e) === 'left' || side(e) === 'right');
   const slotsOf = n => {
     const kids = sp.treeKids.get(n.key);
     if (!kids.length) return [];
     if (!binary) return kids.map(k => k.key);
-    const Lk = kids.find(k => sem.edges[k.i].label === 'left'), Rk = kids.find(k => sem.edges[k.i].label === 'right');
+    const Lk = kids.find(k => side(sem.edges[k.i]) === 'left'), Rk = kids.find(k => side(sem.edges[k.i]) === 'right');
     return Lk && Rk ? [Lk.key, Rk.key] : Lk ? [Lk.key, null] : [null, Rk.key];
   };
   const sw = new Map(), cb = new Map(), lvl = new Map();

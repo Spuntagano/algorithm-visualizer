@@ -540,6 +540,124 @@ await page.click('#bLast');
 assert.match(await page.locator('#banner').innerText(), /Trace stopped after 3000 steps/, 'a runaway C loop is stopped');
 await page.selectOption('#lang', 'javascript');
 
+// 6p. Java: its own interpreter, with Java's library; objects linked by references are graphs
+await pick('Breadth-first search');
+const nJava = await runs();
+await page.selectOption('#lang', 'java');
+await settled(nJava);
+assert.equal(await page.locator('.cm-line').first().innerText(), 'import java.util.*;', 'the Java version of the example');
+assert.match(await page.locator('.site-header p').innerText(), /^Run Java .* arrays, lists, maps and objects change/);
+assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Java code$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^12$/ }).click();   // order.add(cur);
+await page.click('#bBpNext'); await page.click('#bBpNext');
+assert.match(await stepLabel(), /· line 12$/, 'breakpoints work in Java');
+assert.match(await page.locator('#stack .frame.top').innerText(), /^Main\.bfs\(start="A"\)$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^12$/ }).click();
+await page.locator('button[data-vt="graph|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="graph|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/, 'a Map<String, List<String>> is a graph');
+assert.ok(await page.locator('.var:has(button[data-vt="graph|boxes"]) text', { hasText: '∈ visited' }).count() > 0, 'a HashSet tags the visited nodes');
+await snap('12-java');
+await page.click('#graphHelpBtn');
+assert.match(await page.locator('#graphHelp').innerText(), /Every array, List, Map, Set, Deque and object/, 'the help speaks Java');
+await page.keyboard.press('Escape');
+await typeCode('import java.util.*;\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> l = new ArrayList<>(List.of(1, 2, 3, 4));\n        for (int x : l) if (x == 1) l.remove(0);\n    }\n}');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /java\.util\.ConcurrentModificationException/, 'changing a list in its for-each is caught, as in Java');
+await replaceCode('public class Main {\n    public static void main(String[] args) {\n        int x = 1\n    }\n}');
+await bannerMatches(/Syntax error: line 3: ';' expected at the end of the line/);
+await page.selectOption('#lang', 'javascript');
+
+// 6s. Kotlin: its own interpreter, with the JVM's collections; a map of lists is a graph, a set tags what it holds
+await pick('Breadth-first search');
+const nKt = await runs();
+await page.selectOption('#lang', 'kotlin');
+await settled(nKt);
+assert.equal(await page.locator('.cm-line').first().innerText(), 'val graph = mapOf(', 'the Kotlin version of the example');
+assert.match(await page.locator('.site-header p').innerText(), /^Run Kotlin .* lists, maps, sets and objects change/);
+assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Kotlin code$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^16$/ }).click();   // order.add(cur)
+await page.click('#bBpNext'); await page.click('#bBpNext');
+assert.match(await stepLabel(), /· line 16$/, 'breakpoints work in Kotlin');
+assert.match(await page.locator('#stack .frame.top').innerText(), /^bfs\(start="A"\)$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^16$/ }).click();
+await page.locator('button[data-vt="graph|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="graph|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/, 'a Map<String, List<String>> is a graph');
+assert.ok(await page.locator('.var:has(button[data-vt="graph|boxes"]) text', { hasText: '∈ visited' }).count() > 0, 'a set tags the visited nodes');
+await snap('15-kotlin');
+await page.click('#graphHelpBtn');
+assert.match(await page.locator('#graphHelp').innerText(), /Every list, map, set, array and object/, 'the help speaks Kotlin');
+await page.keyboard.press('Escape');
+await typeCode('fun main() {\n    val m = mapOf("a" to 1)\n    println(m.getValue("b"))\n}');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /Exception in thread "main" java\.util\.NoSuchElementException: Key b is missing in the map\. \(line 3\)/, 'an exception, as the JVM words it');
+await replaceCode('fun main() {\n    val x = 1 2\n}');
+await bannerMatches(/Syntax error: line 2: unexpected tokens/);
+await page.selectOption('#lang', 'javascript');
+
+// 6r. C#: its own interpreter, with .NET's library; a Dictionary of Lists is a graph, a HashSet tags what it holds
+await pick('Breadth-first search');
+const nCs = await runs();
+await page.selectOption('#lang', 'csharp');
+await settled(nCs);
+assert.equal(await page.locator('.cm-line').first().innerText(), 'var graph = new Dictionary<string, List<string>>', 'the C# version of the example');
+assert.match(await page.locator('.site-header p').innerText(), /^Run C# .* arrays, lists, dictionaries and objects change/);
+assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^C# code$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^20$/ }).click();   // order.Add(cur);
+await page.click('#bBpNext'); await page.click('#bBpNext');
+assert.match(await stepLabel(), /· line 20$/, 'breakpoints work in C#');
+assert.match(await page.locator('#stack .frame.top').innerText(), /^Bfs\(start="A"\)$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^20$/ }).click();
+await page.locator('button[data-vt="graph|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="graph|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/, 'a Dictionary<string, List<string>> is a graph');
+assert.ok(await page.locator('.var:has(button[data-vt="graph|boxes"]) text', { hasText: '∈ visited' }).count() > 0, 'a HashSet tags the visited nodes');
+await snap('14-csharp');
+await page.click('#graphHelpBtn');
+assert.match(await page.locator('#graphHelp').innerText(), /Every array, List, Dictionary, HashSet, Queue, Stack and object/, 'the help speaks C#');
+await page.keyboard.press('Escape');
+await typeCode('var d = new Dictionary<string, int>();\nConsole.WriteLine(d["missing"]);');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /Unhandled exception\. System\.Collections\.Generic\.KeyNotFoundException: The given key 'missing' was not present in the dictionary\. \(line 2\)/, 'an exception, as .NET words it');
+await typeCode('Console.WriteLine("start");\nint x = 3.5;');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /Error on line 2: CS0266: Cannot implicitly convert type 'double' to 'int'/, 'what the compiler would refuse');
+await replaceCode('int a = 1\nConsole.WriteLine(a);');
+await bannerMatches(/Syntax error: line 1: CS1002: ; expected/);
+await page.selectOption('#lang', 'javascript');
+
+// 6q. Go: its own interpreter, with fmt, sort, strings…; a map of slices is a graph, a map[string]bool tags what it holds
+await pick('Breadth-first search');
+const nGo = await runs();
+await page.selectOption('#lang', 'go');
+await settled(nGo);
+assert.equal(await page.locator('.cm-line').first().innerText(), 'package main', 'the Go version of the example');
+assert.match(await page.locator('.site-header p').innerText(), /^Run Go .* slices, maps, structs and pointers change/);
+assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Go code$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^21$/ }).click();   // order = append(order, cur)
+await page.click('#bBpNext'); await page.click('#bBpNext');
+assert.match(await stepLabel(), /· line 21$/, 'breakpoints work in Go');
+assert.match(await page.locator('#stack .frame.top').innerText(), /^bfs\(start="A"\)$/);
+await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^21$/ }).click();
+await page.locator('button[data-vt="graph|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="graph|boxes"]) .gcap').innerText(), /Graph · 6 nodes · 7 edges/, 'a map[string][]string is a graph');
+assert.ok(await page.locator('.var:has(button[data-vt="graph|boxes"]) text', { hasText: '∈ visited' }).count() > 0, 'a map[string]bool tags the visited nodes');
+await snap('13-go');
+await page.click('#graphHelpBtn');
+assert.match(await page.locator('#graphHelp').innerText(), /Every slice, array, map, struct and pointer/, 'the help speaks Go');
+await page.keyboard.press('Escape');
+await pick('Reverse a linked list');
+await page.click('#bLast');
+await page.locator('button[data-vt="prev|graph"]').click();
+assert.match(await page.locator('.var:has(button[data-vt="prev|boxes"]) .gcap').innerText(), /^Linked list · 3 nodes/, 'structs linked by pointers');
+await typeCode('package main\n\nimport "fmt"\n\nfunc main() {\n    a := []int{1, 2, 3}\n    i := 5\n    fmt.Println(a[i])\n}');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /panic: runtime error: index out of range \[5\] with length 3 \(line 8\)/, 'a panic, as Go words it');
+await replaceCode('package main\n\nfunc main() {\n    x := 5\n}');
+await bannerMatches(/Syntax error: line 4: declared and not used: x/);
+await replaceCode('package main\n\nfunc main() {\n    for {\n    }\n}');
+await page.click('#bLast');
+assert.match(await page.locator('#banner').innerText(), /Trace stopped after 3000 steps/, 'a runaway Go loop is stopped');
+await page.selectOption('#lang', 'javascript');
+
 // 6o. C++: the C interpreter with classes and the standard library; a vector is an array, its iterators are tags
 await pick('Reverse a linked list');
 const nCpp = await runs();

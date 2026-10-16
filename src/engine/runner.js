@@ -53,7 +53,7 @@ let nextId = 1;
  * cannot start (e.g. Python cannot be downloaded).
  * @param {string} code
  * @param {AbortSignal} [signal]
- * @param {{ lang?: 'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'php' | 'c' | 'cpp', onStatus?: (s: 'loading') => void }} [opts]
+ * @param {{ lang?: 'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'php' | 'java' | 'c' | 'cpp', onStatus?: (s: 'loading') => void }} [opts]
  */
 export function runTraceAsync(code, signal, { lang = 'javascript', onStatus } = {}) {
   if (signal && signal.aborted) return Promise.reject(aborted());
@@ -64,7 +64,7 @@ export function runTraceAsync(code, signal, { lang = 'javascript', onStatus } = 
   return HOSTED.has(lang) ? runHosted(lang, code, signal, onStatus) : runJavaScript(code, signal, lang);
 }
 
-/* JavaScript (and TypeScript, which the worker strips to JavaScript, Lua, C and C++): a fresh worker per run, terminated when the run ends, times out or is replaced. */
+/* JavaScript (and TypeScript, which the worker strips to JavaScript, Lua, Java, Kotlin, C#, Go, C and C++): a fresh worker per run, terminated when the run ends, times out or is replaced. */
 function runJavaScript(code, signal, lang = 'javascript') {
   const worker = spawn(), id = nextId++;
   if (!worker) return Promise.reject(Object.assign(new Error('This browser could not start the tracing worker.'), { plain: true }));

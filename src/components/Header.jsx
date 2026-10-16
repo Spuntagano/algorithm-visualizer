@@ -4,7 +4,7 @@ export function Header({ examples, example, onExample, lang, langs, onLang }) {
     <header className="site-header">
       <div>
         <h1>Step through an algorithm</h1>
-        <p>Run {langs[lang]} one statement at a time and watch {lang === 'python' ? 'lists, dicts, sets and objects' : lang === 'lua' ? 'tables' : lang === 'ruby' ? 'arrays, hashes, sets and objects' : lang === 'c' ? 'arrays, structs, pointers and memory' : lang === 'cpp' ? 'vectors, maps, objects and pointers' : lang === 'php' ? 'arrays and objects' : 'arrays, objects, Maps and Sets'} change.</p>
+        <p>Run {langs[lang]} one statement at a time and watch {lang === 'python' ? 'lists, dicts, sets and objects' : lang === 'lua' ? 'tables' : lang === 'ruby' ? 'arrays, hashes, sets and objects' : lang === 'c' ? 'arrays, structs, pointers and memory' : lang === 'cpp' ? 'vectors, maps, objects and pointers' : lang === 'java' ? 'arrays, lists, maps and objects' : lang === 'go' ? 'slices, maps, structs and pointers' : lang === 'csharp' ? 'arrays, lists, dictionaries and objects' : lang === 'kotlin' ? 'lists, maps, sets and objects' : lang === 'php' ? 'arrays and objects' : 'arrays, objects, Maps and Sets'} change.</p>
       </div>
       <div className="actions">
         <label className="sel">Language

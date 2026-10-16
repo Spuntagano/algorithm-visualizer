@@ -3,8 +3,8 @@
  * Python tracer's source) into a string that runner.js turns into a worker, so the user's code never runs on the
  * page's thread.
  *
- * Messages in:  { lang: 'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'php' | 'c' | 'cpp', code, id, engine? }
- *               (engine: the packed engine TypeScript, Lua, C or C++ needs, from build.mjs bundleEngines)
+ * Messages in:  { lang: 'javascript' | 'typescript' | 'lua' | 'python' | 'ruby' | 'php' | 'java' | 'c' | 'cpp', code, id, engine? }
+ *               (engine: the packed engine TypeScript, Lua, Java, Kotlin, C#, Go, C or C++ needs, from build.mjs bundleEngines)
  * Messages out: { ready, id } when a run starts, then { trace, id } or { failure, id } (a syntax error);
  *               for Python, Ruby and PHP also { loading } while the runtime downloads, and { fatal, id } if it cannot be loaded.
  */
@@ -119,7 +119,7 @@ async function handle({ lang, code, id, engine }) {
       catch (err) { self.postMessage({ failure: 'The ' + lang + ' engine could not be unpacked: ' + (err && err.message ? err.message : err), id }); return; }
     }
     self.postMessage({ ready: true, id });
-    try { self.postMessage({ trace: lang === 'lua' ? eng.runLuaTrace(code) : lang === 'c' ? eng.runCTrace(code) : lang === 'cpp' ? eng.runCppTrace(code) : runTrace(eng ? eng.stripTypes(code) : code), id }); }
+    try { self.postMessage({ trace: lang === 'lua' ? eng.runLuaTrace(code) : lang === 'c' ? eng.runCTrace(code) : lang === 'cpp' ? eng.runCppTrace(code) : lang === 'java' ? eng.runJavaTrace(code) : lang === 'go' ? eng.runGoTrace(code) : lang === 'csharp' ? eng.runCsTrace(code) : lang === 'kotlin' ? eng.runKotlinTrace(code) : runTrace(eng ? eng.stripTypes(code) : code), id }); }
     catch (err) { self.postMessage({ failure: err && err.message ? err.message : String(err), id }); }
     return;
   }

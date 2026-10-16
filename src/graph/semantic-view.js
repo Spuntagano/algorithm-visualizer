@@ -29,7 +29,7 @@ export function buildSemanticView(step, prev, name, sem, withPtrs) {
   /* edge labels, worked out before layout so it can leave room for them: an edge object's values as "key value" lines
      ({ v: 1, start: 0, end: 3 } → start 0 / end 3), else a bare weight, else the field name when it helps */
   const labs = new Set(sem.edges.map(e => e.label).filter(Boolean));
-  const showLab = labs.size > 1 || (labs.size === 1 && ![...labs].every(l => l === 'left' || l === 'right' || l === 'next' || l === 'children'));
+  const showLab = labs.size > 1 || (labs.size === 1 && ![...labs].every(l => ['left', 'right', 'next', 'children'].includes(String(l).toLowerCase())));
   sem.edges.forEach(e => {
     const onlyWeight = e.attrs && e.attrs.length === 1 && e.weight != null;
     e.lines = e.attrs && e.attrs.length && !onlyWeight ? e.attrs.map(([k, v]) => (k == null ? v : k + ' ' + v))   // a tuple's values have no names

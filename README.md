@@ -1,6 +1,6 @@
 # Algorithm Stepper (React edition)
 
-Step through JavaScript, TypeScript, Lua, Python, Ruby, PHP, C or C++ one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
+Step through JavaScript, TypeScript, Lua, Python, Ruby, PHP, Java, Kotlin, C#, Go, C or C++ one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
 Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`); the choice is kept per variable while you step and edit.
 
 ## TypeScript
@@ -47,6 +47,85 @@ and messages are those of the code as written. Lists are arrays, arrays with key
 show their properties (private ones too) with their class name, and `SplStack`, `SplQueue` and the other SPL
 structures are lists. Warnings are shown in the output, and `exit` / `die` end the run like the end of the program.
 The `<?php` tag is optional.
+
+## Java
+Pick **Java** in the Language menu. Java runs in an interpreter written for this page (`src/engine/java/`: `parse.js`,
+`interp.js`, and `lib.js` for the library), so it works offline. It covers the Java that algorithms use: classes with
+inheritance, abstract classes, interfaces (with default methods), nested, inner and anonymous classes, generics (of
+one's own too: they are erased, as in Java), enums, records, lambdas and method references, `switch` (both kinds, and
+switch expressions), labels, `try` / `catch` / `finally`, `var`, text blocks, `instanceof` patterns, and a compact
+`void main()` file. The library: `String`, `StringBuilder`, `ArrayList`, `LinkedList`, `ArrayDeque`, `Stack`,
+`PriorityQueue`, `HashMap`, `LinkedHashMap`, `TreeMap`, `HashSet`, `LinkedHashSet`, `TreeSet`, `Map.Entry`,
+`Arrays`, `Collections`, `Math`, `Integer` and the other wrappers, `Comparator`, `Random`, `System.out.printf`.
+What a program can see of Java is kept: int and long overflow, integer division, char arithmetic, `==` on Strings and
+boxed numbers (with the Integer cache), HashMap's own iteration order, `java.util.Random`'s numbers, the order
+constructors and field initializers run in, `ConcurrentModificationException`, and Java's exceptions with their
+messages. What javac would refuse (an int given a String…) is reported when the line runs. Not supported: streams,
+threads, reflection, `Scanner` (there is no input) and classes outside `java.util`, `java.lang`, `java.io` and `java.math`.
+
+## Kotlin
+Pick **Kotlin** in the Language menu. Kotlin runs in an interpreter written for this page (`src/engine/kotlin/`:
+`parse.js`, `interp.js`, and `lib.js` for the library), so it works offline. It covers the Kotlin that algorithms use
+(Kotlin 2): `fun main`, top-level functions and properties, classes (data, open, abstract, sealed, enum, with
+companions), objects, interfaces, primary and secondary constructors, properties with `get()` / `set()` and
+`lateinit` and `by lazy`, extension functions and properties, operators and `infix` functions, lambdas (with `it`,
+trailing, labelled), function references, `when` and `if` / `try` as expressions, ranges (`..`, `until`, `downTo`,
+`step`), string templates and raw strings, null safety (`?.`, `?:`, `!!`, `as?`), destructuring, labelled `break` and
+`continue`, and a plain `return` from an inline lambda. The library: the collection functions (`map`, `filter`,
+`groupBy`, `sortedBy`, `fold`, `joinToString`…), lists, sets, maps, arrays, `ArrayDeque`, `java.util.PriorityQueue`,
+`StringBuilder`, `Pair` / `Triple`, comparators (`compareBy`, `thenBy`), sequences, scope functions (`let`, `apply`…),
+`kotlin.math`, `Math`, `String.format`, and `kotlin.random.Random`. What a program can see of Kotlin on the JVM is kept:
+Int overflow, Char arithmetic (`'a' + 1` is `'b'`), doubles printed as Java prints them (`1.0E10`), `mutableMapOf()`
+and `setOf()` keeping insertion order while `hashMapOf()` and `hashSetOf()` iterate in Java's bucket order (sized as
+Kotlin sizes them), PriorityQueue's heap order, `Random(42)`'s numbers, `"%.2f".format` rounding half up, the order
+classes initialize in, changing a list inside its `for` loop, and the JVM's exceptions with their messages. What the
+compiler would refuse is reported as Kotlin 2 words it, when the line runs: `'val' cannot be reassigned`,
+`initializer type mismatch: expected 'kotlin.Double', actual 'kotlin.Int'`, a call on a nullable value without `?.`,
+a `when` expression that is not exhaustive, `add` on a read-only `List`. Not supported: coroutines, reflection,
+regular expressions, reading input, and libraries beyond those listed.
+
+## C#
+Pick **C#** in the Language menu. C# runs in an interpreter written for this page (`src/engine/cs/`: `parse.js`,
+`interp.js`, and `lib.js` for the library), so it works offline. It covers the C# that algorithms use (C# 12): top-level
+statements (with local functions) or a class with `Main`, classes with inheritance, abstract and virtual members,
+interfaces, structs, records (with `with`), enums, generics (erased), properties (auto, computed, `init`), constructors
+(`: base(…)`, `: this(…)`, primary ones), operator overloads, indexers, extension methods, lambdas and method groups
+(`Func`, `Action`, `Predicate`), tuples and deconstruction, `ref` / `out` / `params` / named and default arguments,
+`switch` statements and expressions with patterns (`is int n`, `{ Length: 0 }`, `(0, _)`, `> 5 and < 10`), nullable
+value types, `?.` and `??`, string interpolation with alignment and formats, collection expressions, ranges and `^1`,
+`try` / `catch` (with `when`) / `finally`, `checked`. The library: `Console`, `string` and `StringBuilder`, `Math`,
+`int.Parse` / `TryParse` and the like, `Convert`, `List`, `Dictionary`, `HashSet`, `SortedDictionary`, `SortedSet`,
+`Queue`, `Stack`, `PriorityQueue`, `Array`, `Random`, and LINQ (lazy, as in .NET: a query sees later changes to its
+source). What a program can see of .NET 8 is kept: int overflow, integer division, char arithmetic, structs and tuples
+copied when assigned, the order C# runs field initializers and constructors in (the derived class's fields first),
+Dictionary and HashSet enumerating in .NET's entry order (a removed entry's slot is the next one used), PriorityQueue's
+4-ary heap order, List.Sort's introsort (not stable, where OrderBy is), `new Random(42)`'s numbers, a `for` loop's
+variable shared by its closures (a `foreach` one is not), changing a collection inside its `foreach`, and .NET's
+exceptions with their messages. Numbers print and format as .NET 8 does with the invariant culture (`0.30000000000000004`,
+`1E+17`, `F2` rounding an exact tie to even, `12.3 %`, `Infinity`), and strings compare as it does (`apple`, `Apple`,
+`banana`). What the compiler would refuse is reported: some before the program runs (`; expected`, a switch section that
+falls through, not all code paths returning a value), the rest (`Cannot implicitly convert type 'double' to 'int'`,
+an unassigned local, an unknown name) when the line runs. Not supported: `async` / `await`, iterators (`yield`),
+`decimal`, events and delegates of one's own, unsafe code, reading input, and libraries beyond those listed.
+
+## Go
+Pick **Go** in the Language menu. Go runs in an interpreter written for this page (`src/engine/go/`: `parse.js`,
+`interp.js`, and `lib.js` for the library), so it works offline. It covers the Go that algorithms use: structs (with
+embedding), methods with value and pointer receivers (on a nil pointer too), interfaces, type switches and assertions,
+generics (erased), closures, several results and named results, variadic functions, `defer` / `panic` / `recover`,
+`switch` with `fallthrough`, labels, `range` over slices, maps, strings, ints, and `const` with `iota`. The library:
+`fmt` (Go's verbs, widths and flags), `strings` (and `Builder`), `strconv`, `sort`, `slices`, `math`, `unicode`,
+`errors` (`Is`, `As`, `%w`), `container/heap`, `math/rand` and `os.Exit`. What a program can see of Go is kept: a slice
+is a view of a backing array that `append` shares until it grows (by Go's rule: 1, 2, 4, 8…), structs and arrays are
+copied when assigned, each loop round has its own variable, ints wrap at their size, constants are exact (`0.1 + 0.2` is
+0.3, two float64 variables give 0.30000000000000004), strings are bytes (`len("é")` is 2, `range` gives runes), and
+floats print as Go prints them (`1e+06`). fmt prints a map with its keys sorted, as Go does; ranging over a map goes in
+insertion order here, where real Go picks a random order on purpose. `sort.Slice` keeps equal elements in order (Go's
+may not). Panics have Go's messages, and the compile errors Go is strict about (an unused variable or import, an int
+where a float64 is needed, a missing comma) are reported, the unused ones before the program runs and the others
+when their line runs. In the views a rune shows as `'a'`, a slice's title gives its `len` and `cap`, a pointer to a
+struct is an arrow to it, `&a[i]` tags that cell, and a `map[string]bool` tags the nodes it holds. Not supported:
+goroutines, channels and `select`, `goto`, reading input, and packages beyond those listed.
 
 ## C
 Pick **C** in the Language menu. C runs in an interpreter written for this page (`src/engine/c/`: `parse.js` is the
@@ -115,8 +194,8 @@ that names a node (or else the one field whose value is a node's key); its weigh
 (`{ v: 1, start: 0, end: 3 }` → `start 0` / `end 3`); an edge with only a weight shows the bare number.
 
 - **Layout** follows the shape, whichever row matched: one chain from one start is drawn as a Linked list, a branching structure with one start as a Tree, anything else as a Graph (Undirected graph when no edge has a direction).
-- **Labels**: nodes named by a key or id show it; other nodes take their label from a field named `val`, `value`, `data`, `key`, `name`, `id`, `label`, `title`, `v`, `x`, `n`, `item`, `char`, `letter` or `weight`; those fields are never links.
-- **Tags**: another variable holding a node (or its name / index) shows on it as `↑ cur`; an array or Set containing nodes shows as `∈ visited`.
+- **Labels**: nodes named by a key or id show it; other nodes take their label from a field named `val`, `value`, `data`, `key`, `name`, `id`, `label`, `title`, `v`, `x`, `n`, `item`, `char`, `letter` or `weight`; those fields are never links. Field names match in any case, so Go's `Val`, `Next`, `Left` and `ID` count.
+- **Tags**: another variable holding a node (or its name / index) shows on it as `↑ cur`; an array or Set containing nodes, or a map of flags (Go's `map[string]bool`), shows as `∈ visited`.
 - **Values in a node**: each node lists its own plain values as `key value` rows (numbers, strings, booleans, short arrays; not links), up to 8 rows.
   When a node has values besides its label, the label field is a row too, so `{ id: 1, weight: 3 }` reads `id 1` / `weight 3`; a node with only a label (`{ val: 1, left, right }`) keeps the compact title.
   A value that changed since the last step is marked. Other variables never add rows to a node (they only tag it: `↑ cur`, `∈ visited`).
@@ -124,7 +203,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 - **Limits**: 60 nodes in Graph, 50 boxes in Memory; snapshots expand 5 levels deep, 60 items / 30 entries per container.
 
 ## Structure
-- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, `python/` for Python, `ruby/` for Ruby and `php/` for PHP (each hosted one: the tracer, and where its runtime is loaded from), and `c/` for C and C++ (an interpreter of its own, with `stl.js` for the C++ library). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker each for Python, Ruby and PHP. `sync.js` traces JavaScript on the current thread, for tests.
+- `src/engine/` – acorn instrumentation, snapshotting and tracing for JavaScript (`typescript.js` strips TypeScript's types first), `lua/` for Lua, `python/` for Python, `ruby/` for Ruby, `php/` for PHP, `java/` for Java, `kotlin/` for Kotlin, `cs/` for C# and `go/` for Go (interpreters of their own) (each hosted one: the tracer, and where its runtime is loaded from), and `c/` for C and C++ (an interpreter of its own, with `stl.js` for the C++ library). Plain JS, no DOM, no React. `runner.js` runs the tracers in Web Workers (bundled from `worker.js` by `build.mjs`; the page itself does not bundle a tracer) so an infinite loop is stopped after 3 s: a fresh worker per JavaScript run, one long-lived module worker each for Python, Ruby and PHP. `sync.js` traces JavaScript on the current thread, for tests.
 - `src/graph/` – graph math (general graphs and the Memory view are laid out by dagre, trees and lists by a small tidy-tree layout) and **view-model builders**. They return drawable primitives (`{tag, p, text}`), so geometry is testable without a DOM.
 - `src/hooks/useStepper.js` – trace, step index, playback, re-runs.
 - `src/editor.js` – CodeMirror 6 setup: highlighting, keys, and the current/previous step lines (the step state is testable without a DOM).

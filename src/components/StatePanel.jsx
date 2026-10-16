@@ -38,7 +38,7 @@ export function StatePanel({ step, prev, stepNo, logs, stale, runs, vars, lang =
           <div id="stateBody">
             <div className="sect"><h2>Call stack</h2><CallStack stack={step.stack} /></div>
             <div className="sect"><div className="sect-head"><h2>Variables</h2><GraphHelp lang={lang} /></div><Variables step={step} prev={prev} stepNo={stepNo} {...vars} /></div>
-            <div className="sect"><h2>Output</h2><Output lines={logs.slice(0, step.logs)} print={lang === 'ruby' ? 'puts' : lang === 'c' ? 'printf' : lang === 'cpp' ? 'cout <<' : lang === 'php' ? 'echo' : lang === 'python' || lang === 'lua' ? 'print' : 'console.log'} /></div>
+            <div className="sect"><h2>Output</h2><Output lines={logs.slice(0, step.logs)} print={lang === 'ruby' ? 'puts' : lang === 'c' ? 'printf' : lang === 'cpp' ? 'cout <<' : lang === 'java' ? 'System.out.println' : lang === 'go' ? 'fmt.Println' : lang === 'csharp' ? 'Console.WriteLine' : lang === 'kotlin' ? 'println' : lang === 'php' ? 'echo' : lang === 'python' || lang === 'lua' ? 'print' : 'console.log'} /></div>
           </div>
         )}
     </section>
