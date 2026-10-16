@@ -6,7 +6,8 @@
   position: relative; padding-right: 56px;     /* room for the About button, pinned to the right edge */
 }
 .about-slot { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); display: flex; }
-@media (max-width: 860px) { .transport { position: sticky; bottom: 0; z-index: 5; } }   /* narrow: the page scrolls, the timeline stays */
+.bottom { flex: none; }
+@media (max-width: 860px) { .bottom { position: sticky; bottom: 0; z-index: 5; } }   /* narrow: the page scrolls, the timeline stays */
 .tc { display: flex; gap: 6px; align-items: center; }
 .ib {
   width: 40px; height: 40px; display: grid; place-items: center; background: var(--surface-2);
@@ -33,3 +34,12 @@
 .opts label { display: flex; align-items: center; gap: 6px; }
 .opts select { padding: 4px 28px 4px 8px; background-position: right 9px center; min-height: 32px; font-size: 13px; }
 .small { padding: 6px 10px; min-height: 36px; font-size: 13px; }
+
+/* Analytics consent (components/Consent.jsx): a bar above the timeline, asked once; both answers weigh the same */
+.consent {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 18px;
+  padding: 10px 16px; background: var(--accent-tint); border-top: 1px solid var(--line); font-size: 13.5px; color: var(--ink);
+}
+.consent p { margin: 0; max-width: 760px; }
+.consent-actions { display: flex; gap: 8px; }
+.consent .btn { min-height: 34px; padding: 6px 16px; font-weight: 600; }

@@ -8,7 +8,8 @@ import { LANG_NAMES, MOD } from '../editor.js';
 
 const K = ({ children }) => <kbd>{children}</kbd>;
 
-export function About() {
+/** @param {{ analytics?: { choice: 'yes' | 'no' | null, set: (v: 'yes' | 'no') => void } | null }} props  the analytics setting on the published site, else null */
+export function About({ analytics = null }) {
   const btn = useRef(null), pop = useRef(null);
   usePopover(btn, pop, 480);
   const langs = Object.values(LANG_NAMES);
@@ -25,6 +26,16 @@ export function About() {
           It runs {langs.slice(0, -1).join(', ')} and {langs.at(-1)}, all in your browser. Your code is never sent
           anywhere, and the page works offline; Python, Ruby and PHP download their runtime once, the first time you use them.
         </p>
+        {analytics && (
+          <p id="aboutAnalytics">
+            {analytics.choice === 'yes'
+              ? 'You allowed counting your visits with Google Analytics, which never sees your code. '
+              : 'Your visits are not counted. '}
+            <button type="button" className="linkish" onClick={() => analytics.set(analytics.choice === 'yes' ? 'no' : 'yes')}>
+              {analytics.choice === 'yes' ? 'Stop counting' : 'Allow Google Analytics'}
+            </button>
+          </p>
+        )}
         <h4>What you see</h4>
         <ul className="help-notes">
           <li><b>Call stack</b> or <b>call tree</b>: the calls running now, or every call so far with what it returned</li>

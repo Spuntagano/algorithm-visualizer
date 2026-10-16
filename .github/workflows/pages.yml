@@ -1,5 +1,6 @@
 # Publishes the page to GitHub Pages on every push to master: lint, tests and build (npm run check), then the one
-# self-contained file goes up as the site's index.html. Pages must be set to deploy from GitHub Actions
+# self-contained file goes up as the site's index.html, with public/ (the link-preview image and the iOS icon, made by
+# tools/og-images.mjs) beside it. Pages must be set to deploy from GitHub Actions
 # (Settings → Pages → Source).
 name: Publish to GitHub Pages
 
@@ -29,7 +30,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       - name: Lay out the site
-        run: mkdir site && cp dist/algorithm-visualizer.html site/index.html
+        run: mkdir site && cp dist/algorithm-visualizer.html site/index.html && cp public/* site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -2,8 +2,64 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Google tag (gtag.js): on the published site only, and only once the visitor has said yes (components/Consent.jsx
+     asks, and window.analytics is how it says so). Until then nothing is loaded and nothing is sent. -->
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  window.analytics = {
+    id: 'G-G14L8V66QF',
+    enabled: location.hostname === 'spuntagano.github.io',
+    loaded: false,
+    load() {
+      if (!this.enabled) return;
+      window['ga-disable-' + this.id] = false;
+      if (this.loaded) { gtag('consent', 'update', { analytics_storage: 'granted' }); return; }
+      this.loaded = true;
+      const tag = document.createElement('script');
+      tag.async = true;
+      tag.src = 'https://www.googletagmanager.com/gtag/js?id=' + this.id;
+      document.head.appendChild(tag);
+      gtag('js', new Date());
+      gtag('config', this.id);
+    },
+    stop() {                    /* Google's own switch: nothing more is sent from this page */
+      window['ga-disable-' + this.id] = true;
+      if (this.loaded) gtag('consent', 'update', { analytics_storage: 'denied' });
+    },
+  };
+  try { if (localStorage.getItem('algorithm-visualizer.analytics') === 'yes') window.analytics.load(); } catch (e) {}
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Algorithm visualizer</title>
+<title>Algorithm visualizer: step through code in 13 languages</title>
+<meta name="description" content="Free algorithm visualizer in your browser. Step through JavaScript, Python, Java, C++, Go and 8 more languages line by line and watch every value change.">
+<link rel="canonical" href="https://spuntagano.github.io/algorithm-visualizer/">
+<meta name="theme-color" content="#2457f5">
+<!-- the logo, as the tab icon (an SVG, so it is part of this one file); a PNG for iOS home screens is published next to it -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232457f5'/%3E%3Cpath d='M8 22h5v-5h5v-5h6' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='24' cy='12' r='2.4' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- link previews (Slack, Discord, X, LinkedIn…) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Algorithm visualizer">
+<meta property="og:title" content="Algorithm visualizer: step through code in 13 languages">
+<meta property="og:description" content="Free algorithm visualizer in your browser. Step through JavaScript, Python, Java, C++, Go and 8 more languages line by line and watch every value change.">
+<meta property="og:url" content="https://spuntagano.github.io/algorithm-visualizer/">
+<meta property="og:image" content="https://spuntagano.github.io/algorithm-visualizer/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The algorithm visualizer stepping through a recursive Fibonacci: the code on the left, its call tree on the right">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Algorithm visualizer: step through code in 13 languages">
+<meta name="twitter:description" content="Free algorithm visualizer in your browser. Step through JavaScript, Python, Java, C++, Go and 8 more languages line by line and watch every value change.">
+<meta name="twitter:image" content="https://spuntagano.github.io/algorithm-visualizer/og-image.png">
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "WebApplication", "name": "Algorithm visualizer", "url": "https://spuntagano.github.io/algorithm-visualizer/",
+ "description": "Free algorithm visualizer in your browser. Step through JavaScript, Python, Java, C++, Go and 8 more languages line by line and watch every value change.",
+ "applicationCategory": "EducationalApplication", "operatingSystem": "Any (runs in the browser)", "browserRequirements": "Requires JavaScript",
+ "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+ "programmingLanguage": ["JavaScript", "TypeScript", "Lua", "Python", "Ruby", "PHP", "Java", "Kotlin", "Swift", "C#", "Go", "C", "C++"],
+ "codeRepository": "https://github.com/Spuntagano/algorithm-visualizer"}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -19,7 +75,19 @@
 <!-- endbuild -->
 </head>
 <body>
-<div id="root"></div>
+<div id="root">
+  <!-- What the page is, for crawlers and link previews that do not run JavaScript; React replaces it when it starts -->
+  <div class="prerender">
+    <h1>Algorithm visualizer</h1>
+    <p>Visualize any algorithm by stepping through your code one statement at a time, forwards or backwards, and watch the
+      call stack, the call tree, every variable, tables and graphs change as it runs.</p>
+    <p>It runs JavaScript, TypeScript, Lua, Python, Ruby, PHP, Java, Kotlin, Swift, C#, Go, C and C++ in your browser: nothing
+      to install, and your code is never sent anywhere. Examples include bubble sort, binary search, two sum, Fibonacci with
+      memoization, reversing a linked list, breadth-first search and the longest common subsequence.</p>
+    <noscript><p><strong>This page needs JavaScript to run your code.</strong></p></noscript>
+    <p><a href="https://github.com/Spuntagano/algorithm-visualizer">Source on GitHub</a></p>
+  </div>
+</div>
 <!-- build:js -->
 <script src="dist/app.js"></script>
 <!-- endbuild -->

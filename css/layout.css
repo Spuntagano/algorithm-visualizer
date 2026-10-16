@@ -84,3 +84,4 @@ body.resizing { cursor: col-resize; user-select: none; }
   border: 1px solid var(--line); border-bottom-width: 2px; background: var(--surface-2); color: var(--ink);
 }
 .help-foot { margin-top: 12px !important; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.linkish { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }

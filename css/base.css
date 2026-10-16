@@ -23,3 +23,8 @@ button, select, input { font: inherit; color: inherit; }
 ::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; background-color: var(--scroll-thumb); }
 ::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: var(--scroll-thumb-hover); }
 @supports (-moz-appearance: none) { * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; } }
+
+/* index.html's text for crawlers, shown for the moment before the app starts (or for good without JavaScript) */
+.prerender { max-width: 640px; margin: 64px auto; padding: 0 16px; color: var(--ink-soft); }
+.prerender h1 { color: var(--ink); font-size: 24px; }
+.prerender a { color: var(--accent); }

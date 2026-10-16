@@ -8,6 +8,7 @@ import { Header } from './Header.jsx';
 import { SPLIT_DEFAULT, Splitter } from './Splitter.jsx';
 import { StatePanel } from './StatePanel.jsx';
 import { Transport } from './Transport.jsx';
+import { ConsentBanner, analyticsAvailable, useAnalyticsChoice } from './Consent.jsx';
 
 const EXAMPLES_BY_LANG = { javascript: EXAMPLES, typescript: TS_EXAMPLES, lua: LUA_EXAMPLES, python: PY_EXAMPLES, ruby: RB_EXAMPLES, php: PHP_EXAMPLES, java: JAVA_EXAMPLES, kotlin: KT_EXAMPLES, swift: SWIFT_EXAMPLES, csharp: CS_EXAMPLES, go: GO_EXAMPLES, c: C_EXAMPLES, cpp: CPP_EXAMPLES };
 /** The runtimes downloaded on first use, and roughly how much. */
@@ -45,6 +46,8 @@ export function App() {
   const examples = EXAMPLES_BY_LANG[lang];
   const [views, setViews] = useState({});          // per-variable choice: 'boxes' | 'graph' | 'memory' (absent: DEFAULT_VIEW)
   const [showPtrs, setShowPtrs] = useState(true);
+  const [analytics, setAnalytics] = useAnalyticsChoice();   // 'yes' | 'no' | null (not asked yet)
+  const [canCount] = useState(analyticsAvailable);           // only the published site counts visits
   const [split, setSplitState] = useState(readSplit);  // the editor's share of the width, in percent
   const grid = useRef(null);
   const setSplit = v => { setSplitState(v); try { localStorage.setItem(SPLIT_KEY, String(v)); } catch { /* storage blocked: not kept */ } };
@@ -118,7 +121,10 @@ export function App() {
             vars={{ views, onView: setView, showPtrs }} />
         </div>
       </main>
-      <Transport s={s} disabled={stale} showPtrs={showPtrs} onPtrs={setShowPtrs} />
+      <div className="bottom">                       {/* the consent question (once) over the timeline; together they stay in view */}
+        {canCount && analytics === null && <ConsentBanner onChoice={setAnalytics} />}
+        <Transport s={s} disabled={stale} showPtrs={showPtrs} onPtrs={setShowPtrs} analytics={canCount ? { choice: analytics, set: setAnalytics } : null} />
+      </div>
     </>
   );
 }

@@ -23,6 +23,8 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
+const requested = [];                                          // every request the page made, for the Google tag check
+page.on('request', r => requested.push(r.url()));
 page.on('console', m => { if ((m.type() === 'error' || m.type() === 'warning') && !/Failed to load resource|ERR_/.test(m.text())) errors.push(m.text()); });
 // on the context, so the tracing workers' requests are covered too; of several matching routes the last one added wins
 await page.context().route('**/*', r => {
@@ -88,7 +90,8 @@ await page.goto(pathToFileURL(target).href);
 
 // 0. the page starts empty: no code, no example, nothing to step, no error
 await page.waitForSelector('#placeholder');
-assert.equal(await page.title(), 'Algorithm visualizer', 'the browser tab says what the page is');
+assert.equal(await page.title(), 'Algorithm visualizer: step through code in 13 languages', 'the browser tab says what the page is');
+assert.equal(await page.locator('.prerender').count(), 0, 'the text for crawlers is gone once the app runs');
 assert.equal(await page.locator('.site-header h1').innerText(), 'Algorithm visualizer');
 const gh = await page.locator('.gh-link').boundingBox();
 assert.ok(gh && Math.abs(1280 - 16 - (gh.x + gh.width)) < 1, 'the GitHub link sits at the top right: ' + JSON.stringify(gh));
@@ -867,6 +870,53 @@ await snap('06-dark');
   assert.equal(await mp.getAttribute('#bPlay', 'title'), 'Play / pause (Space, or Cmd+Enter in the editor)', 'a Mac names Cmd');
   assert.match(await mp.locator('#about').textContent(), /Cmd\+Enter/, 'and so does About');
   await mac.close();
+}
+
+// 7c. analytics: nothing on a local page; on the published site, nothing until the visitor accepts in the banner,
+// remembered, and stopped again from About
+assert.ok(!requested.some(u => u.includes('googletagmanager.com')), 'no Google tag here: ' + requested.filter(u => u.includes('google')).join(' '));
+assert.equal(await page.locator('#consent').count(), 0, 'and no question: nothing here is counted');
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const asked = [];
+  await ctx.route('https://spuntagano.github.io/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(target) }));
+  await ctx.route('https://www.googletagmanager.com/**', r => { asked.push(r.request().url()); return r.fulfill({ status: 200, contentType: 'text/javascript', body: '' }); });
+  const live = await ctx.newPage();
+  const open = async () => { await live.goto('https://spuntagano.github.io/algorithm-visualizer/'); await live.waitForSelector('#placeholder'); await live.waitForTimeout(300); };
+  await open();
+  assert.ok(await live.locator('#consent').isVisible(), 'the published site asks first');
+  assert.deepEqual(asked, [], 'and sends nothing before an answer');
+  const bar = await live.locator('#consent').boundingBox(), tl = await live.locator('#transport').boundingBox();
+  assert.ok(Math.abs(bar.y + bar.height - tl.y) < 1, 'the question sits right above the timeline');
+  const no = await live.locator('#consentNo').boundingBox(), yes = await live.locator('#consentYes').boundingBox();
+  assert.ok(Math.abs(no.width - yes.width) < 12 && no.height === yes.height, 'Decline weighs as much as Accept');
+  if (shots) await live.screenshot({ path: path.join(shots, '21-consent.png') });
+  await live.click('#consentYes');
+  await live.waitForFunction(() => document.querySelector('script[src*="googletagmanager"]'));
+  assert.deepEqual(asked, ['https://www.googletagmanager.com/gtag/js?id=G-G14L8V66QF'], 'accepting loads the tag');
+  assert.ok(await live.evaluate(() => window.dataLayer.some(e => e[0] === 'config' && e[1] === 'G-G14L8V66QF')), 'and configures it');
+  assert.equal(await live.locator('#consent').count(), 0, 'the question is gone');
+  asked.length = 0;
+  await open();
+  assert.equal(await live.locator('#consent').count(), 0, 'and is not asked again');
+  assert.equal(asked.length, 1, 'the next visit counts at once');
+  await live.click('#aboutBtn');
+  assert.match(await live.locator('#aboutAnalytics').innerText(), /You allowed[\s\S]*Stop counting/);
+  await live.locator('#aboutAnalytics button').click();
+  assert.ok(await live.evaluate(() => window['ga-disable-G-G14L8V66QF'] === true), 'Stop counting switches the tag off at once');
+  assert.match(await live.locator('#aboutAnalytics').innerText(), /not counted[\s\S]*Allow Google Analytics/);
+  asked.length = 0;
+  await open();
+  assert.deepEqual(asked, [], 'after stopping, a visit sends nothing');
+  assert.equal(await live.locator('#consent').count(), 0, 'and the answer stands');
+  await live.evaluate(() => localStorage.clear());
+  await open();
+  await live.click('#consentNo');
+  assert.equal(await live.locator('#consent').count(), 0, 'declining closes the question');
+  await open();
+  assert.deepEqual(asked, [], 'declining sends nothing, then or later');
+  assert.equal(await live.locator('#consent').count(), 0, 'and is remembered');
+  await ctx.close();
 }
 
 // 8. settings saved under the page's old name (Algorithm Stepper) are still picked up

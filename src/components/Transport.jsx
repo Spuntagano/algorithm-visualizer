@@ -11,8 +11,9 @@ const NO_BPS = 'Click a line number, or press F9 on a line in the editor, to add
  * speed and pointer tags are settings and stay usable.
  * @param s         the object returned by useStepper()
  * @param disabled  the code was edited and is being run again: stepping waits for the new trace
+ * @param analytics  About's analytics setting (its choice and a setter), or null where visits are not counted
  */
-export function Transport({ s, disabled: busy, showPtrs, onPtrs }) {
+export function Transport({ s, disabled: busy, showPtrs, onPtrs, analytics = null }) {
   const none = !s.trace || !s.step, disabled = busy || none;
   const atFirst = disabled || s.idx === 0, atLast = disabled || s.idx === s.last;
   const noBps = !s.breakpoints || !s.breakpoints.size;
@@ -62,7 +63,7 @@ export function Transport({ s, disabled: busy, showPtrs, onPtrs }) {
         </label>
         <label><input type="checkbox" id="ptrToggle" checked={showPtrs} onChange={e => onPtrs(e.target.checked)} /> Pointer tags</label>
       </div>
-      <div className="about-slot"><About /></div>
+      <div className="about-slot"><About analytics={analytics} /></div>
     </footer>
   );
 }

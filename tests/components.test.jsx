@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderToStaticMarkup as html } from 'react-dom/server';
 import { About } from '../src/components/About.jsx';
+import { ConsentBanner } from '../src/components/Consent.jsx';
 import { App } from '../src/components/App.jsx';
 import { Graph } from '../src/components/Graph.jsx';
 import { SHAPES } from '../src/components/GraphHelp.jsx';
@@ -393,4 +394,14 @@ test('About: what the app is, every language it runs, and its keys', () => {
   for (const name of Object.values(LANG_NAMES)) assert.ok(m.includes(name.replace('+', '&#x2B;')) || m.includes(name), name + ' is listed');
   for (const view of ['Memory', 'Boxes', 'Grid', 'Graph', 'call tree']) assert.match(m, new RegExp(view), view + ' is described');
   for (const key of ['Space', 'Enter', 'Home', 'End', 'F8', 'F9']) assert.match(m, new RegExp('<kbd>' + key + '</kbd>'), key);
+});
+
+test('analytics: the banner asks with two equal buttons; About shows the answer and changes it', () => {
+  const b = html(<ConsentBanner onChoice={() => {}} />);
+  assert.match(b, /id="consent"[\s\S]*Google Analytics[\s\S]*never sees your code[\s\S]*Nothing is sent unless you accept/);
+  assert.match(b, /<button type="button" class="btn" id="consentNo">Decline<\/button><button type="button" class="btn" id="consentYes">Accept<\/button>/, 'same style for both');
+  assert.doesNotMatch(html(<About />), /aboutAnalytics/, 'where nothing is counted, About says nothing about it');
+  assert.match(html(<About analytics={{ choice: 'yes', set: () => {} }} />), /id="aboutAnalytics"[^>]*>You allowed[\s\S]*Stop counting/);
+  assert.match(html(<About analytics={{ choice: 'no', set: () => {} }} />), /id="aboutAnalytics"[^>]*>Your visits are not counted[\s\S]*Allow Google Analytics/);
+  assert.match(html(<About analytics={{ choice: null, set: () => {} }} />), /not counted[\s\S]*Allow Google Analytics/, 'not asked yet counts as no');
 });

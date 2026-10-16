@@ -261,6 +261,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 ## Commands
     npm install
     npm run build        # dist/algorithm-visualizer.html (one self-contained file, ~1.7 MB; Python, Ruby and PHP are downloaded on first use)
+    node tools/og-images.mjs   # after a build: public/og-image.png (the link preview) and public/apple-touch-icon.png, published beside the page
     npm run dev          # watch + unminified build (shows React warnings), served on http://localhost:8000/
     npm run check        # lint + unit tests
     npm run test:browser # Playwright against the built file
