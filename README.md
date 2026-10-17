@@ -35,7 +35,7 @@ Other commands:
     npm run build        # dist/algorithm-visualizer.html (one self-contained file, ~1.7 MB; Python, Ruby and PHP are downloaded on first use)
     npm run check        # lint + unit tests
     npm run test:browser # Playwright against the built file
-    node tools/og-images.mjs   # after a build: public/og-image.png (the link preview) and public/apple-touch-icon.png, published beside the page, and docs/screenshot.png
+    node tools/og-images.mjs   # after a build: public/og-image.png (the link preview) and public/apple-touch-icon.png, published beside the page
     node tools/demo-gif.mjs    # after a build: docs/demo.gif, the animation at the top of this README
 
 ## Deployment
@@ -86,8 +86,6 @@ children of the k-th cell are the (2k + 1)-th and (2k + 2)-th, counted from the 
   parents compare with their children over the whole run, so the order wins even mid-swap.
 
 The *Binary heap* example pushes seven values into a min-heap and pops them back out in order, in every language.
-
-![The Binary heap example halfway through a pop: the code on the left, the call stack and the heap drawn as a tree on the right, with the 7 at the root out of order with both children (red) and smallest tagged on the 2 it is about to swap with](docs/screenshot.png)
 
 ### Breakpoints
 - Click a line number (or press **F9** on a line) to toggle a breakpoint.
