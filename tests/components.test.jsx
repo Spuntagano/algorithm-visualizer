@@ -7,7 +7,7 @@ import { ConsentBanner } from '../src/components/Consent.jsx';
 import { App } from '../src/components/App.jsx';
 import { Graph } from '../src/components/Graph.jsx';
 import { SHAPES } from '../src/components/GraphHelp.jsx';
-import { Header, SUBTITLE } from '../src/components/Header.jsx';
+import { EmbedBar, Header, SUBTITLE } from '../src/components/Header.jsx';
 import { LANG_INFO } from '../src/components/LangInfo.jsx';
 import { StatePanel } from '../src/components/StatePanel.jsx';
 import { StepContext, Value } from '../src/components/Values.jsx';
@@ -387,12 +387,46 @@ test('Variables: an array of arrays is shown as a grid first, the other views a 
   assert.doesNotMatch(flat, /\|grid"/, 'a flat array offers no grid');
 });
 
+test('Variables: a list named like a heap is shown as a heap first; any other list of values offers it', () => {
+  const t = traceCode('const heap = [1, 3, 2, 5];\nconst nums = [4, 1];\nconst none = [];\nconst pq = [];\nlet i = 1;\nheap[3] = 0;').trace;
+  const k = t.steps.length - 1;
+  const m = html(<Variables step={t.steps[k]} prev={t.steps[k - 1]} stepNo={k} steps={t.steps} views={{}} onView={() => {}} showPtrs />);
+  assert.match(m, /data-vt="heap\|heap"[^>]*class="on"|class="on"[^>]*data-vt="heap\|heap"/);
+  assert.match(m, /aria-label="Heap of heap"/);
+  assert.match(m, /Min-heap · 4 items · 1 parent out of order \(red\)/, '0 under 3 breaks the order the rest of the run keeps');
+  assert.match(m, /class="hp-g chg"/, 'the cell that just changed');
+  assert.match(m, /class="hp-g at"[\s\S]*?>i<\/text>/, 'i tags index 1');
+  assert.match(m, /data-vt="nums\|heap"/, 'offered for any list of values…');
+  assert.doesNotMatch(m, /data-vt="nums\|heap"[^>]*class="on"|class="on"[^>]*data-vt="nums\|heap"/, '…but not shown first');
+  assert.doesNotMatch(m, /data-vt="none\|heap"/, 'an empty list is not offered one…');
+  assert.match(m, /Min-heap · empty[\s\S]*?aria-label="Heap of pq"[\s\S]*?Nothing in the heap yet/, '…unless it is named like a heap');
+  const boxes = html(<Variables step={t.steps[k]} prev={null} stepNo={k} steps={t.steps} views={{ heap: 'boxes' }} onView={() => {}} showPtrs />);
+  assert.doesNotMatch(boxes, /Heap of heap/, 'the switch chose Boxes');
+});
+
+test('Share: a button next to the pickers, usable once there is code; embedded, a slim bar links to the full page', () => {
+  const props = { examples: ['A'], example: '', onExample: () => {}, lang: 'python', langs: LANG_NAMES, onLang: () => {} };
+  assert.match(html(<Header {...props} code="" />), /<button[^>]*id="shareBtn"[^>]*disabled=""/);
+  const m = html(<Header {...props} code="print(1)" />);
+  assert.doesNotMatch(m, /id="shareBtn"[^>]*disabled/);
+  assert.match(m, /popovertarget="share"/i);
+  assert.match(m, /<div[^>]*id="share"[^>]*popover="auto"[\s\S]*id="shareLink"[\s\S]*id="shareEmbed"/);
+  assert.match(m, />Open at the current step<\/span><span class="share-step-sub">Step forward first<\/span><\/span><input type="checkbox" role="switch" id="shareAtStep" disabled=""\/>/, 'nothing to step yet: always opens at step 1');
+  assert.match(html(<Header {...props} code="print(1)" step={{ no: 1, count: 9, line: 1 }} />), /id="shareAtStep" disabled=""/, 'at step 1 already');
+  assert.match(html(<Header {...props} code="print(1)" step={{ no: 4, count: 9, line: 2 }} />), />Open at step 4<\/span><span class="share-step-sub">of 9 · line 2<\/span><\/span><input type="checkbox" role="switch" id="shareAtStep"\/>/);
+  const bar = html(<EmbedBar lang="python" langs={LANG_NAMES} fullUrl="https://algorithmvisualizer.io/#lang=python&z=abc" />);
+  assert.match(bar, /class="embed-bar"/);
+  assert.match(bar, /Python/);
+  assert.match(bar, /id="embedOpen" href="https:\/\/algorithmvisualizer.io\/#lang=python&amp;z=abc" target="_blank"/);
+  assert.doesNotMatch(bar, /id="lang"|id="example"/, 'no pickers in an embed');
+});
+
 test('About: what the app is, every language it runs, and its keys', () => {
   const m = html(<About />);
   assert.match(m, /<button[^>]*id="aboutBtn"[^>]*popovertarget="about"[^>]*title="About this app"/i);
   assert.match(m, /<div[^>]*id="about"[^>]*popover="auto"/);
   for (const name of Object.values(LANG_NAMES)) assert.ok(m.includes(name.replace('+', '&#x2B;')) || m.includes(name), name + ' is listed');
-  for (const view of ['Memory', 'Boxes', 'Grid', 'Graph', 'call tree']) assert.match(m, new RegExp(view), view + ' is described');
+  for (const view of ['Memory', 'Boxes', 'Grid', 'Heap', 'Graph', 'call tree', 'Share']) assert.match(m, new RegExp(view), view + ' is described');
   for (const key of ['Space', 'Enter', 'Home', 'End', 'F8', 'F9']) assert.match(m, new RegExp('<kbd>' + key + '</kbd>'), key);
 });
 

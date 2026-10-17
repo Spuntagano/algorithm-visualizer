@@ -15,7 +15,8 @@ test('the build is one self-contained HTML file', async () => {
   assert.match(html, /<div id="root">\s*<!--[^>]*-->\s*<div class="prerender">/, 'the app mounts in #root, over the text for crawlers');
   assert.equal((html.match(/^<script>/gm) || []).length, 2, 'one inline script of code, and the Google tag\'s loader');
   assert.equal((html.match(/googletagmanager\.com/g) || []).length, 1, 'the only script from elsewhere is the Google tag');
-  assert.match(html, /id: 'G-G14L8V66QF',[^\n]*\n[^\n]*\n\s*enabled: \['algorithmvisualizer\.io', 'spuntagano\.github\.io'\]\.includes\(location\.hostname\),/, 'and only on the published site');
+  assert.match(html, /id: 'G-G14L8V66QF',(?:[^\n]*\n){3}\s*enabled: \['algorithmvisualizer\.io', 'spuntagano\.github\.io'\]\.includes\(location\.hostname\) && !new URLSearchParams\(location\.hash\.slice\(1\)\)\.has\('embed'\),/,
+    'and only on the published site, never embedded in another page');
   assert.match(html, /try \{ if \(localStorage\.getItem\('algorithm-visualizer\.analytics'\) === 'yes'\) window\.analytics\.load\(\); \}/, 'loaded at start only for a visitor who said yes');
   assert.equal((html.match(/analytics\.load\(\)/g) || []).length, 2, 'and otherwise only from the consent banner or About (the one other call)');
   assert.equal((html.match(/<script type="application\/ld\+json">/g) || []).length, 1, 'and the structured data, which is not code');

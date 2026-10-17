@@ -1,7 +1,9 @@
 # Algorithm Visualizer
 
 Step through JavaScript, TypeScript, Lua, Python, Ruby, PHP, Java, Kotlin, Swift, C#, Go, C or C++ one statement at a time and watch arrays, objects, Maps and Sets (lists, dicts, hashes, tables, structs and pointers…) change.
-Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values), **Grid** (rows and columns, for an array of arrays of plain values) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`), and an array of arrays in Grid; the choice is kept per variable while you step and edit.
+Each variable can be shown as **Memory** (how the values are stored: nesting, shared objects, cycles), **Boxes** (the values), **Grid** (rows and columns, for an array of arrays of plain values), **Heap** (an array as the binary tree it stands for) or **Graph** (nodes and edges: trees, linked lists and graphs built from the keys and values). Each name always means the same picture. Arrays, objects, Maps and Sets start in Memory (`DEFAULT_VIEW` in `src/components/Variables.jsx`), an array of arrays in Grid, and an array named like a heap in Heap; the choice is kept per variable while you step and edit.
+
+![The Binary heap example halfway through a pop: the code on the left, the call stack and the heap drawn as a tree on the right, with the 7 at the root out of order with both children (red) and smallest tagged on the 2 it is about to swap with](docs/screenshot.png)
 
 Published at **https://algorithmvisualizer.io/** (GitHub Pages, with the domain set in the repo's Pages settings): every push to `master` is checked (`npm run check`) and deployed by `.github/workflows/pages.yml`.
 
@@ -203,6 +205,27 @@ the side they index: `i`, `r`, `row`, `y` on a row, `j`, `c`, `col`, `x` on a co
 tagged row meets one tagged column, that cell is outlined, and a cell that just changed is marked. Rows of different
 lengths leave empty cells. It works for every language's 2D arrays, from C's `int g[3][4]` to C#'s `int[3, 4]`.
 
+## Heap view
+An array of plain values, or of short tuples like `(priority, item)`, can be drawn as the binary tree it stands for: the
+children of the k-th cell are the (2k + 1)-th and (2k + 2)-th, counted from the first cell whatever the array's base
+(`src/graph/heap.js`). It is offered for any such array and shown first for one named like a heap (`heap`, `pq`,
+`minHeap`…). The array is repeated as a strip of numbered cells under the tree. Variables holding a position (`i`, `j`,
+`p`, `parent`, `child`, `left`, `right`, `smallest`, `largest`, `root`, names ending in `idx` or `index`) are tagged on
+it; values (`x`, `top`, `last`) never are. A cell that just changed is marked, so a swap shows as two; cells past a
+variable like `size`, `heapSize`, `n`, `count` or `end` that is smaller than the array are dashed (heapsort's sorted
+end); a parent out of order with its child is red. Min or max comes from the name (`maxHeap`), else from how most
+parents compare with their children over the whole run, so the order wins even mid-swap. The *Binary heap* example
+pushes seven values into a min-heap and pops them back out in order, in every language.
+
+## Share and embed
+**Share**, next to the pickers, gives a link that opens the code as it is, in its language, and the `<iframe>` that puts
+the same thing in another page (`src/share.js`, `src/components/Share.jsx`). The code is compressed (deflate) into the
+part of the link after the `#`, so nothing is uploaded and the static site can open any link:
+`https://algorithmvisualizer.io/#lang=python&z=…`. **Open at step N** adds `&step=N` (counted from 1, like the timeline)
+to both, so the link opens on the step you were looking at (or the last one, for a shorter run). An embed link starts with `#embed&`: a slim bar replaces the header
+(with a link to the full page), and no consent is asked and nothing is counted there. Editing a shared program drops the
+link from the address bar, so reloading keeps the edit.
+
 ## Breakpoints
 Click a line number (or press F9 on a line) to toggle a breakpoint. **Continue** (F8) jumps to the next step on a marked
 line, **previous** (Shift+F8) to the one before; Play pauses when it reaches one, and the timeline has a tick for every hit.
@@ -255,7 +278,7 @@ that names a node (or else the one field whose value is a node's key); its weigh
 - `src/graph/` – graph math (general graphs and the Memory view are laid out by dagre, trees and lists by a small tidy-tree layout) and **view-model builders**. They return drawable primitives (`{tag, p, text}`), so geometry is testable without a DOM.
 - `src/hooks/useStepper.js` – trace, step index, playback, re-runs.
 - `src/editor.js` – CodeMirror 6 setup: highlighting, keys, and the current/previous step lines (the step state is testable without a DOM).
-- `src/components/` – React UI. `CallTree.jsx` is the Calls section (stack or tree), `GridView.jsx` the Grid view. `CodePanel.jsx` hosts the CodeMirror editor, always editable: an edit re-runs the code (after a short pause in typing) and goes back to step 1; `Graph.jsx` turns primitives into SVG.
+- `src/components/` – React UI. `CallTree.jsx` is the Calls section (stack or tree), `GridView.jsx` the Grid view, `Share.jsx` the Share popover. `CodePanel.jsx` hosts the CodeMirror editor, always editable: an edit re-runs the code (after a short pause in typing) and goes back to step 1; `Graph.jsx` turns primitives into SVG.
 - `css/` – styles, inlined into the build.
 
 ## Commands

@@ -11,6 +11,7 @@ import { markersFor } from '../src/model.js';
 import { semanticGraph } from '../src/graph/semantic.js';
 import { callTree } from '../src/graph/calltree.js';
 import { gridMarkers, gridOf } from '../src/graph/grid.js';
+import { checkHeapExample } from './support/heap-example.js';
 import { buildSemanticView } from '../src/graph/semantic-view.js';
 import { buildMemoryView } from '../src/graph/memory.js';
 
@@ -160,4 +161,8 @@ test('the Longest common subsequence example fills its table as a grid', async (
   assert.deepEqual(gridOf(step, 'dp').rows.map(row => row.map(c => c.s).join('')), ['000000', '000011', '011112', '011222', '011223']);
   const mid = r.steps.find(s => gridOf(s, 'dp') && s.vars.some(v => v.name === 'j'));
   assert.deepEqual(gridMarkers(gridOf(mid, 'dp'), mid.vars, 'dp').cell, [1, 1], 'i and j meet at the first cell worked out');
+});
+
+test('the Binary heap example is a min-heap in the Heap view', async () => {
+  checkHeapExample(await trace(RB_EXAMPLES['Binary heap']), 'heap', 'ruby');
 });

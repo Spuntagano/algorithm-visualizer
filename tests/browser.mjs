@@ -9,6 +9,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { encodeShare } from '../src/share.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -408,7 +409,7 @@ await page.selectOption('#lang', 'python');          // an open example is swapp
 await page.waitForFunction(k => +document.querySelector('.state-panel').dataset.run > k && !document.querySelector('.state-panel.stale'), nPy, { timeout: 60000 });
 assert.ok(await page.evaluate(() => window.__sawLoading), 'the first Python run says Python is loading');
 assert.equal(await page.locator('.cm-line').first().innerText(), 'class Node:', 'the Python version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.equal(await page.evaluate(() => localStorage.getItem('algorithm-visualizer.lang')), 'python', 'the language is remembered');
 await page.click('#bLast');
 await page.locator('button[data-vt="head|graph"]').click();
@@ -462,7 +463,7 @@ const nLua = await runs();
 await page.selectOption('#lang', 'lua');
 await settled(nLua);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'local graph = {');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 for (let i = 0; i < 14; i++) await page.click('#bNext');
 const gIdx = await page.locator('.var:has(button[data-vt="graph|boxes"]) .g-idx').allTextContents();
 assert.deepEqual(gIdx.slice(0, 2), ['1', '2'], 'Memory numbers a Lua table from 1 (graph.A = {"B", "C"})');
@@ -491,7 +492,7 @@ await page.selectOption('#lang', 'ruby');
 await page.waitForFunction(k => +document.querySelector('.state-panel').dataset.run > k && !document.querySelector('.state-panel.stale'), nRb, { timeout: 60000 });
 assert.ok(await page.evaluate(() => window.__sawLoading), 'the first Ruby run says Ruby is loading');
 assert.equal(await page.locator('.cm-line').first().innerText(), 'require "set"', 'the Ruby version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Ruby code$/);
 for (let i = 0; i < 14; i++) await page.click('#bNext');
 await page.locator('button[data-vt="GRAPH|graph"]').click();
@@ -531,7 +532,7 @@ await page.selectOption('#lang', 'php');
 await page.waitForFunction(k => +document.querySelector('.state-panel').dataset.run > k && !document.querySelector('.state-panel.stale'), nPhp, { timeout: 60000 });
 assert.ok(await page.evaluate(() => window.__sawLoading), 'the first PHP run says PHP is loading');
 assert.equal(await page.locator('.cm-line').first().innerText(), '<?php', 'the PHP version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^PHP code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^19$/ }).click();   // $order[] = $cur;
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -561,7 +562,7 @@ const nC = await runs();
 await page.selectOption('#lang', 'c');
 await settled(nC);
 assert.equal(await page.locator('.cm-line').first().innerText(), '#include <stdio.h>', 'the C version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^C code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^23$/ }).click();   // curr->next = prev;
 await page.click('#bBpNext'); await page.click('#bBpNext');            // a fresh run starts at step 1: on to the second hit
@@ -598,7 +599,7 @@ const nJava = await runs();
 await page.selectOption('#lang', 'java');
 await settled(nJava);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'import java.util.*;', 'the Java version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Java code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^12$/ }).click();   // order.add(cur);
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -625,7 +626,7 @@ const nKt = await runs();
 await page.selectOption('#lang', 'kotlin');
 await settled(nKt);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'val graph = mapOf(', 'the Kotlin version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Kotlin code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^16$/ }).click();   // order.add(cur)
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -652,7 +653,7 @@ const nSw = await runs();
 await page.selectOption('#lang', 'swift');
 await settled(nSw);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'let graph: [String: [String]] = [', 'the Swift version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Swift code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^16$/ }).click();   // order.append(cur)
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -682,7 +683,7 @@ const nCs = await runs();
 await page.selectOption('#lang', 'csharp');
 await settled(nCs);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'var graph = new Dictionary<string, List<string>>', 'the C# version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^C# code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^20$/ }).click();   // order.Add(cur);
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -715,7 +716,7 @@ assert.match(await page.locator('#langInfo').innerText(), /What Go includes[\s\S
 await page.keyboard.press('Escape');
 await settled(nGo);
 assert.equal(await page.locator('.cm-line').first().innerText(), 'package main', 'the Go version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^Go code$/);
 await page.locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^21$/ }).click();   // order = append(order, cur)
 await page.click('#bBpNext'); await page.click('#bBpNext');
@@ -749,7 +750,7 @@ const nCpp = await runs();
 await page.selectOption('#lang', 'cpp');
 await settled(nCpp);
 assert.equal(await page.locator('.cm-line').first().innerText(), '#include <iostream>', 'the C++ version of the example');
-assert.match(await page.locator('.site-header p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
+assert.match(await page.locator('.brand p').innerText(), /^Visualize any algorithm by stepping through your code/, 'the subtitle is the same in every language');
 assert.match(await page.locator('.cm-content').getAttribute('aria-label'), /^C\+\+ code$/);
 await page.click('#bLast');
 await page.locator('button[data-vt="prev|graph"]').click();
@@ -829,6 +830,44 @@ for (const [lang, name] of [['python', 'dp'], ['c', 'dp'], ['php', '$dp'], ['lua
   for (let k = 0; k < 6 && !(await table.count()); k++) await page.click('#bPrev');   // dp is lcs's own: gone once it returns
   assert.equal(await table.locator('td').count(), 30, lang + ': the same 5 × 6 table');
   assert.match(await table.locator('td').last().innerText(), /^3$/, lang + ': filled in to the answer');
+}
+await page.selectOption('#lang', 'javascript');
+
+// 6w. the heap view: the Binary heap example's list drawn as a tree; a swap marks two cells, a parent out of order is red
+await pick('Binary heap');
+const heapSvg = page.locator('svg[aria-label="Heap of heap"]');
+const heapState = () => page.evaluate(() => {
+  const svg = document.querySelector('svg[aria-label="Heap of heap"]');
+  return svg && { nodes: svg.querySelectorAll('.hp-g').length, bad: svg.querySelectorAll('.hp-edge.bad').length, chg: svg.querySelectorAll('.hp-g.chg').length,
+    tags: [...svg.querySelectorAll('.hp-tag')].flatMap(t => t.textContent.split(', ')), cap: svg.closest('.gwrap').querySelector('.gcap').textContent };
+});
+let hs = null;
+for (let k = 0; k < 120; k++) {                    // to the push of 1: it sifts up past 3 and then 5, out of order until it gets there
+  await page.click('#bNext');
+  hs = await heapState();
+  if (hs && hs.nodes === 4 && hs.bad && hs.tags.includes('i')) break;   // (i is set the step after the push)
+}
+assert.ok(hs && hs.bad === 1, 'the new value is out of order with its parent');
+assert.ok(await page.locator('button[data-vt="heap|heap"].on').count(), 'a list named heap is shown as a heap first');
+assert.match(hs.cap, /^Min-heap · 4 items · 1 parent out of order \(red\)$/);
+assert.ok(hs.tags.includes('i'), 'i tags the value being sifted up');
+await snap('22-heap');
+for (let k = 0; k < 12 && !(hs.chg === 2); k++) { await page.click('#bNext'); hs = await heapState(); }
+assert.equal(hs.chg, 2, 'the swap marks both cells');
+for (let k = 0; k < 160 && !hs.tags.includes('smallest'); k++) { await page.click('#bNext'); hs = await heapState(); }
+assert.ok(hs.tags.includes('smallest'), 'smallest is tagged while a pop sifts down');
+assert.equal(await heapSvg.locator('.hp-cell').count(), hs.nodes, 'the list repeated as a strip under the tree');
+await page.locator('button[data-vt="heap|boxes"]').click();
+assert.equal(await heapSvg.count(), 0, 'the switch shows boxes instead');
+await page.locator('button[data-vt="heap|heap"]').click();
+assert.equal(await heapSvg.count(), 1);
+for (const [lang, name, cap] of [['python', 'heap', /^Min-heap/], ['c', 'heap', /^Min-heap · \d items? · \d past size \(dashed\)/], ['php', '$heap', /^Min-heap/]]) {
+  await edit(() => page.selectOption('#lang', lang), longRun);
+  await page.click('#bLast');
+  for (let k = 0; k < 90 && !(await page.locator(`svg[aria-label="Heap of ${name}"] .hp-g`).count() >= 3); k++) await page.click('#bPrev');
+  const svg = page.locator(`svg[aria-label="Heap of ${name}"]`);
+  assert.ok(await svg.locator('.hp-g').count() >= 3, lang + ': drawn as a tree');
+  assert.match(await svg.locator('xpath=ancestor::div[@class="gwrap"]').locator('.gcap').innerText(), cap, lang);
 }
 await page.selectOption('#lang', 'javascript');
 
@@ -916,6 +955,105 @@ assert.equal(await page.locator('#consent').count(), 0, 'and no question: nothin
   await open();
   assert.deepEqual(asked, [], 'declining sends nothing, then or later');
   assert.equal(await live.locator('#consent').count(), 0, 'and is remembered');
+  await ctx.close();
+}
+
+// 7d. share: a link that carries the code opens it as it was; edited, the link goes; embedded, a slim bar and nothing counted
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'https://algorithmvisualizer.io' });
+  const asked = [];
+  await ctx.route('https://algorithmvisualizer.io/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(target) }));
+  await ctx.route('https://www.googletagmanager.com/**', r => { asked.push(r.request().url()); return r.fulfill({ status: 200, contentType: 'text/javascript', body: '' }); });
+  const sp = await ctx.newPage();
+  sp.on('pageerror', e => errors.push(e.message));
+  const ran = (p, n) => p.waitForFunction(k => { const el = document.querySelector('.state-panel'); return el && +el.dataset.run > k && !el.classList.contains('stale') && !!document.querySelector('#stateBody'); }, n, { timeout: 15000 });
+  const editorText = p => p.evaluate(() => [...document.querySelectorAll('.cm-line')].map(l => l.textContent).join('\n'));
+  await sp.goto('https://algorithmvisualizer.io/');
+  await sp.waitForSelector('#placeholder');
+  assert.ok(await sp.locator('#shareBtn').isDisabled(), 'nothing to share in an empty editor');
+  await sp.selectOption('#example', 'Binary heap');
+  await ran(sp, 0);
+  await sp.click('#shareBtn');
+  await sp.waitForFunction(() => /#lang=javascript&z=/.test(document.querySelector('#shareLink').value));
+  const link = await sp.locator('#shareLink').inputValue();
+  assert.ok(link.startsWith('https://algorithmvisualizer.io/#lang=javascript&z='), link);
+  assert.match(await sp.locator('#shareEmbed').inputValue(), /^<iframe src="https:\/\/algorithmvisualizer\.io\/#embed&amp;lang=javascript&amp;z=[\w-]+" title="Algorithm visualizer"/);
+  const pv = await sp.locator('#sharePreview').getAttribute('href');
+  assert.equal(pv, (await sp.locator('#shareEmbed').inputValue()).match(/src="([^"]+)"/)[1].replace(/&amp;/g, '&'), 'Preview opens what the iframe shows');
+  assert.equal(await sp.locator('#sharePreview').getAttribute('target'), '_blank');
+  await sp.click('#shareLinkCopy');
+  await sp.waitForFunction(() => document.querySelector('#shareLinkCopy').textContent === 'Copied', null, { timeout: 3000 });
+  assert.equal(await sp.evaluate(() => navigator.clipboard.readText()), link, 'Copy puts the link on the clipboard');
+  if (shots) await sp.screenshot({ path: path.join(shots, '23-share.png') });
+  assert.ok(await sp.locator('#shareAtStep').isDisabled(), 'at step 1: nothing to open at');
+  await sp.keyboard.press('Escape');
+  const code = await editorText(sp);
+  for (let k = 0; k < 24; k++) await sp.click('#bNext');
+  await sp.click('#shareBtn');
+  assert.equal((await sp.locator('.share-step').innerText()).replace(/\s+/g, ' '), 'Open at step 25 of 209 · line 6');
+  await sp.click('.share-step-main');                // anywhere on the row flips the switch
+  await sp.waitForFunction(() => /#lang=javascript&step=25&z=/.test(document.querySelector('#shareLink').value));
+  assert.match(await sp.locator('#shareEmbed').inputValue(), /#embed&amp;lang=javascript&amp;step=25&amp;z=/, 'the embed too');
+  const stepLink = await sp.locator('#shareLink').inputValue();
+  if (shots) await sp.screenshot({ path: path.join(shots, '25-share-step.png'), clip: { x: 690, y: 50, width: 540, height: 380 } });
+  await sp.click('#shareAtStep');
+  await sp.waitForFunction(l => document.querySelector('#shareLink').value === l, link);
+  await sp.keyboard.press('Escape');
+  const at = await ctx.newPage();                   // opened at step 25, the line and the heap as they were there
+  at.on('pageerror', e => errors.push(e.message));
+  await at.goto(stepLink);
+  await ran(at, 0);
+  assert.equal(await at.locator('#stepLabel').innerText(), 'Step 25 of 209 · line 6');
+  assert.equal(await at.locator('svg[aria-label="Heap of heap"] .hp-g').count(), 4);
+  await at.goto('about:blank');
+  await at.goto(stepLink.replace('step=25', 'step=99999'));
+  await ran(at, 0);
+  assert.equal(await at.locator('#stepLabel').innerText(), 'Step 209 of 209 · done', 'past the end: the last step');
+  await at.close();
+
+  const op = await ctx.newPage();                   // the link, opened fresh: same code, same example, already run
+  op.on('pageerror', e => errors.push(e.message));
+  await op.goto(link);
+  await ran(op, 0);
+  assert.equal(await editorText(op), code, 'the same code');
+  assert.equal(await op.locator('#example').inputValue(), 'Binary heap', 'recognised as the example it is');
+  assert.equal(await op.locator('#lang').inputValue(), 'javascript');
+  const lua = 'local heap = {5, 1, 3}\nprint(#heap)';
+  const n0 = await op.locator('.state-panel').getAttribute('data-run').then(Number);
+  await op.evaluate(h => { location.hash = h; }, await encodeShare(lua, 'lua'));   // another link pasted into the same tab
+  await ran(op, n0);
+  assert.equal(await op.locator('#lang').inputValue(), 'lua', 'the language comes with the link');
+  assert.equal(await editorText(op), lua);
+  assert.equal(await op.locator('#example').inputValue(), '', 'not an example');
+  assert.notEqual(await op.evaluate(() => location.hash), '', 'unchanged code keeps its link');
+  await op.locator('#editor').focus();
+  await op.keyboard.press('ControlOrMeta+End');
+  await op.keyboard.type('\nprint(2)');
+  await op.waitForFunction(() => location.hash === '');
+  assert.equal(await op.evaluate(() => location.href), 'https://algorithmvisualizer.io/', 'edited: the link is dropped, so a reload keeps the edit');
+  await op.close();
+
+  const embedSrc = (await sp.locator('#shareEmbed').inputValue()).match(/src="([^"]+)"/)[1].replace(/&amp;/g, '&');
+  const ep = await ctx.newPage();
+  await ep.setViewportSize({ width: 760, height: 600 });   // the size of an iframe in a blog post
+  ep.on('pageerror', e => errors.push(e.message));
+  await ep.goto('https://algorithmvisualizer.io/');
+  await ep.evaluate(() => localStorage.setItem('algorithm-visualizer.analytics', 'yes'));   // a visitor who said yes on the site
+  await ep.goto('about:blank');
+  asked.length = 0;
+  await ep.goto(embedSrc);
+  await ran(ep, 0);
+  assert.ok(await ep.locator('.embed-bar').isVisible(), 'a slim bar of its own');
+  assert.equal(await ep.locator('.site-header, #lang, #example, #shareBtn').count(), 0, 'no header, pickers or Share');
+  assert.equal(await ep.locator('#embedOpen').getAttribute('href'), link, 'Open full page: the same code, not embedded');
+  assert.equal(await ep.locator('#consent').count(), 0, 'nobody is asked inside another page');
+  assert.equal(await ep.evaluate(() => window.analytics.enabled), false, 'and nothing is counted there, even for a visitor who said yes');
+  assert.deepEqual(asked, []);
+  assert.equal(await editorText(ep), code);
+  await ep.click('#bNext');
+  assert.match(await ep.locator('#stepLabel').innerText(), /^Step 2 of/, 'it steps like the page');
+  if (shots) await ep.screenshot({ path: path.join(shots, '24-embed.png') });
   await ctx.close();
 }
 

@@ -85,6 +85,44 @@ console.log(fib(6));`,
 
 console.log(lcs("ABCB", "BDCAB"));`,
 
+"Binary heap": `// A min-heap kept in an array: every parent is at most its children, so the smallest value is at the root, heap[0].
+// The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) / 2 rounded down.
+function push(heap, x) {
+  heap.push(x);
+  let i = heap.length - 1;
+  while (i > 0) {                      // sift up: swap with the parent while smaller than it
+    const parent = Math.floor((i - 1) / 2);
+    if (heap[parent] <= heap[i]) break;
+    [heap[parent], heap[i]] = [heap[i], heap[parent]];
+    i = parent;
+  }
+}
+
+function pop(heap) {
+  const top = heap[0];
+  const last = heap.pop();
+  if (heap.length > 0) {
+    heap[0] = last;                    // the last value moves to the root...
+    let i = 0;
+    while (true) {                     // ...and sifts down: swap with the smaller child while bigger than it
+      const left = 2 * i + 1, right = 2 * i + 2;
+      let smallest = i;
+      if (left < heap.length && heap[left] < heap[smallest]) smallest = left;
+      if (right < heap.length && heap[right] < heap[smallest]) smallest = right;
+      if (smallest === i) break;
+      [heap[i], heap[smallest]] = [heap[smallest], heap[i]];
+      i = smallest;
+    }
+  }
+  return top;
+}
+
+const heap = [];
+for (const x of [5, 3, 8, 1, 9, 2, 7]) push(heap, x);
+const sorted = [];
+while (heap.length > 0) sorted.push(pop(heap));
+console.log(sorted.join(" "));`,
+
 "Reverse a linked list": `function node(val, next) {
   return { val, next };
 }
@@ -253,6 +291,45 @@ print(fib(6))`,
     return dp[len(a)][len(b)]
 
 print(lcs("ABCB", "BDCAB"))`,
+
+"Binary heap": `# A min-heap kept in a list: every parent is at most its children, so the smallest value is at the root, heap[0].
+# The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) // 2.
+def push(heap, x):
+    heap.append(x)
+    i = len(heap) - 1
+    while i > 0:                       # sift up: swap with the parent while smaller than it
+        parent = (i - 1) // 2
+        if heap[parent] <= heap[i]:
+            break
+        heap[parent], heap[i] = heap[i], heap[parent]
+        i = parent
+
+def pop(heap):
+    top = heap[0]
+    last = heap.pop()
+    if heap:
+        heap[0] = last                 # the last value moves to the root...
+        i = 0
+        while True:                    # ...and sifts down: swap with the smaller child while bigger than it
+            left, right = 2 * i + 1, 2 * i + 2
+            smallest = i
+            if left < len(heap) and heap[left] < heap[smallest]:
+                smallest = left
+            if right < len(heap) and heap[right] < heap[smallest]:
+                smallest = right
+            if smallest == i:
+                break
+            heap[i], heap[smallest] = heap[smallest], heap[i]
+            i = smallest
+    return top
+
+heap = []
+for x in [5, 3, 8, 1, 9, 2, 7]:
+    push(heap, x)
+out = []
+while heap:
+    out.append(pop(heap))
+print(*out)`,
 
 "Reverse a linked list": `class Node:
     def __init__(self, val, next=None):
@@ -426,6 +503,44 @@ console.log(fib(6));`,
 
 console.log(lcs("ABCB", "BDCAB"));`,
 
+"Binary heap": `// A min-heap kept in an array: every parent is at most its children, so the smallest value is at the root, heap[0].
+// The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) / 2 rounded down.
+function push(heap: number[], x: number): void {
+  heap.push(x);
+  let i = heap.length - 1;
+  while (i > 0) {                      // sift up: swap with the parent while smaller than it
+    const parent = Math.floor((i - 1) / 2);
+    if (heap[parent] <= heap[i]) break;
+    [heap[parent], heap[i]] = [heap[i], heap[parent]];
+    i = parent;
+  }
+}
+
+function pop(heap: number[]): number {
+  const top = heap[0];
+  const last = heap.pop()!;
+  if (heap.length > 0) {
+    heap[0] = last;                    // the last value moves to the root...
+    let i = 0;
+    while (true) {                     // ...and sifts down: swap with the smaller child while bigger than it
+      const left = 2 * i + 1, right = 2 * i + 2;
+      let smallest = i;
+      if (left < heap.length && heap[left] < heap[smallest]) smallest = left;
+      if (right < heap.length && heap[right] < heap[smallest]) smallest = right;
+      if (smallest === i) break;
+      [heap[i], heap[smallest]] = [heap[smallest], heap[i]];
+      i = smallest;
+    }
+  }
+  return top;
+}
+
+const heap: number[] = [];
+for (const x of [5, 3, 8, 1, 9, 2, 7]) push(heap, x);
+const sorted: number[] = [];
+while (heap.length > 0) sorted.push(pop(heap));
+console.log(sorted.join(" "));`,
+
 "Reverse a linked list": `class ListNode {
   constructor(public val: number, public next: ListNode | null = null) {}
 }
@@ -594,6 +709,44 @@ end
 
 print(lcs("ABCB", "BDCAB"))`,
 
+"Binary heap": `-- A min-heap kept in a table: every parent is at most its children, so the smallest value is at the root, heap[1].
+-- (Lua counts from 1, so the children of index i are at 2i and 2i + 1, and its parent at i // 2.)
+local function push(heap, x)
+  heap[#heap + 1] = x
+  local i = #heap
+  while i > 1 do                       -- sift up: swap with the parent while smaller than it
+    local parent = i // 2
+    if heap[parent] <= heap[i] then break end
+    heap[parent], heap[i] = heap[i], heap[parent]
+    i = parent
+  end
+end
+
+local function pop(heap)
+  local top = heap[1]
+  local last = table.remove(heap)
+  if #heap > 0 then
+    heap[1] = last                     -- the last value moves to the root...
+    local i = 1
+    while true do                      -- ...and sifts down: swap with the smaller child while bigger than it
+      local left, right = 2 * i, 2 * i + 1
+      local smallest = i
+      if left <= #heap and heap[left] < heap[smallest] then smallest = left end
+      if right <= #heap and heap[right] < heap[smallest] then smallest = right end
+      if smallest == i then break end
+      heap[i], heap[smallest] = heap[smallest], heap[i]
+      i = smallest
+    end
+  end
+  return top
+end
+
+local heap = {}
+for _, x in ipairs({5, 3, 8, 1, 9, 2, 7}) do push(heap, x) end
+local sorted = {}
+while #heap > 0 do sorted[#sorted + 1] = pop(heap) end
+print(table.concat(sorted, " "))`,
+
 "Reverse a linked list": `local function node(val, next)
   return {val = val, next = next}
 end
@@ -753,6 +906,44 @@ puts fib(6)`,
 end
 
 puts lcs("ABCB", "BDCAB")`,
+
+"Binary heap": `# A min-heap kept in an array: every parent is at most its children, so the smallest value is at the root, heap[0].
+# The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) / 2.
+def push(heap, x)
+  heap << x
+  i = heap.length - 1
+  while i > 0                          # sift up: swap with the parent while smaller than it
+    parent = (i - 1) / 2
+    break if heap[parent] <= heap[i]
+    heap[parent], heap[i] = heap[i], heap[parent]
+    i = parent
+  end
+end
+
+def pop(heap)
+  top = heap[0]
+  last = heap.pop
+  unless heap.empty?
+    heap[0] = last                     # the last value moves to the root...
+    i = 0
+    loop do                            # ...and sifts down: swap with the smaller child while bigger than it
+      left, right = 2 * i + 1, 2 * i + 2
+      smallest = i
+      smallest = left if left < heap.length && heap[left] < heap[smallest]
+      smallest = right if right < heap.length && heap[right] < heap[smallest]
+      break if smallest == i
+      heap[i], heap[smallest] = heap[smallest], heap[i]
+      i = smallest
+    end
+  end
+  top
+end
+
+heap = []
+[5, 3, 8, 1, 9, 2, 7].each { |x| push(heap, x) }
+sorted = []
+sorted << pop(heap) until heap.empty?
+puts sorted.join(" ")`,
 
 "Reverse a linked list": `Node = Struct.new(:val, :next)
 
@@ -955,6 +1146,54 @@ int lcs(const char *a, const char *b) {
 
 int main(void) {
     printf("%d\\n", lcs("ABCB", "BDCAB"));
+    return 0;
+}`,
+
+"Binary heap": `#include <stdio.h>
+
+/* A min-heap kept in an array: every parent is at most its children, so the smallest value is at the root, heap[0].
+   The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) / 2. Only the first size cells are in it. */
+int heap[8];
+int size = 0;
+
+void push(int x) {
+    heap[size] = x;
+    int i = size;
+    size++;
+    while (i > 0) {                    /* sift up: swap with the parent while smaller than it */
+        int parent = (i - 1) / 2;
+        if (heap[parent] <= heap[i]) break;
+        int tmp = heap[parent];
+        heap[parent] = heap[i];
+        heap[i] = tmp;
+        i = parent;
+    }
+}
+
+int pop(void) {
+    int top = heap[0];
+    size--;
+    heap[0] = heap[size];              /* the last value moves to the root... */
+    int i = 0;
+    while (1) {                        /* ...and sifts down: swap with the smaller child while bigger than it */
+        int left = 2 * i + 1, right = 2 * i + 2;
+        int smallest = i;
+        if (left < size && heap[left] < heap[smallest]) smallest = left;
+        if (right < size && heap[right] < heap[smallest]) smallest = right;
+        if (smallest == i) break;
+        int tmp = heap[i];
+        heap[i] = heap[smallest];
+        heap[smallest] = tmp;
+        i = smallest;
+    }
+    return top;
+}
+
+int main(void) {
+    int values[] = {5, 3, 8, 1, 9, 2, 7};
+    for (int k = 0; k < 7; k++) push(values[k]);
+    while (size > 0) printf("%d ", pop());
+    printf("\\n");
     return 0;
 }`,
 
@@ -1179,6 +1418,61 @@ function lcs(string $a, string $b): int
 
 echo lcs("ABCB", "BDCAB"), "\\n";`,
 
+"Binary heap": `<?php
+
+// A min-heap kept in an array: every parent is at most its children, so the smallest value is at the root, $heap[0].
+// The children of index $i are at 2$i + 1 and 2$i + 2, and its parent at ($i - 1) / 2 rounded down.
+function push(array &$heap, int $x): void
+{
+    $heap[] = $x;
+    $i = count($heap) - 1;
+    while ($i > 0) {                   // sift up: swap with the parent while smaller than it
+        $parent = intdiv($i - 1, 2);
+        if ($heap[$parent] <= $heap[$i]) {
+            break;
+        }
+        [$heap[$parent], $heap[$i]] = [$heap[$i], $heap[$parent]];
+        $i = $parent;
+    }
+}
+
+function pop(array &$heap): int
+{
+    $top = $heap[0];
+    $last = array_pop($heap);
+    if (count($heap) > 0) {
+        $heap[0] = $last;              // the last value moves to the root...
+        $i = 0;
+        while (true) {                 // ...and sifts down: swap with the smaller child while bigger than it
+            $left = 2 * $i + 1;
+            $right = 2 * $i + 2;
+            $smallest = $i;
+            if ($left < count($heap) && $heap[$left] < $heap[$smallest]) {
+                $smallest = $left;
+            }
+            if ($right < count($heap) && $heap[$right] < $heap[$smallest]) {
+                $smallest = $right;
+            }
+            if ($smallest === $i) {
+                break;
+            }
+            [$heap[$i], $heap[$smallest]] = [$heap[$smallest], $heap[$i]];
+            $i = $smallest;
+        }
+    }
+    return $top;
+}
+
+$heap = [];
+foreach ([5, 3, 8, 1, 9, 2, 7] as $x) {
+    push($heap, $x);
+}
+$sorted = [];
+while (count($heap) > 0) {
+    $sorted[] = pop($heap);
+}
+echo implode(" ", $sorted), "\\n";`,
+
 "Reverse a linked list": `<?php
 
 class Node
@@ -1388,6 +1682,50 @@ int lcs(const string& a, const string& b) {
 
 int main() {
     cout << lcs("ABCB", "BDCAB") << endl;
+    return 0;
+}`,
+
+"Binary heap": `#include <iostream>
+#include <utility>
+#include <vector>
+using namespace std;
+
+// A min-heap kept in a vector: every parent is at most its children, so the smallest value is at the root, heap[0].
+// The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) / 2.
+void push(vector<int>& heap, int x) {
+    heap.push_back(x);
+    int i = heap.size() - 1;
+    while (i > 0) {                    // sift up: swap with the parent while smaller than it
+        int parent = (i - 1) / 2;
+        if (heap[parent] <= heap[i]) break;
+        swap(heap[parent], heap[i]);
+        i = parent;
+    }
+}
+
+int pop(vector<int>& heap) {
+    int top = heap[0];
+    heap[0] = heap.back();             // the last value moves to the root...
+    heap.pop_back();
+    int i = 0;
+    while (true) {                     // ...and sifts down: swap with the smaller child while bigger than it
+        int left = 2 * i + 1, right = 2 * i + 2;
+        int smallest = i;
+        if (left < (int)heap.size() && heap[left] < heap[smallest]) smallest = left;
+        if (right < (int)heap.size() && heap[right] < heap[smallest]) smallest = right;
+        if (smallest == i) break;
+        swap(heap[i], heap[smallest]);
+        i = smallest;
+    }
+    return top;
+}
+
+int main() {
+    vector<int> heap;
+    vector<int> values = {5, 3, 8, 1, 9, 2, 7};
+    for (int x : values) push(heap, x);
+    while (!heap.empty()) cout << pop(heap) << " ";
+    cout << endl;
     return 0;
 }`,
 
@@ -1615,6 +1953,50 @@ public class Main {
 
     public static void main(String[] args) {
         System.out.println(lcs("ABCB", "BDCAB"));
+    }
+}`,
+
+"Binary heap": `import java.util.*;
+
+public class Main {
+    // A min-heap kept in a list: every parent is at most its children, so the smallest value is at the root, heap.get(0).
+    // The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) / 2.
+    static void push(List<Integer> heap, int x) {
+        heap.add(x);
+        int i = heap.size() - 1;
+        while (i > 0) {                // sift up: swap with the parent while smaller than it
+            int parent = (i - 1) / 2;
+            if (heap.get(parent) <= heap.get(i)) break;
+            Collections.swap(heap, parent, i);
+            i = parent;
+        }
+    }
+
+    static int pop(List<Integer> heap) {
+        int top = heap.get(0);
+        int last = heap.remove(heap.size() - 1);
+        if (!heap.isEmpty()) {
+            heap.set(0, last);         // the last value moves to the root...
+            int i = 0;
+            while (true) {             // ...and sifts down: swap with the smaller child while bigger than it
+                int left = 2 * i + 1, right = 2 * i + 2;
+                int smallest = i;
+                if (left < heap.size() && heap.get(left) < heap.get(smallest)) smallest = left;
+                if (right < heap.size() && heap.get(right) < heap.get(smallest)) smallest = right;
+                if (smallest == i) break;
+                Collections.swap(heap, i, smallest);
+                i = smallest;
+            }
+        }
+        return top;
+    }
+
+    public static void main(String[] args) {
+        List<Integer> heap = new ArrayList<>();
+        for (int x : new int[] {5, 3, 8, 1, 9, 2, 7}) push(heap, x);
+        List<Integer> sorted = new ArrayList<>();
+        while (!heap.isEmpty()) sorted.add(pop(heap));
+        System.out.println(sorted);
     }
 }`,
 
@@ -1852,6 +2234,61 @@ func main() {
     fmt.Println(lcs("ABCB", "BDCAB"))
 }`,
 
+"Binary heap": `package main
+
+import "fmt"
+
+// A min-heap kept in a slice: every parent is at most its children, so the smallest value is at the root, heap[0].
+// The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) / 2.
+var heap = []int{}
+
+func push(x int) {
+    heap = append(heap, x)
+    i := len(heap) - 1
+    for i > 0 { // sift up: swap with the parent while smaller than it
+        parent := (i - 1) / 2
+        if heap[parent] <= heap[i] {
+            break
+        }
+        heap[parent], heap[i] = heap[i], heap[parent]
+        i = parent
+    }
+}
+
+func pop() int {
+    top := heap[0]
+    heap[0] = heap[len(heap)-1] // the last value moves to the root...
+    heap = heap[:len(heap)-1]
+    i := 0
+    for { // ...and sifts down: swap with the smaller child while bigger than it
+        left, right := 2*i+1, 2*i+2
+        smallest := i
+        if left < len(heap) && heap[left] < heap[smallest] {
+            smallest = left
+        }
+        if right < len(heap) && heap[right] < heap[smallest] {
+            smallest = right
+        }
+        if smallest == i {
+            break
+        }
+        heap[i], heap[smallest] = heap[smallest], heap[i]
+        i = smallest
+    }
+    return top
+}
+
+func main() {
+    for _, x := range []int{5, 3, 8, 1, 9, 2, 7} {
+        push(x)
+    }
+    sorted := []int{}
+    for len(heap) > 0 {
+        sorted = append(sorted, pop())
+    }
+    fmt.Println(sorted)
+}`,
+
 "Reverse a linked list": `package main
 
 import "fmt"
@@ -2052,6 +2489,44 @@ print(fib(6))`,
 
 print(lcs("ABCB", "BDCAB"))`,
 
+"Binary heap": `// A min-heap kept in an array: every parent is at most its children, so the smallest value is at the root, heap[0].
+// The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) / 2.
+func push(_ heap: inout [Int], _ x: Int) {
+    heap.append(x)
+    var i = heap.count - 1
+    while i > 0 {                      // sift up: swap with the parent while smaller than it
+        let parent = (i - 1) / 2
+        if heap[parent] <= heap[i] { break }
+        heap.swapAt(parent, i)
+        i = parent
+    }
+}
+
+func pop(_ heap: inout [Int]) -> Int {
+    let top = heap[0]
+    let last = heap.removeLast()
+    if !heap.isEmpty {
+        heap[0] = last                 // the last value moves to the root...
+        var i = 0
+        while true {                   // ...and sifts down: swap with the smaller child while bigger than it
+            let left = 2 * i + 1, right = 2 * i + 2
+            var smallest = i
+            if left < heap.count && heap[left] < heap[smallest] { smallest = left }
+            if right < heap.count && heap[right] < heap[smallest] { smallest = right }
+            if smallest == i { break }
+            heap.swapAt(i, smallest)
+            i = smallest
+        }
+    }
+    return top
+}
+
+var heap: [Int] = []
+for x in [5, 3, 8, 1, 9, 2, 7] { push(&heap, x) }
+var sorted: [Int] = []
+while !heap.isEmpty { sorted.append(pop(&heap)) }
+print(sorted)`,
+
 "Reverse a linked list": `class Node {
     let value: Int
     var next: Node?
@@ -2233,6 +2708,50 @@ Console.WriteLine(Fib(6));`,
 }
 
 Console.WriteLine(Lcs("ABCB", "BDCAB"));`,
+
+"Binary heap": `// A min-heap kept in a list: every parent is at most its children, so the smallest value is at the root, heap[0].
+// The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) / 2.
+void Push(List<int> heap, int x)
+{
+    heap.Add(x);
+    int i = heap.Count - 1;
+    while (i > 0)                      // sift up: swap with the parent while smaller than it
+    {
+        int parent = (i - 1) / 2;
+        if (heap[parent] <= heap[i]) break;
+        (heap[parent], heap[i]) = (heap[i], heap[parent]);
+        i = parent;
+    }
+}
+
+int Pop(List<int> heap)
+{
+    int top = heap[0];
+    int last = heap[heap.Count - 1];
+    heap.RemoveAt(heap.Count - 1);
+    if (heap.Count > 0)
+    {
+        heap[0] = last;                // the last value moves to the root...
+        int i = 0;
+        while (true)                   // ...and sifts down: swap with the smaller child while bigger than it
+        {
+            int left = 2 * i + 1, right = 2 * i + 2;
+            int smallest = i;
+            if (left < heap.Count && heap[left] < heap[smallest]) smallest = left;
+            if (right < heap.Count && heap[right] < heap[smallest]) smallest = right;
+            if (smallest == i) break;
+            (heap[i], heap[smallest]) = (heap[smallest], heap[i]);
+            i = smallest;
+        }
+    }
+    return top;
+}
+
+var heap = new List<int>();
+foreach (var x in new[] { 5, 3, 8, 1, 9, 2, 7 }) Push(heap, x);
+var sorted = new List<int>();
+while (heap.Count > 0) sorted.Add(Pop(heap));
+Console.WriteLine(string.Join(" ", sorted));`,
 
 "Reverse a linked list": `var list = new Node(1, new Node(2, new Node(3, null)));
 
@@ -2423,6 +2942,51 @@ fun main() {
 
 fun main() {
     println(lcs("ABCB", "BDCAB"))
+}`,
+
+"Binary heap": `// A min-heap kept in a list: every parent is at most its children, so the smallest value is at the root, heap[0].
+// The children of index i are at 2i + 1 and 2i + 2, and its parent at (i - 1) / 2.
+fun push(heap: MutableList<Int>, x: Int) {
+    heap.add(x)
+    var i = heap.size - 1
+    while (i > 0) {                    // sift up: swap with the parent while smaller than it
+        val parent = (i - 1) / 2
+        if (heap[parent] <= heap[i]) break
+        val tmp = heap[parent]
+        heap[parent] = heap[i]
+        heap[i] = tmp
+        i = parent
+    }
+}
+
+fun pop(heap: MutableList<Int>): Int {
+    val top = heap[0]
+    val last = heap.removeAt(heap.size - 1)
+    if (heap.isNotEmpty()) {
+        heap[0] = last                 // the last value moves to the root...
+        var i = 0
+        while (true) {                 // ...and sifts down: swap with the smaller child while bigger than it
+            val left = 2 * i + 1
+            val right = 2 * i + 2
+            var smallest = i
+            if (left < heap.size && heap[left] < heap[smallest]) smallest = left
+            if (right < heap.size && heap[right] < heap[smallest]) smallest = right
+            if (smallest == i) break
+            val tmp = heap[i]
+            heap[i] = heap[smallest]
+            heap[smallest] = tmp
+            i = smallest
+        }
+    }
+    return top
+}
+
+fun main() {
+    val heap = mutableListOf<Int>()
+    for (x in listOf(5, 3, 8, 1, 9, 2, 7)) push(heap, x)
+    val sorted = mutableListOf<Int>()
+    while (heap.isNotEmpty()) sorted.add(pop(heap))
+    println(sorted.joinToString(" "))
 }`,
 
 "Reverse a linked list": `class Node(val value: Int, var next: Node?)

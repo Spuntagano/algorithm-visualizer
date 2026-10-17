@@ -39,7 +39,7 @@ export function About({ analytics = null }) {
         <h4>What you see</h4>
         <ul className="help-notes">
           <li><b>Call stack</b> or <b>call tree</b>: the calls running now, or every call so far with what it returned</li>
-          <li><b>Variables</b>, each shown as <b>Memory</b>, <b>Boxes</b>, <b>Grid</b> (a table) or <b>Graph</b> (nodes and edges); what changed in the last step is highlighted</li>
+          <li><b>Variables</b>, each shown as <b>Memory</b>, <b>Boxes</b>, <b>Grid</b> (a table), <b>Heap</b> (a binary tree) or <b>Graph</b> (nodes and edges); what changed in the last step is highlighted</li>
           <li><b>Output</b>: what the program printed so far</li>
         </ul>
         <h4>Keys</h4>
@@ -51,6 +51,10 @@ export function About({ analytics = null }) {
           <div><dt><K>F8</K> <K>Shift</K>+<K>F8</K></dt><dd>Next / previous breakpoint</dd></div>
           <div><dt><K>{MOD}</K>+<K>Z</K> <K>{MOD}</K>+<K>Shift</K>+<K>Z</K></dt><dd>Undo / redo in the editor</dd></div>
         </dl>
+        <p>
+          <b>Share</b>, next to the pickers, makes a link that opens your code as it is, and the code to embed it in
+          another page. The code travels inside the link, so it is never uploaded either.
+        </p>
         <p className="help-foot">The ? next to Variables explains when data becomes a graph; the i next to Language says what each language includes.</p>
       </div>
     </>

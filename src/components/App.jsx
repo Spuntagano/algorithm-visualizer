@@ -4,11 +4,12 @@ import { CPP_EXAMPLES, CS_EXAMPLES, C_EXAMPLES, EXAMPLES, GO_EXAMPLES, JAVA_EXAM
 import { LANG_NAMES } from '../editor.js';
 import { useStepper } from '../hooks/useStepper.js';
 import { CodePanel } from './CodePanel.jsx';
-import { Header } from './Header.jsx';
+import { EmbedBar, Header } from './Header.jsx';
 import { SPLIT_DEFAULT, Splitter } from './Splitter.jsx';
 import { StatePanel } from './StatePanel.jsx';
 import { Transport } from './Transport.jsx';
 import { ConsentBanner, analyticsAvailable, useAnalyticsChoice } from './Consent.jsx';
+import { decodeShare, isEmbedHash, pageUrl } from '../share.js';
 
 const EXAMPLES_BY_LANG = { javascript: EXAMPLES, typescript: TS_EXAMPLES, lua: LUA_EXAMPLES, python: PY_EXAMPLES, ruby: RB_EXAMPLES, php: PHP_EXAMPLES, java: JAVA_EXAMPLES, kotlin: KT_EXAMPLES, swift: SWIFT_EXAMPLES, csharp: CS_EXAMPLES, go: GO_EXAMPLES, c: C_EXAMPLES, cpp: CPP_EXAMPLES };
 /** The runtimes downloaded on first use, and roughly how much. */
@@ -36,6 +37,9 @@ function readSplit() {
   try { const v = parseFloat(stored(SPLIT_KEY)); return Number.isFinite(v) ? v : SPLIT_DEFAULT; } catch { return SPLIT_DEFAULT; }
 }
 
+/** The page's #… (where a share link keeps its code), or '' where there is no page (rendering on the server). */
+const hashNow = () => (typeof location === 'undefined' ? '' : location.hash);
+
 /** How long typing has to pause before the edited code is run again. */
 export const RERUN_DELAY = 350;
 
@@ -54,6 +58,29 @@ export function App() {
   const [breakpoints, setBreakpoints] = useState([]);  // marked line numbers, kept by the editor as the code changes
   const s = useStepper('', breakpoints, lang);
   const stale = code !== s.tracedCode || lang !== s.tracedLang;   // edited (or switched language) since the last run
+  const [embed] = useState(() => isEmbedHash(hashNow()));   // in another page's <iframe>: a slim bar, nothing asked or counted
+  const shared = useRef(null);                     // the code and language a share link opened, while they are unchanged
+
+  /** Open the code a share link carries (on load, and when another link is pasted into this tab). */
+  const openShared = async () => {
+    const got = await decodeShare(hashNow());
+    if (!got || !EXAMPLES_BY_LANG[got.lang]) return;
+    const name = Object.keys(EXAMPLES_BY_LANG[got.lang]).find(n => EXAMPLES_BY_LANG[got.lang][n] === got.code);
+    shared.current = { code: got.code, lang: got.lang };
+    setLangState(got.lang); setExample(name || ''); setCode(got.code); setViews({});
+    s.run(got.code, got.lang, { at: got.step ? got.step - 1 : 0 });
+  };
+  useEffect(() => {
+    openShared();
+    window.addEventListener('hashchange', openShared);
+    return () => window.removeEventListener('hashchange', openShared);
+  }, []);
+  useEffect(() => {                                // edited away from a shared link: drop it, so reloading keeps the edit
+    const was = shared.current;
+    if (!was || embed || (code === was.code && lang === was.lang)) return;
+    shared.current = null;
+    try { history.replaceState(null, '', location.pathname + location.search); } catch { /* no history: the link stays */ }
+  }, [code, lang]);
 
   // Ctrl/Cmd+Enter: play the run (or pause it); code changed since it was traced is run first, without waiting for the pause
   const runNow = () => { if (stale || !s.trace) s.run(code, lang, { play: true }); else s.togglePlay(); };
@@ -65,7 +92,7 @@ export function App() {
   const setLang = next => {
     if (next === lang) return;
     setLangState(next);
-    try { localStorage.setItem(LANG_KEY, next); } catch { /* storage blocked: not kept */ }
+    if (!embed) try { localStorage.setItem(LANG_KEY, next); } catch { /* storage blocked: not kept */ }
     if (!example || code !== examples[example]) return;   // own or edited code: the re-run effect picks the new language up
     const twin = EXAMPLES_BY_LANG[next][example];
     setExample(twin != null ? example : ''); setViews({});
@@ -111,8 +138,11 @@ export function App() {
 
   return (
     <>
-      <Header examples={Object.keys(examples)} example={example} onExample={pickExample} lang={lang} langs={LANG_NAMES} onLang={setLang} />
-      <main className="grid" ref={grid} style={{ '--split': String(split) }}>   {/* left: the editor; right: the debugger; the timeline runs along the bottom */}
+      {embed
+        ? <EmbedBar lang={lang} langs={LANG_NAMES} fullUrl={pageUrl() + hashNow().replace(/^#embed&?/, '#')} />
+        : <Header examples={Object.keys(examples)} example={example} onExample={pickExample} lang={lang} langs={LANG_NAMES} onLang={setLang} code={code}
+            step={showing && s.step ? { no: s.idx + 1, count: s.count, line: s.step.line } : null} />}
+      <main className={'grid' + (embed ? ' embedded' : '')} ref={grid} style={{ '--split': String(split) }}>   {/* left: the editor; right: the debugger; the timeline runs along the bottom */}
         <CodePanel code={code} lang={lang} onCode={setCode} onRun={runNow} onBreakpoints={setBreakpoints}
           line={showing && s.step ? s.step.line : 0} prevLine={showing && s.prev ? s.prev.line : 0} banner={banner} />
         <Splitter value={split} onChange={setSplit} gridRef={grid} />
@@ -122,8 +152,8 @@ export function App() {
         </div>
       </main>
       <div className="bottom">                       {/* the consent question (once) over the timeline; together they stay in view */}
-        {canCount && analytics === null && <ConsentBanner onChoice={setAnalytics} />}
-        <Transport s={s} disabled={stale} showPtrs={showPtrs} onPtrs={setShowPtrs} analytics={canCount ? { choice: analytics, set: setAnalytics } : null} />
+        {canCount && !embed && analytics === null && <ConsentBanner onChoice={setAnalytics} />}
+        <Transport s={s} disabled={stale} showPtrs={showPtrs} onPtrs={setShowPtrs} analytics={canCount && !embed ? { choice: analytics, set: setAnalytics } : null} />
       </div>
     </>
   );

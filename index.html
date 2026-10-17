@@ -9,8 +9,9 @@
   function gtag(){dataLayer.push(arguments);}
   window.analytics = {
     id: 'G-G14L8V66QF',
-    // the published site: its domain, and the GitHub Pages address (which redirects there once the domain is set up)
-    enabled: ['algorithmvisualizer.io', 'spuntagano.github.io'].includes(location.hostname),
+    // the published site: its domain, and the GitHub Pages address (which redirects there once the domain is set up);
+    // never inside another page's <iframe> (#embed): that page's visitors were not asked
+    enabled: ['algorithmvisualizer.io', 'spuntagano.github.io'].includes(location.hostname) && !new URLSearchParams(location.hash.slice(1)).has('embed'),
     loaded: false,
     load() {
       if (!this.enabled) return;
